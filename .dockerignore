@@ -1,0 +1,12 @@
+node_modules
+npm-debug.log
+dist
+.git
+.gitignore
+.env
+.env.dev
+.env.prod
+README.md
+REQUIREMENTS.md
+.vscode
+.idea

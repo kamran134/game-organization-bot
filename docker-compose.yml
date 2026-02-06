@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  bot:
+    image: ghcr.io/${GITHUB_REPOSITORY:-your-username/game-organization-bot}:latest
+    container_name: game-bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    depends_on:
+      - db
+    networks:
+      - game-bot-network
+
+  db:
+    image: postgres:16-alpine
+    container_name: game-bot-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "${DB_PORT}:5432"
+    networks:
+      - game-bot-network
+
+volumes:
+  postgres-data:
+
+networks:
+  game-bot-network:
+    driver: bridge
