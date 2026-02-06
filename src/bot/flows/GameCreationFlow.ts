@@ -40,14 +40,14 @@ export class GameCreationFlow {
   ): Promise<void> {
     const parts = text.split(' / ').map((p) => p.trim());
 
-    if (parts.length < 3) {
+    if (parts.length < 2) {
       await ctx.reply(
         '❌ Неверный формат быстрого ввода.\n\n' +
-          '📝 Формат: дата время / локация / мин-макс / стоимость / заметки\n\n' +
+          '📝 Формат: дата время / мин-макс / стоимость / заметки / локация\n\n' +
           'Пример:\n' +
-          '10.02 18:00 / Спортзал Олимп / 5-10 / 500 / Приходите заранее\n' +
-          'Или: 10.02 18:00 / Зал / 12 (мин будет 6)\n\n' +
-          'Минимум 3 части: дата, локация, количество участников'
+          '10.02 18:00 / 5-10 / 500 / Приходите заранее / Спортзал Олимп\n' +
+          'Или: 10.02 18:00 / 12 / 0 / - / Зал\n\n' +
+          'Минимум 2 части: дата и участники (остальное опционально)'
       );
       return;
     }
@@ -59,51 +59,82 @@ export class GameCreationFlow {
       return;
     }
 
-    // Парсим локацию
-    const locationText = parts[1];
-    const locationResult = GameCreationValidator.validateLocation(locationText);
-    if (!locationResult.success) {
-      await ctx.reply('❌ Слишком короткое название места (вторая часть).');
-      return;
-    }
-
-    // Создаём или находим локацию в БД для этой группы
-    const location = await this.services.locationService.findOrCreate(locationText, state.data.sportId!, state.groupId);
-
-    // Парсим количество участников
-    const participantsResult = GameCreationValidator.parseParticipantsRange(parts[2]);
+    // Парсим количество участников (теперь вторая часть)
+    const participantsResult = GameCreationValidator.parseParticipantsRange(parts[1]);
     if (!participantsResult.success) {
       await ctx.reply(participantsResult.error!);
       return;
     }
 
-    // Стоимость (опционально)
+    // Стоимость (третья часть, опционально)
     let cost: number | undefined;
-    if (parts.length > 3 && parts[3].length > 0) {
-      const costResult = GameCreationValidator.validateCost(parts[3]);
+    if (parts.length > 2 && parts[2].length > 0 && parts[2] !== '-') {
+      const costResult = GameCreationValidator.validateCost(parts[2]);
       if (!costResult.success) {
         await ctx.reply(
-          '❌ Неверный формат стоимости (четвертая часть). Укажите число или оставьте пустым.'
+          '❌ Неверный формат стоимости (третья часть). Укажите число или "-".'
         );
         return;
       }
       cost = costResult.value;
     }
 
-    // Заметки (опционально)
-    const notes = parts.length > 4 && parts[4].length > 0 ? parts[4] : undefined;
+    // Заметки (четвертая часть, опционально)
+    const notes = parts.length > 3 && parts[3].length > 0 && parts[3] !== '-' ? parts[3] : undefined;
 
-    // Сохраняем все данные
+    // Сохраняем основные данные
     state.data.gameDate = dateResult.date;
-    state.data.locationId = location.id;
-    state.data.locationName = location.name;
     state.data.maxParticipants = participantsResult.max;
     state.data.minParticipants = participantsResult.min;
     state.data.cost = cost;
     state.data.notes = notes;
 
-    // Показываем превью и подтверждение
-    await this.showGameConfirmation(ctx, state);
+    // Локация (пятая часть, опционально)
+    if (parts.length > 4 && parts[4].length > 0 && parts[4] !== '-') {
+      const locationText = parts[4];
+      const locationResult = GameCreationValidator.validateLocation(locationText);
+      if (!locationResult.success) {
+        await ctx.reply('❌ Слишком короткое название места (пятая часть).');
+        return;
+      }
+
+      // Map URL (шестая часть, опционально)
+      const mapUrl = parts.length > 5 && parts[5].length > 0 && parts[5] !== '-' ? parts[5] : undefined;
+
+      // Создаём или находим локацию в БД для этой группы
+      const location = await this.services.locationService.findOrCreate(
+        locationText, 
+        state.data.sportId!, 
+        state.groupId,
+        mapUrl
+      );
+
+      state.data.locationId = location.id;
+      state.data.locationName = location.name;
+
+      // Показываем подтверждение
+      await this.showGameConfirmation(ctx, state);
+    } else {
+      // Локация не указана - показываем выбор
+      state.step = 'location';
+      this.services.gameCreationStates.set(ctx.from!.id, state);
+
+      const locations = await this.services.locationService.getByGroupAndSport(state.groupId, state.data.sportId!);
+
+      if (locations.length === 0) {
+        await ctx.reply(
+          '⚠️ Локаций для этого вида спорта в группе пока нет.\n' +
+          '📍 Введите место проведения текстом:\n' +
+          '⚠️ Ответьте (reply) на это сообщение!\n\n' +
+          'Например: "Стадион Центральный" или "ул. Ленина, 15"\n\n' +
+          'Администраторы могут добавить постоянную локацию командой /addlocation'
+        );
+        return;
+      }
+
+      const keyboard = KeyboardBuilder.buildLocationSelectionKeyboard(locations);
+      await ctx.reply('📍 Выберите место проведения:', keyboard);
+    }
   }
 
   private async handleGameCreationStep(ctx: Context, state: GameCreationState): Promise<void> {
@@ -144,31 +175,14 @@ export class GameCreationFlow {
     }
 
     state.data.gameDate = result.date;
-    state.step = 'location';
+    state.step = 'max_participants';
     this.services.gameCreationStates.set(ctx.from!.id, state);
-
-    // Получаем локации для выбранного вида спорта и группы
-    const locations = await this.services.locationService.getByGroupAndSport(state.groupId, state.data.sportId!);
-
-    if (locations.length === 0) {
-      await ctx.reply(
-        `✅ Дата: ${formatDate(result.date!)}\n\n` +
-          '⚠️ Локаций для этого вида спорта в группе пока нет.\n' +
-          '📍 Введите место проведения текстом:\n' +
-          '⚠️ Ответьте (reply) на это сообщение!\n\n' +
-          'Например: "Стадион Центральный" или "ул. Ленина, 15"\n\n' +
-          'Администраторы могут добавить постоянную локацию командой /addlocation'
-      );
-      return;
-    }
-
-    // Формируем кнопки с локациями
-    const keyboard = KeyboardBuilder.buildLocationSelectionKeyboard(locations);
 
     await ctx.reply(
       `✅ Дата: ${formatDate(result.date!)}\n\n` +
-        '📍 Выберите место проведения:',
-      keyboard
+        '👥 Введите максимальное количество участников:\n' +
+        '⚠️ Ответьте (reply) на это сообщение!\n\n' +
+        'Например: 10'
     );
   }
 
@@ -189,15 +203,9 @@ export class GameCreationFlow {
     
     state.data.locationId = location.id;
     state.data.locationName = location.name;
-    state.step = 'max_participants';
-    this.services.gameCreationStates.set(ctx.from!.id, state);
 
-    await ctx.reply(
-      `✅ Место: ${text}\n\n` +
-        '👥 Введите максимальное количество участников:\n' +
-        '⚠️ Ответьте (reply) на это сообщение!\n\n' +
-        'Например: 10'
-    );
+    // Показываем подтверждение
+    await this.showGameConfirmation(ctx, state);
   }
 
   private async handleMaxParticipantsInput(
@@ -283,8 +291,30 @@ export class GameCreationFlow {
       state.data.notes = text;
     }
 
-    // Показываем подтверждение
-    await this.showGameConfirmation(ctx, state);
+    state.step = 'location';
+    this.services.gameCreationStates.set(ctx.from!.id, state);
+
+    // Получаем локации для выбранного вида спорта и группы
+    const locations = await this.services.locationService.getByGroupAndSport(state.groupId, state.data.sportId!);
+
+    if (locations.length === 0) {
+      await ctx.reply(
+        '⚠️ Локаций для этого вида спорта в группе пока нет.\n' +
+        '📍 Введите место проведения текстом:\n' +
+        '⚠️ Ответьте (reply) на это сообщение!\n\n' +
+        'Например: "Стадион Центральный" или "ул. Ленина, 15"\n\n' +
+        'Администраторы могут добавить постоянную локацию командой /addlocation'
+      );
+      return;
+    }
+
+    // Формируем кнопки с локациями
+    const keyboard = KeyboardBuilder.buildLocationSelectionKeyboard(locations);
+
+    await ctx.reply(
+      '📍 Выберите место проведения:',
+      keyboard
+    );
   }
 
   private async showGameConfirmation(ctx: Context, state: GameCreationState): Promise<void> {

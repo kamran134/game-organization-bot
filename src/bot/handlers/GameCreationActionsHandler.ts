@@ -35,10 +35,10 @@ export class GameCreationActionsHandler extends ActionHandler {
       await ctx.editMessageText(
         `✅ Выбран: ${state.data.sportName}\n\n` +
         '🚀 БЫСТРЫЙ СПОСОБ (одной строкой через /):\n' +
-        '📝 дата время / локация / мин-макс / стоимость / заметки\n\n' +
+        '📝 дата время / мин-макс / стоимость / заметки / локация\n\n' +
         'Пример:\n' +
-        '10.02 18:00 / Спортзал Олимп / 5-10 / 500 / Приходите за 15 минут\n' +
-        'Или короче: 10.02 18:00 / Зал / 10 (мин=половина макс)\n\n' +
+        '10.02 18:00 / 5-10 / 500 / Приходите за 15 минут / Спортзал Олимп\n' +
+        'Или короче: 10.02 18:00 / 10 / 0 / - / Зал\n\n' +
         '━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n' +
         '📋 ПОШАГОВЫЙ СПОСОБ:\n' +
         '📅 Введите дату и время игры\n' +
@@ -106,14 +106,13 @@ export class GameCreationActionsHandler extends ActionHandler {
 
       state.data.locationId = location.id;
       state.data.locationName = location.name;
-      state.step = 'max_participants';
       this.services.gameCreationStates.set(userId, state);
 
+      // Показываем подтверждение создания игры
+      const confirmationMessage = GameMessageBuilder.formatGameConfirmation(state);
       await ctx.editMessageText(
-        `✅ Место: ${location.name}\n\n` +
-        '👥 Введите максимальное количество участников:\n' +
-        '⚠️ Ответьте (reply) на это сообщение!\n\n' +
-        'Например: 10'
+        confirmationMessage,
+        KeyboardBuilder.createGameConfirmationKeyboard(userId)
       );
       await ctx.answerCbQuery();
     });

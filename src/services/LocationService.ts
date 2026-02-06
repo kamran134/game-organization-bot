@@ -124,15 +124,20 @@ export class LocationService {
     return location !== null;
   }
 
-  async findOrCreate(name: string, sportId: number, groupId: number): Promise<Location> {
+  async findOrCreate(name: string, sportId: number, groupId: number, mapUrl?: string): Promise<Location> {
     const existing = await this.locationRepository.findOne({
       where: { name, sport_id: sportId, group_id: groupId },
     });
 
     if (existing) {
+      // Обновляем map_url если он передан и отличается
+      if (mapUrl && existing.map_url !== mapUrl) {
+        existing.map_url = mapUrl;
+        return await this.locationRepository.save(existing);
+      }
       return existing;
     }
 
-    return await this.create({ name, sport_id: sportId, group_id: groupId });
+    return await this.create({ name, sport_id: sportId, group_id: groupId, map_url: mapUrl });
   }
 }
