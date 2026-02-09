@@ -6,6 +6,7 @@ import { Game } from '../models/Game';
 import { GameParticipant } from '../models/GameParticipant';
 import { Sport } from '../models/Sport';
 import { Location } from '../models/Location';
+import { SportLocation } from '../models/SportLocation';
 
 export class Database {
   private static instance: Database;
@@ -32,7 +33,7 @@ export class Database {
       username: dbUser,
       password: dbPassword,
       database: dbName,
-      entities: [User, Group, GroupMember, Game, GameParticipant, Sport, Location],
+      entities: [User, Group, GroupMember, Game, GameParticipant, Sport, Location, SportLocation],
       synchronize: process.env.NODE_ENV === 'development', // Auto-sync schema in dev
       logging: process.env.NODE_ENV === 'development',
     });

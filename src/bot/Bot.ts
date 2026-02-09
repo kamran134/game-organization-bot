@@ -113,6 +113,7 @@ export class Bot {
     const locationCommandServices = {
       userService: this.userService,
       groupService: this.groupService,
+      sportService: this.sportService,
       locationCreationStates: this.locationCreationStates,
       gameCreationStates: this.gameCreationStates,
     };

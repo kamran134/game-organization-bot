@@ -42,6 +42,26 @@ export class KeyboardBuilder {
   }
 
   /**
+   * Клавиатура выбора локации для управления (при создании новой локации)
+   */
+  static buildLocationManagementKeyboard(locations: Location[]) {
+    const buttons = locations.map(location => [
+      Markup.button.callback(location.name, `select_existing_location_${location.id}`)
+    ]);
+    
+    // Добавляем кнопку "Создать новую"
+    buttons.push([
+      Markup.button.callback('➕ Создать новую локацию', 'create_new_location')
+    ]);
+    
+    buttons.push([
+      Markup.button.callback('❌ Отменить', 'cancel_location')
+    ]);
+    
+    return Markup.inlineKeyboard(buttons);
+  }
+
+  /**
    * Клавиатура действий для игры (записаться/отказаться)
    * @param gameId - ID игры
    * @param confirmedCount - количество подтверждённых участников (для отображения в кнопке)

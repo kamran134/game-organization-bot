@@ -1,6 +1,6 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany } from 'typeorm';
 import { Game } from './Game';
-import { Location } from './Location';
+import { SportLocation } from './SportLocation';
 
 @Entity('sports')
 export class Sport {
@@ -16,8 +16,8 @@ export class Sport {
   @OneToMany(() => Game, (game) => game.sport)
   games!: Game[];
 
-  @OneToMany(() => Location, (location) => location.sport)
-  locations!: Location[];
+  @OneToMany(() => SportLocation, (sportLocation) => sportLocation.sport)
+  sportLocations!: SportLocation[];
 
   @CreateDateColumn()
   created_at!: Date;

@@ -33,6 +33,35 @@ export class LocationCreationHandler {
       await this.services.locationManagementFlow.handleSportSelection(ctx, state, sportId);
     });
 
+    // Обработка выбора существующей локации
+    this.bot.action(/^select_existing_location_(\d+)$/, async (ctx) => {
+      const locationId = parseInt(ctx.match[1], 10);
+      const userId = ctx.from!.id;
+      const state = this.services.locationCreationStates.get(userId);
+
+      if (!state || state.step !== 'location_selection') {
+        await ctx.answerCbQuery('❌ Сессия создания локации не найдена или истекла');
+        return;
+      }
+
+      await ctx.answerCbQuery();
+      await this.services.locationManagementFlow.handleExistingLocationSelection(ctx, state, locationId);
+    });
+
+    // Обработка кнопки "Создать новую локацию"
+    this.bot.action('create_new_location', async (ctx) => {
+      const userId = ctx.from!.id;
+      const state = this.services.locationCreationStates.get(userId);
+
+      if (!state || state.step !== 'location_selection') {
+        await ctx.answerCbQuery('❌ Сессия создания локации не найдена или истекла');
+        return;
+      }
+
+      await ctx.answerCbQuery();
+      await this.services.locationManagementFlow.handleNewLocationRequest(ctx, state);
+    });
+
     // Обработка подтверждения создания локации
     this.bot.action('confirm_location', async (ctx) => {
       const userId = ctx.from!.id;

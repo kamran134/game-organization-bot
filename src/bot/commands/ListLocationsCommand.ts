@@ -58,11 +58,17 @@ export class ListLocationsCommand {
     // Группируем локации по видам спорта
     const locationsBySport = new Map<string, typeof locations>();
     locations.forEach(location => {
-      const sportKey = `${location.sport.emoji} ${location.sport.name}`;
-      if (!locationsBySport.has(sportKey)) {
-        locationsBySport.set(sportKey, []);
-      }
-      locationsBySport.get(sportKey)!.push(location);
+      // Получаем все виды спорта для этой локации
+      location.sportLocations?.forEach(sl => {
+        const sportKey = `${sl.sport.emoji} ${sl.sport.name}`;
+        if (!locationsBySport.has(sportKey)) {
+          locationsBySport.set(sportKey, []);
+        }
+        // Добавляем только если ещё не добавлена
+        if (!locationsBySport.get(sportKey)!.some(l => l.id === location.id)) {
+          locationsBySport.get(sportKey)!.push(location);
+        }
+      });
     });
 
     // Формируем сообщение

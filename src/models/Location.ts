@@ -1,7 +1,7 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
-import { Sport } from './Sport';
 import { Game } from './Game';
 import { Group } from './Group';
+import { SportLocation } from './SportLocation';
 
 @Entity('locations')
 export class Location {
@@ -12,13 +12,6 @@ export class Location {
   name!: string;
 
   @Column()
-  sport_id!: number;
-
-  @ManyToOne(() => Sport, (sport) => sport.locations)
-  @JoinColumn({ name: 'sport_id' })
-  sport!: Sport;
-
-  @Column()
   group_id!: number;
 
   @ManyToOne(() => Group, (group) => group.games)
@@ -27,6 +20,9 @@ export class Location {
 
   @Column({ type: 'varchar', length: 500, nullable: true })
   map_url?: string;
+
+  @OneToMany(() => SportLocation, (sportLocation) => sportLocation.location)
+  sportLocations!: SportLocation[];
 
   @OneToMany(() => Game, (game) => game.location)
   games!: Game[];

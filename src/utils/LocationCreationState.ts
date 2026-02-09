@@ -1,4 +1,4 @@
-export type LocationCreationStep = 'name' | 'sport' | 'map_url' | 'confirmation';
+export type LocationCreationStep = 'name' | 'sport' | 'location_selection' | 'map_url' | 'confirmation';
 
 export interface LocationCreationData {
   name?: string;

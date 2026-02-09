@@ -57,16 +57,18 @@ export class LocationManagementFlow {
 
     state.data.sportId = sportId;
     state.data.sportName = sport.name;
-    state.step = 'map_url';
+    state.step = 'location_selection';
+
+    // Получаем все локации группы
+    const locations = await this.services.locationService.getByGroup(state.groupId);
+    
+    // Создаём клавиатуру с локациями + кнопка создания новой
+    const keyboard = KeyboardBuilder.buildLocationManagementKeyboard(locations);
 
     await ctx.editMessageText(
-      `✅ Название: ${state.data.name}\n` +
       `✅ Вид спорта: ${sport.emoji} ${sport.name}\n\n` +
-      '📍 Теперь отправьте ссылку на карту (Google Maps, Яндекс.Карты и т.д.)\n' +
-      'Или отправьте "-" если ссылки нет.',
-      Markup.inlineKeyboard([
-        [Markup.button.callback('❌ Отменить', 'cancel_location')]
-      ])
+      '📍 Выберите существующую локацию или создайте новую:',
+      keyboard
     );
   }
 
@@ -107,11 +109,62 @@ export class LocationManagementFlow {
     );
   }
 
+  async handleExistingLocationSelection(ctx: Context, state: LocationCreationState, locationId: number): Promise<void> {
+    const location = await this.services.locationService.getById(locationId);
+    if (!location) {
+      await ctx.answerCbQuery('❌ Локация не найдена.');
+      return;
+    }
+
+    // Проверяем, есть ли уже связь с этим видом спорта
+    const hasSport = location.sportLocations?.some(sl => sl.sport_id === state.data.sportId);
+    
+    if (hasSport) {
+      // Уже добавлена
+      await ctx.editMessageText(
+        `ℹ️ Эта площадка уже добавлена для ${state.data.sportName}\n\n` +
+        `📍 ${location.name}\n` +
+        `🏃 ${state.data.sportName}`
+      );
+      this.services.locationCreationStates.delete(ctx.from!.id);
+      return;
+    }
+
+    // Добавляем спорт к локации
+    try {
+      await this.services.locationService.addSportToLocation(locationId, state.data.sportId!);
+      
+      await ctx.editMessageText(
+        `✅ Локация успешно добавлена для ${state.data.sportName}!\n\n` +
+        `📍 ${location.name}\n` +
+        `🏃 ${state.data.sportName}\n` +
+        (location.map_url ? `🗺 ${location.map_url}` : '')
+      );
+
+      this.services.locationCreationStates.delete(ctx.from!.id);
+    } catch (error) {
+      console.error('Error adding sport to location:', error);
+      await ctx.reply('❌ Произошла ошибка при добавлении локации. Попробуйте позже.');
+      this.services.locationCreationStates.delete(ctx.from!.id);
+    }
+  }
+
+  async handleNewLocationRequest(ctx: Context, state: LocationCreationState): Promise<void> {
+    state.step = 'name';
+    await ctx.editMessageText(
+      `✅ Вид спорта: ${state.data.sportName}\n\n` +
+      '📍 Отправьте название новой локации:',
+      Markup.inlineKeyboard([
+        [Markup.button.callback('❌ Отменить', 'cancel_location')]
+      ])
+    );
+  }
+
   async handleConfirmation(ctx: Context, state: LocationCreationState): Promise<void> {
     try {
       const location = await this.services.locationService.create({
         name: state.data.name!,
-        sport_id: state.data.sportId!,
+        sport_ids: [state.data.sportId!],
         group_id: state.groupId,
         map_url: state.data.mapUrl,
       });

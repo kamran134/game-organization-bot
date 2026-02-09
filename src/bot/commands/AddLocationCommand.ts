@@ -3,10 +3,13 @@ import { UserService } from '../../services/UserService';
 import { GroupService } from '../../services/GroupService';
 import { LocationCreationStateManager } from '../../utils/LocationCreationState';
 import { GameCreationStateManager } from '../../utils/GameCreationState';
+import { SportService } from '../../services/SportService';
+import { KeyboardBuilder } from '../ui/KeyboardBuilder';
 
 interface AddLocationCommandServices {
   userService: UserService;
   groupService: GroupService;
+  sportService: SportService;
   locationCreationStates: LocationCreationStateManager;
   gameCreationStates: GameCreationStateManager;
 }
@@ -70,15 +73,17 @@ export class AddLocationCommand {
     
     // Начинаем процесс создания локации
     this.services.locationCreationStates.set(userId, {
-      step: 'name',
+      step: 'sport',
       groupId: group.id,
       userId: user.id,
       data: {},
     });
 
+    const sports = await this.services.sportService.getAllSports();
     await ctx.reply(
       '📍 Создание новой локации\n\n' +
-      'Отправьте название локации:'
+      '🏃 Сначала выберите вид спорта:',
+      KeyboardBuilder.createLocationSportSelectionKeyboard(sports)
     );
   }
 }

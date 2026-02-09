@@ -4,6 +4,7 @@ import { Bot } from './bot/Bot';
 import { Database } from './database/Database';
 import { SportService } from './services/SportService';
 import { runMigration } from './database/migrations/001_sport_refactor';
+import { migrateLocationsToManyToMany } from './database/migrations/migrateLocations';
 import * as path from 'path';
 
 // Load environment variables
@@ -25,7 +26,11 @@ async function main() {
     await runMigration();
     console.log('✅ Migration completed');
 
-    // Now synchronize schema with new Sport model
+    // Run locations migration (many-to-many)
+    await migrateLocationsToManyToMany();
+    console.log('✅ Locations migration completed');
+
+    // Now synchronize schema with new models
     await database.synchronize();
     console.log('✅ Schema synchronized');
 
