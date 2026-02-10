@@ -5,6 +5,8 @@ import { GameService } from '../../../services/GameService';
 import { SportService } from '../../../services/SportService';
 import { LocationService } from '../../../services/LocationService';
 import { GameCreationStateManager } from '../../../utils/GameCreationState';
+import { LocationEditStateManager } from '../../../utils/LocationEditState';
+import { LocationEditFlow } from '../../flows/LocationEditFlow';
 
 export interface ActionServices {
   userService: UserService;
@@ -13,6 +15,8 @@ export interface ActionServices {
   sportService: SportService;
   locationService: LocationService;
   gameCreationStates: GameCreationStateManager;
+  locationEditStates?: LocationEditStateManager;
+  locationEditFlow?: LocationEditFlow;
 }
 
 export abstract class ActionHandler {

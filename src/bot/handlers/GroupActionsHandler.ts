@@ -279,6 +279,91 @@ export class GroupActionsHandler extends ActionHandler {
       await ctx.answerCbQuery();
     });
 
+    // View location details
+    bot.action(/^view_location_(\d+)$/, async (ctx) => {
+      const locationId = parseInt(ctx.match[1]);
+      const location = await this.services.locationService.getById(locationId);
+      
+      if (!location) {
+        await ctx.answerCbQuery('❌ Локация не найдена');
+        return;
+      }
+
+      // Проверяем права
+      const user = await this.services.userService.getUserByTelegramId(ctx.from!.id);
+      if (!user) {
+        await ctx.answerCbQuery('❌ Ошибка');
+        return;
+      }
+
+      const isAdmin = await this.services.groupService.isUserAdmin(user.id, location.group_id);
+      if (!isAdmin) {
+        await ctx.answerCbQuery('❌ Только администраторы могут просматривать детали локаций');
+        return;
+      }
+
+      // Формируем список видов спорта
+      const sports = location.sportLocations?.map(sl => `${sl.sport.emoji} ${sl.sport.name}`).join(', ') || 'Не указаны';
+
+      await ctx.editMessageText(
+        `📍 Локация: ${location.name}\n\n` +
+        `🏃 Виды спорта: ${sports}\n` +
+        (location.map_url ? `🗺 Карта: ${location.map_url}\n` : `🗺 Карта: не указана\n`) +
+        `\nВыберите действие:`,
+        Markup.inlineKeyboard([
+          [Markup.button.callback('✏️ Редактировать', `start_edit_location_${locationId}`)],
+          [Markup.button.callback('« Назад к списку', `manage_locations_${location.group_id}`)]
+        ])
+      );
+      await ctx.answerCbQuery();
+    });
+
+    // Start editing location (from view)
+    bot.action(/^start_edit_location_(\d+)$/, async (ctx) => {
+      const locationId = parseInt(ctx.match[1]);
+      const location = await this.services.locationService.getById(locationId);
+      
+      if (!location) {
+        await ctx.answerCbQuery('❌ Локация не найдена');
+        return;
+      }
+
+      // Проверяем права
+      const user = await this.services.userService.getUserByTelegramId(ctx.from!.id);
+      if (!user) {
+        await ctx.answerCbQuery('❌ Ошибка');
+        return;
+      }
+
+      const isAdmin = await this.services.groupService.isUserAdmin(user.id, location.group_id);
+      if (!isAdmin) {
+        await ctx.answerCbQuery('❌ Только администраторы могут редактировать локации');
+        return;
+      }
+
+      // Проверяем наличие сервисов редактирования
+      if (!this.services.locationEditStates || !this.services.locationEditFlow) {
+        await ctx.answerCbQuery('❌ Функция редактирования недоступна');
+        return;
+      }
+
+      // Создаём состояние редактирования
+      const state = {
+        step: 'menu' as const,
+        groupId: location.group_id,
+        data: {
+          locationId: location.id,
+          locationName: location.name
+        }
+      };
+
+      this.services.locationEditStates.set(ctx.from!.id, state);
+      
+      // Показываем меню редактирования
+      await this.services.locationEditFlow.showEditMenu(ctx, state);
+      await ctx.answerCbQuery();
+    });
+
     // Delete location (confirmation request)
     bot.action(/^delete_location_(\d+)$/, async (ctx) => {
       const locationId = parseInt(ctx.match[1]);

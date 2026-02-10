@@ -7,11 +7,13 @@ import { SportService } from '../services/SportService';
 import { LocationService } from '../services/LocationService';
 import { GameCreationStateManager } from '../utils/GameCreationState';
 import { LocationCreationStateManager } from '../utils/LocationCreationState';
+import { LocationEditStateManager } from '../utils/LocationEditState';
 import {
   CommandHandler,
   CommandServices,
   StartCommand,
   HelpCommand,
+  WikiCommand,
   RegisterCommand,
   NewGameCommand,
   GamesCommand,
@@ -20,6 +22,7 @@ import {
 } from './commands';
 import { AddLocationCommand } from './commands/AddLocationCommand';
 import { ListLocationsCommand } from './commands/ListLocationsCommand';
+import { EditLocationCommand } from './commands/EditLocationCommand';
 import {
   ActionHandler,
   ActionServices,
@@ -30,8 +33,10 @@ import {
   GroupEventServices,
 } from './handlers';
 import { LocationCreationHandler } from './handlers/LocationCreationHandler';
+import { LocationEditHandler } from './handlers/LocationEditHandler';
 import { GameCreationFlow, GameCreationServices } from './flows';
 import { LocationManagementFlow } from './flows/LocationManagementFlow';
+import { LocationEditFlow } from './flows/LocationEditFlow';
 
 export class Bot {
   private bot: Telegraf;
@@ -42,11 +47,13 @@ export class Bot {
   private sportService: SportService;
   private locationService: LocationService;
   private gameCreationStates: GameCreationStateManager;
-  private commands: (CommandHandler | AddLocationCommand | ListLocationsCommand)[];
+  private commands: (CommandHandler | AddLocationCommand | ListLocationsCommand | EditLocationCommand)[];
   private handlers: ActionHandler[];
   private gameCreationFlow: GameCreationFlow;
   private locationManagementFlow: LocationManagementFlow;
+  private locationEditFlow: LocationEditFlow;
   private locationCreationStates: LocationCreationStateManager;
+  private locationEditStates: LocationEditStateManager;
   private groupEventHandler: GroupEventHandler;
 
   constructor() {
@@ -65,6 +72,7 @@ export class Bot {
     this.locationService = new LocationService();
     this.gameCreationStates = new GameCreationStateManager();
     this.locationCreationStates = new LocationCreationStateManager();
+    this.locationEditStates = new LocationEditStateManager();
 
     // Инициализируем game creation flow
     const flowServices: GameCreationServices = {
@@ -82,6 +90,14 @@ export class Bot {
       locationCreationStates: this.locationCreationStates,
     };
     this.locationManagementFlow = new LocationManagementFlow(locationFlowServices);
+
+    // Инициализируем location edit flow
+    const locationEditFlowServices = {
+      locationService: this.locationService,
+      sportService: this.sportService,
+      locationEditStates: this.locationEditStates,
+    };
+    this.locationEditFlow = new LocationEditFlow(locationEditFlowServices);
 
     // Инициализируем group event handler
     const groupEventServices: GroupEventServices = {
@@ -101,7 +117,7 @@ export class Bot {
     this.setupTextHandlers();
   }
 
-  private initializeCommands(): (CommandHandler | AddLocationCommand | ListLocationsCommand)[] {
+  private initializeCommands(): (CommandHandler | AddLocationCommand | ListLocationsCommand | EditLocationCommand)[] {
     const services: CommandServices = {
       userService: this.userService,
       groupService: this.groupService,
@@ -124,9 +140,18 @@ export class Bot {
       userService: this.userService,
     };
 
+    const editLocationServices = {
+      locationService: this.locationService,
+      groupService: this.groupService,
+      userService: this.userService,
+      locationEditStates: this.locationEditStates,
+      locationEditFlow: this.locationEditFlow,
+    };
+
     return [
       new StartCommand(services),
       new HelpCommand(services),
+      new WikiCommand(services),
       new RegisterCommand(services),
       new NewGameCommand(services),
       new GamesCommand(services),
@@ -134,6 +159,7 @@ export class Bot {
       new CreateGroupCommand(services),
       new AddLocationCommand(locationCommandServices),
       new ListLocationsCommand(listLocationsServices),
+      new EditLocationCommand(editLocationServices),
     ];
   }
 
@@ -151,6 +177,8 @@ export class Bot {
       sportService: this.sportService,
       locationService: this.locationService,
       gameCreationStates: this.gameCreationStates,
+      locationEditStates: this.locationEditStates,
+      locationEditFlow: this.locationEditFlow,
     };
 
     return [
@@ -171,6 +199,15 @@ export class Bot {
       locationCreationStates: this.locationCreationStates,
     };
     new LocationCreationHandler(this.bot, locationHandlerServices);
+
+    // Регистрируем handler для редактирования локаций
+    const locationEditHandlerServices = {
+      locationService: this.locationService,
+      sportService: this.sportService,
+      locationEditStates: this.locationEditStates,
+      locationEditFlow: this.locationEditFlow,
+    };
+    new LocationEditHandler(this.bot, locationEditHandlerServices);
   }
 
   private setupMiddleware() {
