@@ -121,6 +121,7 @@ export class Bot {
     const listLocationsServices = {
       locationService: this.locationService,
       groupService: this.groupService,
+      userService: this.userService,
     };
 
     return [

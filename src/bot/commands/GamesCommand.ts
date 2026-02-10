@@ -50,9 +50,18 @@ export class GamesCommand extends CommandHandler {
     const message = GameMessageBuilder.formatGameCard(game);
     const confirmedCount = game.participants?.filter((p: any) => p.participation_status === ParticipationStatus.CONFIRMED).length || 0;
     
+    // Проверяем является ли пользователь админом
+    let isAdmin = false;
+    if (ctx.from) {
+      const user = await this.services.userService.getUserByTelegramId(ctx.from.id);
+      if (user) {
+        isAdmin = await this.services.groupService.isUserAdmin(user.id, game.group_id);
+      }
+    }
+    
     await ctx.reply(
       message,
-      KeyboardBuilder.createGameActionsKeyboard(game.id, confirmedCount)
+      KeyboardBuilder.createGameActionsKeyboard(game.id, confirmedCount, isAdmin)
     );
   }
 }

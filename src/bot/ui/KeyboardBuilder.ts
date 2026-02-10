@@ -65,13 +65,20 @@ export class KeyboardBuilder {
    * Клавиатура действий для игры (записаться/отказаться)
    * @param gameId - ID игры
    * @param confirmedCount - количество подтверждённых участников (для отображения в кнопке)
+   * @param isAdmin - является ли пользователь администратором группы
    */
-  static createGameActionsKeyboard(gameId: number, confirmedCount: number = 0) {
-    return Markup.inlineKeyboard([
+  static createGameActionsKeyboard(gameId: number, confirmedCount: number = 0, isAdmin: boolean = false) {
+    const buttons = [
       [Markup.button.callback(`✅ Точно (${confirmedCount})`, `join_confirmed_${gameId}`)],
       [Markup.button.callback('❓ Не точно', `join_maybe_${gameId}`)],
       [Markup.button.callback('👥 Список участников', `show_participants_${gameId}`)],
-    ]);
+    ];
+
+    if (isAdmin) {
+      buttons.push([Markup.button.callback('🗑 Удалить игру', `delete_game_${gameId}`)]);
+    }
+
+    return Markup.inlineKeyboard(buttons);
   }
 
   /**
@@ -119,6 +126,19 @@ export class KeyboardBuilder {
     return Markup.inlineKeyboard([
       [Markup.button.callback('« Назад к играм', 'back_to_games')]
     ]);
+  }
+
+  /**
+   * Клавиатура управления локациями (для админов)
+   */
+  static createLocationManagementKeyboard(locations: Location[], groupId: number) {
+    const buttons = locations.map(location => [
+      Markup.button.callback(`${location.name}`, `view_location_${location.id}`),
+      Markup.button.callback('🗑', `delete_location_${location.id}`)
+    ]);
+    
+    buttons.push([Markup.button.callback('« Назад', `group_${groupId}`)]);
+    return Markup.inlineKeyboard(buttons);
   }
 
   /**

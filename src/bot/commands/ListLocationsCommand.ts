@@ -1,10 +1,13 @@
-import { Context } from 'telegraf';
+import { Context, Markup } from 'telegraf';
 import { LocationService } from '../../services/LocationService';
 import { GroupService } from '../../services/GroupService';
+import { UserService } from '../../services/UserService';
+import { KeyboardBuilder } from '../ui/KeyboardBuilder';
 
 interface ListLocationsCommandServices {
   locationService: LocationService;
   groupService: GroupService;
+  userService: UserService;
 }
 
 export class ListLocationsCommand {
@@ -86,9 +89,23 @@ export class ListLocationsCommand {
       message += '\n';
     }
 
+    // Проверяем является ли пользователь админом
+    let isAdmin = false;
+    if (ctx.from) {
+      const user = await this.services.userService.getUserByTelegramId(ctx.from.id);
+      if (user) {
+        isAdmin = await this.services.groupService.isUserAdmin(user.id, group.id);
+      }
+    }
+
+    const keyboard = isAdmin 
+      ? Markup.inlineKeyboard([[Markup.button.callback('⚙️ Управление локациями', `manage_locations_${group.id}`)]])
+      : undefined;
+
     await ctx.reply(message, {
       parse_mode: 'Markdown',
-      link_preview_options: { is_disabled: true }
+      link_preview_options: { is_disabled: true },
+      ...(keyboard && { reply_markup: keyboard.reply_markup })
     });
   }
 }

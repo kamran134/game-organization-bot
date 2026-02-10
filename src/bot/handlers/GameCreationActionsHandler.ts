@@ -74,10 +74,14 @@ export class GameCreationActionsHandler extends ActionHandler {
 
         this.services.gameCreationStates.delete(userId);
 
+        // Проверяем isAdmin (создатель скорее всего админ)
+        const user = await this.services.userService.getUserByTelegramId(userId);
+        const isAdmin = user ? await this.services.groupService.isUserAdmin(user.id, state.groupId) : false;
+
         const createdMessage = GameMessageBuilder.formatGameCreatedMessage(game);
         await ctx.editMessageText(
           createdMessage + '\n\nУчастники могут записаться прямо здесь:',
-          KeyboardBuilder.createGameActionsKeyboard(game.id, 0)
+          KeyboardBuilder.createGameActionsKeyboard(game.id, 0, isAdmin)
         );
         await ctx.answerCbQuery('✅ Игра создана!');
       } catch (error) {
