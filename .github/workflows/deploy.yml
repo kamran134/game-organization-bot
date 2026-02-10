@@ -129,7 +129,7 @@ jobs:
             docker compose -f docker-compose.prod.yml logs --tail=50 bot
             
             # Проверяем что контейнер запущен
-            if [ $(docker-compose -f docker-compose.prod.yml ps -q bot | wc -l) -eq 0 ]; then
+            if [ $(docker compose -f docker-compose.prod.yml ps -q bot | wc -l) -eq 0 ]; then
               echo "❌ Bot container is not running!"
               exit 1
             fi
