@@ -98,19 +98,19 @@ jobs:
             export DB_DATABASE=${{ secrets.DB_DATABASE }}
             
             # Останавливаем старые контейнеры
-            docker-compose -f docker-compose.prod.yml down
+            docker compose -f docker-compose.prod.yml down
             
             # Подтягиваем новый образ
-            docker-compose -f docker-compose.prod.yml pull
+            docker compose -f docker-compose.prod.yml pull
             
             # Запускаем новые контейнеры
-            docker-compose -f docker-compose.prod.yml up -d
+            docker compose -f docker-compose.prod.yml up -d
             
             # Удаляем неиспользуемые образы
             docker image prune -af
             
             # Проверяем статус
-            docker-compose -f docker-compose.prod.yml ps
+            docker compose -f docker-compose.prod.yml ps
 
       - name: Verify deployment
         uses: appleboy/ssh-action@v1.0.3
@@ -126,7 +126,7 @@ jobs:
             sleep 10
             
             # Проверяем логи
-            docker-compose -f docker-compose.prod.yml logs --tail=50 bot
+            docker compose -f docker-compose.prod.yml logs --tail=50 bot
             
             # Проверяем что контейнер запущен
             if [ $(docker-compose -f docker-compose.prod.yml ps -q bot | wc -l) -eq 0 ]; then
