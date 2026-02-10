@@ -2,34 +2,57 @@ version: '3.8'
 
 services:
   bot:
-    image: ghcr.io/${GITHUB_REPOSITORY:-your-username/game-organization-bot}:latest
-    container_name: game-bot-prod
-    restart: always
-    env_file:
-      - .env.prod
-    depends_on:
-      - db
+    image: ghcr.io/${GITHUB_REPOSITORY}:latest
+    container_name: game-bot
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - BOT_TOKEN=${BOT_TOKEN}
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_USERNAME=${DB_USERNAME}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_DATABASE=${DB_DATABASE}
+      - TZ=Asia/Baku
     networks:
-      - game-bot-network-prod
+      - bot-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    depends_on:
+      db:
+        condition: service_healthy
 
   db:
     image: postgres:16-alpine
-    container_name: game-bot-db-prod
-    restart: always
+    container_name: game-bot-db
+    restart: unless-stopped
     environment:
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_DB: ${DB_NAME}
+      - POSTGRES_DB=${DB_DATABASE}
+      - POSTGRES_USER=${DB_USERNAME}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - TZ=Asia/Baku
     volumes:
-      - postgres-data-prod:/var/lib/postgresql/data
-    ports:
-      - "5433:5432"
+      - postgres-data:/var/lib/postgresql/data
     networks:
-      - game-bot-network-prod
-
-volumes:
-  postgres-data-prod:
+      - bot-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 networks:
-  game-bot-network-prod:
+  bot-network:
     driver: bridge
+
+volumes:
+  postgres-data:
+    driver: local

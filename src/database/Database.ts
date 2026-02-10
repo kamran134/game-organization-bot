@@ -15,14 +15,14 @@ export class Database {
   constructor() {
     const dbHost = process.env.DB_HOST || 'localhost';
     const dbPort = parseInt(process.env.DB_PORT || '5432', 10);
-    const dbUser = process.env.DB_USER;
+    const dbUser = process.env.DB_USERNAME || process.env.DB_USER;
     const dbPassword = process.env.DB_PASSWORD;
-    const dbName = process.env.DB_NAME;
+    const dbName = process.env.DB_DATABASE || process.env.DB_NAME;
 
     if (!dbUser || dbPassword === undefined || !dbName) {
       throw new Error(
         'Database credentials are not properly configured. ' +
-        `Missing: ${!dbUser ? 'DB_USER ' : ''}${dbPassword === undefined ? 'DB_PASSWORD ' : ''}${!dbName ? 'DB_NAME' : ''}`
+        `Missing: ${!dbUser ? 'DB_USERNAME/DB_USER ' : ''}${dbPassword === undefined ? 'DB_PASSWORD ' : ''}${!dbName ? 'DB_DATABASE/DB_NAME' : ''}`
       );
     }
 
