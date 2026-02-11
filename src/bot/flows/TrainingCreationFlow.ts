@@ -52,16 +52,6 @@ export class TrainingCreationFlow {
       return;
     }
 
-    if (parts.length < 6) {
-      await ctx.reply(
-        '❌ Недостаточно параметров для быстрого создания.\n\n' +
-          'Используйте все 6 параметров (используйте "-" для пропуска):\n' +
-          'дата / мин / макс / стоимость / заметки / локация\n\n' +
-          'Пример: 10.02 18:00 / 5 / - / - / - / Зал'
-      );
-      return;
-    }
-
     // Парсим дату (обязательно)
     const dateResult = GameCreationValidator.parseDate(parts[0]);
     if (!dateResult.success) {
