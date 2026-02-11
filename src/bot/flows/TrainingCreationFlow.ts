@@ -24,7 +24,101 @@ export class TrainingCreationFlow {
     const state = this.services.trainingCreationStates.get(userId);
     if (!state) return;
 
+    // Проверяем быстрый формат (через /)
+    if (state.step === 'date' && text.includes(' / ')) {
+      await this.handleQuickTrainingCreation(ctx, state, text);
+      return;
+    }
+
     await this.handleTrainingCreationStep(ctx, state);
+  }
+
+  private async handleQuickTrainingCreation(
+    ctx: Context,
+    state: TrainingCreationState,
+    text: string
+  ): Promise<void> {
+    const parts = text.split(' / ').map((p) => p.trim());
+
+    if (parts.length < 2) {
+      await ctx.reply(
+        '❌ Неверный формат быстрого ввода.\n\n' +
+          '📝 Формат: дата время / мин участников / макс ("-" = безлимит) / стоимость ("-" = бесплатно) / заметки / локация\n\n' +
+          'Пример:\n' +
+          '10.02 18:00 / 5 / - / - / Кроссфит / Зал\n' +
+          'Или: 10.02 18:00 / 3 / 15 / 500 / - / Спортзал\n\n' +
+          'Минимум 2 части: дата и мин. участники'
+      );
+      return;
+    }
+
+    // Парсим дату (обязательно)
+    const dateResult = GameCreationValidator.parseDate(parts[0]);
+    if (!dateResult.success) {
+      await ctx.reply(dateResult.error!);
+      return;
+    }
+    state.data.gameDate = dateResult.date;
+
+    // Макс. участников (опционально, может быть "-")
+    let maxParticipants = 999; // По умолчанию безлимит
+    if (parts.length > 2 && parts[2] && parts[2] !== '-') {
+      const maxVal = parseInt(parts[2]);
+      if (isNaN(maxVal) || maxVal < 1) {
+        await ctx.reply('❌ Макс. участников должно быть числом >= 1');
+        return;
+      }
+      maxParticipants = maxVal;
+    }
+    state.data.maxParticipants = maxParticipants;
+
+    // Парсим мин. участников (обязательно)
+    const minResult = GameCreationValidator.validateMinParticipants(parts[1], maxParticipants);
+    if (!minResult.success) {
+      await ctx.reply('❌ Ошибка в мин. участниках: ' + minResult.error);
+      return;
+    }
+    state.data.minParticipants = minResult.value!;
+
+    // Стоимость (опционально, может быть "-")
+    if (parts.length > 3 && parts[3] && parts[3] !== '-') {
+      const costVal = parseInt(parts[3]);
+      if (isNaN(costVal) || costVal < 0) {
+        await ctx.reply('❌ Стоимость должна быть числом >= 0');
+        return;
+      }
+      state.data.cost = costVal;
+    } else {
+      state.data.cost = 0; // Бесплатно
+    }
+
+    // Заметки (опционально)
+    if (parts.length > 4 && parts[4] && parts[4] !== '-') {
+      state.data.notes = parts[4];
+    }
+
+    // Локация (опционально)
+    if (parts.length > 5 && parts[5]) {
+      state.data.locationName = parts[5];
+    } else {
+      // Если локация не указана - запрашиваем
+      state.step = 'location';
+      const locations = await this.services.locationService.getByGroupAndSport(
+        state.groupId,
+        state.data.sportId!
+      );
+      if (locations.length > 0) {
+        const keyboard = KeyboardBuilder.buildLocationSelectionKeyboard(locations);
+        await ctx.reply('📍 Выберите место проведения:', keyboard);
+      } else {
+        await ctx.reply('📍 Введите место проведения тренировки:');
+      }
+      return;
+    }
+
+    // Показываем подтверждение
+    state.step = 'confirm';
+    await this.showConfirmation(ctx, state);
   }
 
   private async handleTrainingCreationStep(
@@ -241,7 +335,7 @@ export class TrainingCreationFlow {
       // Создать тренировку (type = TRAINING)
       const training = await this.services.gameService.createGame({
         group_id: state.groupId,
-        creator_id: userId,
+        creator_id: state.userId,
         sport_id: state.data.sportId!,
         game_date: state.data.gameDate!,
         location_id: location.id,
