@@ -59,11 +59,18 @@ export class NewTrainingCommand extends CommandHandler {
       return;
     }
 
+    // Получаем пользователя из БД
+    const user = await this.services.userService.getUserByTelegramId(ctx.from.id);
+    if (!user) {
+      await ctx.reply('❌ Пользователь не найден. Используйте /start для регистрации.');
+      return;
+    }
+
     // Инициализируем состояние создания тренировки
     this.trainingStates.set(ctx.from.id, {
       step: 'sport',
       groupId: group.id,
-      userId: ctx.from.id,
+      userId: user.id, // Database user ID, не telegram ID!
       data: {},
     });
 
