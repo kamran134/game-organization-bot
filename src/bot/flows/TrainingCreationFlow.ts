@@ -331,12 +331,21 @@ export class TrainingCreationFlow {
     }
 
     try {
-      // Найти или создать локацию
-      const location = await this.services.locationService.findOrCreate(
-        state.data.locationName!,
-        state.data.sportId!,
-        state.groupId
-      );
+      // Определить location_id
+      let locationId: number;
+      
+      if (state.data.locationId) {
+        // Локация уже выбрана из списка
+        locationId = state.data.locationId;
+      } else {
+        // Создать новую локацию из текста
+        const location = await this.services.locationService.findOrCreate(
+          state.data.locationName!,
+          state.data.sportId!,
+          state.groupId
+        );
+        locationId = location.id;
+      }
 
       // Создать тренировку (type = TRAINING)
       const training = await this.services.gameService.createGame({
@@ -344,7 +353,7 @@ export class TrainingCreationFlow {
         creator_id: state.userId,
         sport_id: state.data.sportId!,
         game_date: state.data.gameDate!,
-        location_id: location.id,
+        location_id: locationId,
         min_participants: state.data.minParticipants!,
         max_participants: state.data.maxParticipants!,
         cost: state.data.cost,
