@@ -84,14 +84,25 @@ export class TrainingCreationHandler {
 
         state.data.locationId = locationId;
         state.data.locationName = location.name;
+        this.services.trainingCreationStates.set(userId, state);
 
         // Если данные уже заполнены (быстрый формат) - сразу показываем подтверждение
         if (state.data.minParticipants !== undefined && state.data.maxParticipants !== undefined) {
           state.step = 'confirm';
-          await this.services.trainingCreationFlow.showConfirmation(ctx, state);
+          this.services.trainingCreationStates.set(userId, state);
+          
+          const message = await this.services.trainingCreationFlow.buildConfirmationMessage(state);
+          await ctx.editMessageText(
+            message,
+            { reply_markup: { inline_keyboard: [[
+              { text: '✅ Создать', callback_data: `confirm_game_${userId}` },
+              { text: '❌ Отмена', callback_data: `cancel_game_${userId}` }
+            ]] }}
+          );
         } else {
           // Иначе продолжаем пошаговый режим
           state.step = 'min_participants';
+          this.services.trainingCreationStates.set(userId, state);
           await ctx.editMessageText(
             `✅ Место: ${location.name}\n\n` +
             `👥 Введите минимальное количество участников:\n\n` +

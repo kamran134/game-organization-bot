@@ -301,11 +301,8 @@ export class TrainingCreationFlow {
     await this.showConfirmation(ctx, state);
   }
 
-  async showConfirmation(
-    ctx: Context,
-    state: TrainingCreationState
-  ): Promise<void> {
-    const message = GameMessageBuilder.buildConfirmationMessage(
+  buildConfirmationMessage(state: TrainingCreationState): string {
+    return GameMessageBuilder.buildConfirmationMessage(
       state.data.sportName!,
       state.data.gameDate!,
       state.data.locationName!,
@@ -313,9 +310,15 @@ export class TrainingCreationFlow {
       state.data.maxParticipants!,
       state.data.cost,
       state.data.notes,
-      '🏋️ ТРЕНИРОВКА' // Префикс для тренировок
+      '🏋️ ТРЕНИРОВКА'
     );
+  }
 
+  async showConfirmation(
+    ctx: Context,
+    state: TrainingCreationState
+  ): Promise<void> {
+    const message = this.buildConfirmationMessage(state);
     await ctx.reply(message, KeyboardBuilder.createGameConfirmationKeyboard(state.userId));
   }
 
