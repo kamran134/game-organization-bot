@@ -37,14 +37,15 @@ export class LocationManagementFlow {
     }
 
     state.data.name = name;
-    state.step = 'sport';
+    state.step = 'map_url';
 
-    // Показываем выбор вида спорта
-    const sports = await this.services.sportService.getAllSports();
+    // Запрашиваем ссылку на карту
     await ctx.reply(
       `✅ Название: ${name}\n\n` +
-      '🏃 Теперь выберите вид спорта для этой локации:',
-      KeyboardBuilder.createLocationSportSelectionKeyboard(sports)
+      '🗺 Теперь отправьте ссылку на карту (Google Maps, Яндекс.Карты) или "-" чтобы пропустить:',
+      Markup.inlineKeyboard([
+        [Markup.button.callback('❌ Отменить', 'cancel_location')]
+      ])
     );
   }
 
