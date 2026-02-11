@@ -362,7 +362,13 @@ export class TrainingCreationFlow {
       );
     } catch (error) {
       console.error('Error creating training:', error);
-      await ctx.reply('❌ Ошибка при создании тренировки. Попробуйте позже.');
+      const errorMessage = `❌ Ошибка создания тренировки:\n\n${error instanceof Error ? error.message : String(error)}\n\nStack:\n${error instanceof Error ? error.stack : 'N/A'}`;
+      await ctx.reply('❌ Ошибка при создании тренировки. Детали отправлены в личку.');
+      try {
+        await ctx.telegram.sendMessage(ctx.from!.id, errorMessage);
+      } catch (dmError) {
+        console.error('Failed to send error DM:', dmError);
+      }
     }
   }
 

@@ -85,7 +85,13 @@ export class GameCreationActionsHandler extends ActionHandler {
         await ctx.answerCbQuery('✅ Игра создана!');
       } catch (error) {
         console.error('Error creating game:', error);
+        const errorMessage = `❌ Ошибка создания игры:\n\n${error instanceof Error ? error.message : String(error)}\n\nStack:\n${error instanceof Error ? error.stack : 'N/A'}`;
         await ctx.answerCbQuery('❌ Ошибка создания игры');
+        try {
+          await ctx.telegram.sendMessage(ctx.from!.id, errorMessage);
+        } catch (dmError) {
+          console.error('Failed to send error DM:', dmError);
+        }
         this.services.gameCreationStates.delete(userId);
       }
     });
