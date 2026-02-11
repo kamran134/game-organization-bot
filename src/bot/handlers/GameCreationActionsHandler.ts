@@ -10,14 +10,14 @@ export class GameCreationActionsHandler extends ActionHandler {
 
   register(bot: Telegraf): void {
     // Sport selection for game creation
-    bot.action(/^sport_(\d+)$/, async (ctx) => {
+    bot.action(/^sport_(\d+)$/, async (ctx, next) => {
       const sportId = parseInt(ctx.match[1]);
       const userId = ctx.from!.id;
       const state = this.services.gameCreationStates.get(userId);
 
+      // Если нет состояния создания игры - пропускаем (может быть тренировка)
       if (!state) {
-        await ctx.answerCbQuery('Сессия истекла. Начните заново: /newgame');
-        return;
+        return next();
       }
 
       // Получаем sport из БД
@@ -50,13 +50,12 @@ export class GameCreationActionsHandler extends ActionHandler {
     });
 
     // Confirm game creation
-    bot.action(/^confirm_game_(\d+)$/, async (ctx) => {
+    bot.action(/^confirm_game_(\d+)$/, async (ctx, next) => {
       const userId = parseInt(ctx.match[1]);
       const state = this.services.gameCreationStates.get(userId);
 
       if (!state) {
-        await ctx.answerCbQuery('Сессия истекла');
-        return;
+        return next();
       }
 
       try {
@@ -92,14 +91,13 @@ export class GameCreationActionsHandler extends ActionHandler {
     });
 
     // Location selection
-    bot.action(/^location_(\d+)$/, async (ctx) => {
+    bot.action(/^location_(\d+)$/, async (ctx, next) => {
       const locationId = parseInt(ctx.match[1]);
       const userId = ctx.from!.id;
       const state = this.services.gameCreationStates.get(userId);
 
       if (!state || state.step !== 'location') {
-        await ctx.answerCbQuery('Сессия истекла. Начните заново: /newgame');
-        return;
+        return next();
       }
 
       const location = await this.services.locationService.getById(locationId);
@@ -122,13 +120,12 @@ export class GameCreationActionsHandler extends ActionHandler {
     });
 
     // Custom location (text input)
-    bot.action('location_custom', async (ctx) => {
+    bot.action('location_custom', async (ctx, next) => {
       const userId = ctx.from!.id;
       const state = this.services.gameCreationStates.get(userId);
 
       if (!state || state.step !== 'location') {
-        await ctx.answerCbQuery('Сессия истекла. Начните заново: /newgame');
-        return;
+        return next();
       }
 
       await ctx.editMessageText(
@@ -140,8 +137,14 @@ export class GameCreationActionsHandler extends ActionHandler {
     });
 
     // Cancel game creation
-    bot.action(/^cancel_game_(\d+)$/, async (ctx) => {
+    bot.action(/^cancel_game_(\d+)$/, async (ctx, next) => {
       const userId = parseInt(ctx.match[1]);
+      const state = this.services.gameCreationStates.get(userId);
+      
+      if (!state) {
+        return next();
+      }
+      
       this.services.gameCreationStates.delete(userId);
 
       await ctx.editMessageText('❌ Создание игры отменено.');
