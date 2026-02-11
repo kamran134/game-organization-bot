@@ -84,13 +84,20 @@ export class TrainingCreationHandler {
 
         state.data.locationId = locationId;
         state.data.locationName = location.name;
-        state.step = 'min_participants';
 
-        await ctx.editMessageText(
-          `✅ Место: ${location.name}\n\n` +
-          `👥 Введите минимальное количество участников:\n\n` +
-          `Например: 5`
-        );
+        // Если данные уже заполнены (быстрый формат) - сразу показываем подтверждение
+        if (state.data.minParticipants !== undefined && state.data.maxParticipants !== undefined) {
+          state.step = 'confirm';
+          await this.services.trainingCreationFlow.showConfirmation(ctx, state);
+        } else {
+          // Иначе продолжаем пошаговый режим
+          state.step = 'min_participants';
+          await ctx.editMessageText(
+            `✅ Место: ${location.name}\n\n` +
+            `👥 Введите минимальное количество участников:\n\n` +
+            `Например: 5`
+          );
+        }
         await ctx.answerCbQuery();
       }
     });

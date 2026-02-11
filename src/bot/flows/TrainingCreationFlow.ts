@@ -301,7 +301,7 @@ export class TrainingCreationFlow {
     await this.showConfirmation(ctx, state);
   }
 
-  private async showConfirmation(
+  async showConfirmation(
     ctx: Context,
     state: TrainingCreationState
   ): Promise<void> {
