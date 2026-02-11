@@ -61,13 +61,13 @@ export class GameCreationActionsHandler extends ActionHandler {
 
       try {
         const game = await this.services.gameService.createGame({
-          groupId: state.groupId,
-          creatorId: state.userId,
-          sportId: state.data.sportId!,
-          gameDate: state.data.gameDate!,
-          locationId: state.data.locationId!,
-          maxParticipants: state.data.maxParticipants!,
-          minParticipants: state.data.minParticipants!,
+          group_id: state.groupId,
+          creator_id: state.userId,
+          sport_id: state.data.sportId!,
+          game_date: state.data.gameDate!,
+          location_id: state.data.locationId!,
+          max_participants: state.data.maxParticipants!,
+          min_participants: state.data.minParticipants!,
           cost: state.data.cost,
           notes: state.data.notes,
         });

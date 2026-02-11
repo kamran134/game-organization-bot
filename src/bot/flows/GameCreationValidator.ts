@@ -126,4 +126,28 @@ export class GameCreationValidator {
 
     return { success: true, min: minParticipants, max: maxParticipants };
   }
+
+  static validateNumber(
+    text: string,
+    min: number,
+    max: number
+  ): { success: boolean; value?: number; error?: string } {
+    const num = parseInt(text);
+
+    if (isNaN(num) || num < min || num > max) {
+      return { success: false };
+    }
+
+    return { success: true, value: num };
+  }
+
+  static validateNotes(text: string): { success: boolean; error?: string } {
+    if (text.length > 1000) {
+      return {
+        success: false,
+        error: '❌ Заметки слишком длинные. Максимум 1000 символов.',
+      };
+    }
+    return { success: true };
+  }
 }

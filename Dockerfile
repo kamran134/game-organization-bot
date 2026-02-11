@@ -28,7 +28,7 @@ RUN addgroup -g 1001 -S nodejs && \
 COPY package*.json ./
 RUN npm ci --only=production && npm cache clean --force
 
-# Копируем скомпилированный код из builder
+# Копируем скомпилированный код из builder (включая миграции)
 COPY --from=builder --chown=nodejs:nodejs /app/dist ./dist
 
 # Переключаемся на непривилегированного пользователя

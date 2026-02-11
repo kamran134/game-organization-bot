@@ -106,6 +106,15 @@ jobs:
             # Запускаем новые контейнеры
             docker compose -f docker-compose.prod.yml up -d
             
+            # Ждём запуска контейнера базы данных
+            sleep 5
+            
+            # Запускаем миграции внутри контейнера бота
+            echo "🔄 Running database migrations..."
+            docker compose -f docker-compose.prod.yml exec -T bot npm run migration:run || {
+              echo "❌ Migrations failed, but continuing with deployment"
+            }
+            
             # Удаляем неиспользуемые образы
             docker image prune -af
             

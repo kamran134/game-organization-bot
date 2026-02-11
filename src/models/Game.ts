@@ -4,6 +4,7 @@ import { User } from './User';
 import { GameParticipant } from './GameParticipant';
 import { Sport } from './Sport';
 import { Location } from './Location';
+import { GameType } from './GameType';
 
 export enum GameStatus {
   PLANNED = 'planned',
@@ -63,6 +64,13 @@ export class Game {
 
   @Column({ type: 'varchar', default: GameStatus.PLANNED })
   status!: GameStatus;
+
+  @Column({
+    type: 'enum',
+    enum: GameType,
+    default: GameType.GAME
+  })
+  type!: GameType;
 
   @Column({ type: 'text', nullable: true })
   notes?: string;

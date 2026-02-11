@@ -6,6 +6,7 @@ import { GameService } from '../services/GameService';
 import { SportService } from '../services/SportService';
 import { LocationService } from '../services/LocationService';
 import { GameCreationStateManager } from '../utils/GameCreationState';
+import { TrainingCreationStateManager } from '../utils/TrainingCreationState';
 import { LocationCreationStateManager } from '../utils/LocationCreationState';
 import { LocationEditStateManager } from '../utils/LocationEditState';
 import {
@@ -23,6 +24,8 @@ import {
 import { AddLocationCommand } from './commands/AddLocationCommand';
 import { ListLocationsCommand } from './commands/ListLocationsCommand';
 import { EditLocationCommand } from './commands/EditLocationCommand';
+import { NewTrainingCommand } from './commands/NewTrainingCommand';
+import { TrainingsCommand } from './commands/TrainingsCommand';
 import {
   ActionHandler,
   ActionServices,
@@ -34,7 +37,10 @@ import {
 } from './handlers';
 import { LocationCreationHandler } from './handlers/LocationCreationHandler';
 import { LocationEditHandler } from './handlers/LocationEditHandler';
+import { TrainingCreationHandler } from './handlers/TrainingCreationHandler';
+import { GamesFilterHandler } from './handlers/GamesFilterHandler';
 import { GameCreationFlow, GameCreationServices } from './flows';
+import { TrainingCreationFlow } from './flows/TrainingCreationFlow';
 import { LocationManagementFlow } from './flows/LocationManagementFlow';
 import { LocationEditFlow } from './flows/LocationEditFlow';
 
@@ -47,9 +53,11 @@ export class Bot {
   private sportService: SportService;
   private locationService: LocationService;
   private gameCreationStates: GameCreationStateManager;
-  private commands: (CommandHandler | AddLocationCommand | ListLocationsCommand | EditLocationCommand)[];
+  private trainingCreationStates: TrainingCreationStateManager;
+  private commands: (CommandHandler | AddLocationCommand | ListLocationsCommand | EditLocationCommand | NewTrainingCommand | TrainingsCommand)[];
   private handlers: ActionHandler[];
   private gameCreationFlow: GameCreationFlow;
+  private trainingCreationFlow: TrainingCreationFlow;
   private locationManagementFlow: LocationManagementFlow;
   private locationEditFlow: LocationEditFlow;
   private locationCreationStates: LocationCreationStateManager;
@@ -71,6 +79,7 @@ export class Bot {
     this.sportService = new SportService(this.db);
     this.locationService = new LocationService();
     this.gameCreationStates = new GameCreationStateManager();
+    this.trainingCreationStates = new TrainingCreationStateManager();
     this.locationCreationStates = new LocationCreationStateManager();
     this.locationEditStates = new LocationEditStateManager();
 
@@ -82,6 +91,15 @@ export class Bot {
       gameCreationStates: this.gameCreationStates,
     };
     this.gameCreationFlow = new GameCreationFlow(flowServices);
+
+    // Инициализируем training creation flow
+    const trainingFlowServices = {
+      gameService: this.gameService,
+      sportService: this.sportService,
+      locationService: this.locationService,
+      trainingCreationStates: this.trainingCreationStates,
+    };
+    this.trainingCreationFlow = new TrainingCreationFlow(trainingFlowServices);
 
     // Инициализируем location management flow
     const locationFlowServices = {
@@ -117,13 +135,22 @@ export class Bot {
     this.setupTextHandlers();
   }
 
-  private initializeCommands(): (CommandHandler | AddLocationCommand | ListLocationsCommand | EditLocationCommand)[] {
+  private initializeCommands(): (CommandHandler | AddLocationCommand | ListLocationsCommand | EditLocationCommand | NewTrainingCommand | TrainingsCommand)[] {
     const services: CommandServices = {
       userService: this.userService,
       groupService: this.groupService,
       gameService: this.gameService,
       sportService: this.sportService,
       gameCreationStates: this.gameCreationStates,
+    };
+
+    const trainingCommandServices = {
+      userService: this.userService,
+      groupService: this.groupService,
+      gameService: this.gameService,
+      sportService: this.sportService,
+      locationService: this.locationService,
+      trainingCreationStates: this.trainingCreationStates,
     };
 
     const locationCommandServices = {
@@ -154,7 +181,9 @@ export class Bot {
       new WikiCommand(services),
       new RegisterCommand(services),
       new NewGameCommand(services),
+      new NewTrainingCommand(trainingCommandServices as any),
       new GamesCommand(services),
+      new TrainingsCommand(services),
       new MyGroupsCommand(services),
       new CreateGroupCommand(services),
       new AddLocationCommand(locationCommandServices),
@@ -208,6 +237,25 @@ export class Bot {
       locationEditFlow: this.locationEditFlow,
     };
     new LocationEditHandler(this.bot, locationEditHandlerServices);
+
+    // Регистрируем handler для создания тренировок
+    const trainingHandlerServices = {
+      gameService: this.gameService,
+      sportService: this.sportService,
+      groupService: this.groupService,
+      locationService: this.locationService,
+      trainingCreationStates: this.trainingCreationStates,
+      trainingCreationFlow: this.trainingCreationFlow,
+    };
+    new TrainingCreationHandler(this.bot, trainingHandlerServices);
+
+    // Регистрируем handler для фильтров игр
+    const gamesFilterServices = {
+      gameService: this.gameService,
+      groupService: this.groupService,
+      userService: this.userService,
+    };
+    new GamesFilterHandler(this.bot, gamesFilterServices);
   }
 
   private setupMiddleware() {
@@ -245,6 +293,13 @@ export class Bot {
       const text = ctx.message.text;
 
       console.log('🔍 User state:', userId);
+
+      // Проверяем, находится ли пользователь в процессе создания тренировки
+      if (this.trainingCreationStates.has(userId)) {
+        console.log('🏋️ User in training creation state');
+        await this.trainingCreationFlow.handleTextInput(ctx, userId, text);
+        return;
+      }
 
       // Делегируем обработку в GameCreationFlow
       await this.gameCreationFlow.handleTextInput(ctx, userId, text);

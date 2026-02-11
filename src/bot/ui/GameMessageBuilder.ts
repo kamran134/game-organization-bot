@@ -1,6 +1,9 @@
 import { Game } from '../../models/Game';
+import { GameType } from '../../models/GameType';
 import { GameCreationState } from '../../utils/GameCreationState';
 import { formatDate, formatParticipantsList } from './formatters';
+import { Markup } from 'telegraf';
+import { KeyboardBuilder } from './KeyboardBuilder';
 
 export class GameMessageBuilder {
   /**
@@ -134,5 +137,86 @@ export class GameMessageBuilder {
    */
   static formatLeaveSuccessMessage(): string {
     return '👋 Вы отказались от участия в игре';
+  }
+
+  /**
+   * Универсальное подтверждение (для игр и тренировок)
+   */
+  static buildConfirmationMessage(
+    sportName: string,
+    gameDate: Date,
+    locationName: string,
+    minParticipants: number,
+    maxParticipants: number,
+    cost?: number,
+    notes?: string,
+    prefix: string = '🎮 ИГРА'
+  ): string {
+    let text = `${prefix}\n\n`;
+    text += `🏃 Вид спорта: ${sportName}\n`;
+    text += `📅 Дата: ${formatDate(gameDate)}\n`;
+    text += `📍 Место: ${locationName}\n`;
+    text += `👥 Минимум: ${minParticipants}, Максимум: ${maxParticipants === 999 ? 'Безлимит' : maxParticipants}\n`;
+    
+    if (cost !== undefined && cost > 0) {
+      text += `💰 Стоимость: ${cost} ₼\n`;
+    } else {
+      text += `💰 Стоимость: Бесплатно\n`;
+    }
+
+    if (notes) {
+      text += `\n📝 Заметки: ${notes}`;
+    }
+
+    return text;
+  }
+
+  /**
+   * Карточка тренировки
+   */
+  static buildTrainingCard(training: Game): string {
+    const sportEmoji = training.sport?.emoji || '🏋️';
+    const sportName = training.sport?.name || 'Тренировка';
+    
+    const confirmedCount = training.participants?.filter(p => p.participation_status === 'confirmed').length || 0;
+    const maybeCount = training.participants?.filter(p => p.participation_status === 'maybe').length || 0;
+
+    let text = `🏋️ ${sportName}\n\n`;
+    text += `📅 Дата: ${formatDate(training.game_date)}\n`;
+    
+    const locationName = training.location?.name || training.location_text || 'Не указано';
+    text += `📍 Место: ${locationName}\n`;
+    
+    if (training.location?.map_url) {
+      text += `🗺 [Открыть на карте](${training.location.map_url})\n`;
+    }
+    
+    const maxDisplay = training.max_participants === 999 ? 'Безлимит' : training.max_participants;
+    text += `👥 Участники: ${confirmedCount}/${maxDisplay}`;
+    
+    if (maybeCount > 0) {
+      text += ` (ещё ${maybeCount} под вопросом)`;
+    }
+    text += `\n`;
+
+    if (training.min_participants) {
+      text += `Минимум: ${training.min_participants}\n`;
+    }
+
+    if (training.cost && training.cost > 0) {
+      text += `💰 Стоимость: ${training.cost} ₼\n`;
+    }
+    if (training.notes) {
+      text += `\n📝 Заметки: ${training.notes}`;
+    }
+
+    return text;
+  }
+
+  /**
+   * Клавиатура действий для игры/тренировки
+   */
+  static buildGameActionsKeyboard(gameId: number, confirmedCount: number, isAdmin: boolean) {
+    return KeyboardBuilder.createGameActionsKeyboard(gameId, confirmedCount, isAdmin);
   }
 }

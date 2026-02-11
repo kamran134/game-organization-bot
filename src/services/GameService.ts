@@ -1,18 +1,20 @@
 import { Database } from '../database/Database';
 import { Game, GameStatus } from '../models/Game';
+import { GameType } from '../models/GameType';
 import { GameParticipant, ParticipationStatus } from '../models/GameParticipant';
 import { MoreThanOrEqual } from 'typeorm';
 
 export interface CreateGameData {
-  groupId: number;
-  creatorId: number;
-  sportId: number;
-  gameDate: Date;
-  locationId: number;
-  minParticipants: number;
-  maxParticipants: number;
+  group_id: number;
+  creator_id: number;
+  sport_id: number;
+  game_date: Date;
+  location_id: number;
+  min_participants: number;
+  max_participants: number;
   cost?: number;
   notes?: string;
+  type?: GameType; // Опционально, по умолчанию GAME
 }
 
 export class GameService {
@@ -26,20 +28,21 @@ export class GameService {
     const gameRepo = this.db.getRepository(Game);
 
     const game = gameRepo.create({
-      group_id: data.groupId,
-      creator_id: data.creatorId,
-      sport_id: data.sportId,
-      game_date: data.gameDate,
-      location_id: data.locationId,
-      min_participants: data.minParticipants,
-      max_participants: data.maxParticipants,
+      group_id: data.group_id,
+      creator_id: data.creator_id,
+      sport_id: data.sport_id,
+      game_date: data.game_date,
+      location_id: data.location_id,
+      min_participants: data.min_participants,
+      max_participants: data.max_participants,
       cost: data.cost,
       notes: data.notes,
       status: GameStatus.PLANNED,
+      type: data.type || GameType.GAME, // По умолчанию GAME
     });
 
     await gameRepo.save(game);
-    console.log(`Game created: ID ${game.id} on ${game.game_date}`);
+    console.log(`${data.type === GameType.TRAINING ? 'Training' : 'Game'} created: ID ${game.id} on ${game.game_date}`);
     return game;
   }
 
