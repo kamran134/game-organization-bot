@@ -160,8 +160,6 @@ export class GameMessageBuilder {
     
     if (cost !== undefined && cost > 0) {
       text += `💰 Стоимость: ${cost} ₼\n`;
-    } else {
-      text += `💰 Стоимость: Бесплатно\n`;
     }
 
     if (notes) {
