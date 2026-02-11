@@ -347,8 +347,8 @@ export class TrainingCreationFlow {
         locationId = location.id;
       }
 
-      // Создать тренировку (type = TRAINING)
-      const training = await this.services.gameService.createGame({
+      // Данные для создания
+      const gameData = {
         group_id: state.groupId,
         creator_id: state.userId,
         sport_id: state.data.sportId!,
@@ -358,8 +358,20 @@ export class TrainingCreationFlow {
         max_participants: state.data.maxParticipants!,
         cost: state.data.cost,
         notes: state.data.notes,
-        type: GameType.TRAINING, // Указываем тип TRAINING
-      });
+        type: GameType.TRAINING,
+      };
+
+      // Логируем данные
+      console.log('Creating training with data:', JSON.stringify(gameData, null, 2));
+      
+      // Отправляем данные пользователю для отладки
+      await ctx.telegram.sendMessage(
+        ctx.from!.id,
+        `🔍 DEBUG - Данные для создания:\n\n${JSON.stringify(gameData, null, 2)}`
+      );
+
+      // Создать тренировку (type = TRAINING)
+      const training = await this.services.gameService.createGame(gameData);
 
       this.services.trainingCreationStates.delete(userId);
 
