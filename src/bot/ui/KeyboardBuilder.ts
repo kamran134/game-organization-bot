@@ -71,6 +71,7 @@ export class KeyboardBuilder {
     const buttons = [
       [Markup.button.callback(`✅ Точно (${confirmedCount})`, `join_confirmed_${gameId}`)],
       [Markup.button.callback('❓ Не точно', `join_maybe_${gameId}`)],
+      [Markup.button.callback('❌ Отказаться', `leave_game_${gameId}`)],
       [Markup.button.callback('👥 Список участников', `show_participants_${gameId}`)],
     ];
 

@@ -58,9 +58,18 @@ export class GameActionsHandler extends ActionHandler {
         const game = await this.services.gameService.getGameById(gameId);
         if (game) {
           const confirmedCount = game.participants?.filter((p: any) => p.participation_status === ParticipationStatus.CONFIRMED).length || 0;
+          const isAdmin = await this.services.groupService.isUserAdmin(user.id, game.group_id);
           
           await ctx.editMessageReplyMarkup(
-            KeyboardBuilder.createGameActionsKeyboard(gameId, confirmedCount).reply_markup
+            KeyboardBuilder.createGameActionsKeyboard(gameId, confirmedCount, isAdmin).reply_markup
+          );
+          
+          // Отправляем сообщение в группу о том кто отказался
+          const userName = ctx.from!.first_name + (ctx.from!.last_name ? ` ${ctx.from!.last_name}` : '');
+          const userLink = ctx.from!.username ? `@${ctx.from!.username}` : userName;
+          await ctx.telegram.sendMessage(
+            game.group.telegram_chat_id!,
+            `❌ ${userLink} отказался от участия`
           );
           
           // Показываем обновленный список
@@ -229,13 +238,7 @@ export class GameActionsHandler extends ActionHandler {
         const isAdmin = await this.services.groupService.isUserAdmin(user.id, updatedGame.group_id);
         
         await ctx.editMessageReplyMarkup(
-          Markup.inlineKeyboard([
-            [Markup.button.callback(`✅ Точно (${confirmedCount})`, `join_confirmed_${gameId}`)],
-            [Markup.button.callback('❓ Не точно', `join_maybe_${gameId}`)],
-            [Markup.button.callback('❌ Отказаться', `leave_game_${gameId}`)],
-            [Markup.button.callback('👥 Список участников', `show_participants_${gameId}`)],
-            ...(isAdmin ? [[Markup.button.callback('🗑 Удалить игру', `delete_game_${gameId}`)]] : [])
-          ]).reply_markup
+          KeyboardBuilder.createGameActionsKeyboard(gameId, confirmedCount, isAdmin).reply_markup
         );
         
         // Показываем список участников

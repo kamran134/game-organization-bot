@@ -361,15 +361,6 @@ export class TrainingCreationFlow {
         type: GameType.TRAINING,
       };
 
-      // Логируем данные
-      console.log('Creating training with data:', JSON.stringify(gameData, null, 2));
-      
-      // Отправляем данные пользователю для отладки
-      await ctx.telegram.sendMessage(
-        ctx.from!.id,
-        `🔍 DEBUG - Данные для создания:\n\n${JSON.stringify(gameData, null, 2)}`
-      );
-
       // Создать тренировку (type = TRAINING)
       const training = await this.services.gameService.createGame(gameData);
 
