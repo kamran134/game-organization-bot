@@ -67,10 +67,21 @@ export class GameActionsHandler extends ActionHandler {
           // Отправляем сообщение в группу о том кто отказался
           const userName = ctx.from!.first_name + (ctx.from!.last_name ? ` ${ctx.from!.last_name}` : '');
           const userLink = ctx.from!.username ? `@${ctx.from!.username}` : userName;
-          await ctx.telegram.sendMessage(
-            game.group.telegram_chat_id!,
-            `❌ ${userLink} отказался от участия`
-          );
+          
+          if (game.group.telegram_chat_id) {
+            try {
+              await ctx.telegram.sendMessage(
+                game.group.telegram_chat_id,
+                `❌ ${userLink} отказался от участия`
+              );
+            } catch (sendError) {
+              console.error('Error sending decline notification to group:', sendError);
+              console.log('Group chat_id:', game.group.telegram_chat_id);
+              console.log('User:', userLink);
+            }
+          } else {
+            console.error('Game group has no telegram_chat_id:', game.id);
+          }
           
           // Показываем обновленный список
           await this.showParticipantsList(ctx, game);
