@@ -1,5 +1,4 @@
 import { Context } from 'telegraf';
-import { Markup } from 'telegraf';
 import { CommandHandler } from './base/CommandHandler';
 import { KeyboardBuilder } from '../ui/KeyboardBuilder';
 
@@ -23,21 +22,6 @@ export class NewGameCommand extends CommandHandler {
     const user = await this.services.userService.getUserByTelegramId(ctx.from!.id);
     if (!user) return;
 
-    const webappUrl = process.env.WEBAPP_URL;
-
-    if (webappUrl) {
-      const url = `${webappUrl}?action=create_game&group_id=${group.id}`;
-      await ctx.reply(
-        '🎮 Создание новой игры\n\nОткройте форму или воспользуйтесь пошаговым созданием:',
-        Markup.inlineKeyboard([
-          [Markup.button.webApp('📝 Открыть форму', url)],
-          [Markup.button.callback('⌨️ Создать пошагово', `newgame_steps_${group.id}_${user.id}`)],
-        ])
-      );
-      return;
-    }
-
-    // Fallback: пошаговое создание
     await this.startStepFlow(ctx, group.id, user.id);
   }
 

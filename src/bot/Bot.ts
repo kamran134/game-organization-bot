@@ -20,6 +20,7 @@ import {
   GamesCommand,
   MyGroupsCommand,
   CreateGroupCommand,
+  AppCommand,
 } from './commands';
 import { AddLocationCommand } from './commands/AddLocationCommand';
 import { ListLocationsCommand } from './commands/ListLocationsCommand';
@@ -181,6 +182,7 @@ export class Bot {
       new WikiCommand(services),
       new RegisterCommand(services),
       new NewGameCommand(services),
+      new AppCommand(services),
       new NewTrainingCommand(trainingCommandServices as any),
       new GamesCommand(services),
       new TrainingsCommand(services),

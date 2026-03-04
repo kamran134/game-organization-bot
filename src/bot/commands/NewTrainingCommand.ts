@@ -1,5 +1,4 @@
 import { Context } from 'telegraf';
-import { Markup } from 'telegraf';
 import { CommandHandler } from './base/CommandHandler';
 import { CommandServices } from './base/CommandHandler';
 // import { GameService } from '../../services/GameService';
@@ -59,21 +58,6 @@ export class NewTrainingCommand extends CommandHandler {
       return;
     }
 
-    const webappUrl = process.env.WEBAPP_URL;
-
-    if (webappUrl) {
-      const url = `${webappUrl}?action=create_training&group_id=${group.id}`;
-      await ctx.reply(
-        '🏃 Создание тренировки\n\nОткройте форму или воспользуйтесь пошаговым созданием:',
-        Markup.inlineKeyboard([
-          [Markup.button.webApp('📝 Открыть форму', url)],
-          [Markup.button.callback('⌨️ Создать пошагово', `newtraining_steps_${group.id}_${user.id}`)],
-        ])
-      );
-      return;
-    }
-
-    // Fallback: пошаговое создание
     await this.startStepFlow(ctx, group.id, user.id);
   }
 
