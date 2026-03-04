@@ -305,24 +305,32 @@ export class Bot {
   private setupTextHandlers() {
     // Обработка текстовых сообщений для многошаговых диалогов
     this.bot.on('text', async (ctx) => {
-      console.log('📝 Text message received:', ctx.message.text);
-      
       if (!ctx.from || !ctx.message) return;
 
       const userId = ctx.from.id;
-      const text = ctx.message.text;
+      const text = ctx.message.text.trim();
 
-      console.log('🔍 User state:', userId);
+      // Пропускаем команды — они обрабатываются отдельно
+      if (text.startsWith('/')) return;
 
       // Проверяем, находится ли пользователь в процессе создания тренировки
       if (this.trainingCreationStates.has(userId)) {
-        console.log('🏋️ User in training creation state');
         await this.trainingCreationFlow.handleTextInput(ctx, userId, text);
         return;
       }
 
-      // Делегируем обработку в GameCreationFlow
-      await this.gameCreationFlow.handleTextInput(ctx, userId, text);
+      // Если есть активное состояние создания игры
+      if (this.gameCreationStates.has(userId)) {
+        await this.gameCreationFlow.handleTextInput(ctx, userId, text);
+        return;
+      }
+
+      // Если пользователь отвечает на сообщение бота, а состояние потеряно
+      // (например, бот был перезапущен) — мягко подсказываем начать заново
+      const replyTo = ctx.message.reply_to_message;
+      if (replyTo && 'from' in replyTo && replyTo.from?.id === ctx.botInfo.id) {
+        await ctx.reply('⚠️ Сессия создания истекла (бот был перезапущен).\n\nНачните заново:\n/newgame — создать игру\n/newtraining — создать тренировку');
+      }
     });
   }
 

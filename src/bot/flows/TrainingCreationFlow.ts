@@ -30,7 +30,7 @@ export class TrainingCreationFlow {
       return;
     }
 
-    await this.handleTrainingCreationStep(ctx, state);
+    await this.handleTrainingCreationStep(ctx, state, text);
   }
 
   private async handleQuickTrainingCreation(
@@ -126,11 +126,9 @@ export class TrainingCreationFlow {
 
   private async handleTrainingCreationStep(
     ctx: Context,
-    state: TrainingCreationState
+    state: TrainingCreationState,
+    text: string
   ): Promise<void> {
-    if (!ctx.message || !('text' in ctx.message)) return;
-
-    const text = ctx.message.text.trim();
 
     switch (state.step) {
       case 'date':

@@ -30,7 +30,7 @@ export class GameCreationFlow {
     }
 
     // Обычный пошаговый процесс
-    await this.handleGameCreationStep(ctx, state);
+    await this.handleGameCreationStep(ctx, state, text);
   }
 
   private async handleQuickGameCreation(
@@ -137,8 +137,7 @@ export class GameCreationFlow {
     }
   }
 
-  private async handleGameCreationStep(ctx: Context, state: GameCreationState): Promise<void> {
-    const text = 'text' in ctx.message! ? ctx.message.text : '';
+  private async handleGameCreationStep(ctx: Context, state: GameCreationState, text: string): Promise<void> {
 
     switch (state.step) {
       case 'date':
