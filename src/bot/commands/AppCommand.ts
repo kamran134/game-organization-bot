@@ -33,7 +33,7 @@ export class AppCommand extends CommandHandler {
     await ctx.reply(
       '📱 Веб-приложение группы',
       Markup.inlineKeyboard([
-        [Markup.button.webApp('🌐 Открыть', url)],
+        [Markup.button.url('🌐 Открыть', url)],
       ])
     );
   }
