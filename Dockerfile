@@ -31,6 +31,9 @@ RUN npm ci --only=production && npm cache clean --force
 # Копируем скомпилированный код из builder (включая миграции)
 COPY --from=builder --chown=nodejs:nodejs /app/dist ./dist
 
+# Копируем статические файлы для WebApp
+COPY --from=builder --chown=nodejs:nodejs /app/public ./public
+
 # Переключаемся на непривилегированного пользователя
 USER nodejs
 

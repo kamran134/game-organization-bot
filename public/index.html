@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <title>Игры</title>
+  <link rel="stylesheet" href="/styles/main.css" />
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+  <div id="app">
+    <div id="loader" class="loader">
+      <div class="spinner"></div>
+    </div>
+    <div id="content" class="hidden"></div>
+    <div id="toast" class="toast hidden"></div>
+  </div>
+
+  <script>
+    // Initialize Telegram WebApp
+    const tg = window.Telegram.WebApp;
+    tg.ready();
+    tg.expand();
+
+    // Apply Telegram theme colors to CSS variables
+    const root = document.documentElement;
+    const theme = tg.themeParams;
+    if (theme) {
+      if (theme.bg_color)           root.style.setProperty('--tg-bg',         theme.bg_color);
+      if (theme.text_color)         root.style.setProperty('--tg-text',       theme.text_color);
+      if (theme.hint_color)         root.style.setProperty('--tg-hint',       theme.hint_color);
+      if (theme.link_color)         root.style.setProperty('--tg-link',       theme.link_color);
+      if (theme.button_color)       root.style.setProperty('--tg-btn',        theme.button_color);
+      if (theme.button_text_color)  root.style.setProperty('--tg-btn-text',   theme.button_text_color);
+      if (theme.secondary_bg_color) root.style.setProperty('--tg-secondary',  theme.secondary_bg_color);
+    }
+
+    // Read URL params
+    const params   = new URLSearchParams(window.location.search);
+    const action   = params.get('action')   || 'games_list';
+    const groupId  = params.get('group_id') || '';
+
+    const API = '';  // same origin
+    const initData = tg.initData; // sent as header for auth
+
+    // ─── Helpers ─────────────────────────────────────────────────────────
+    function show(html) {
+      document.getElementById('loader').classList.add('hidden');
+      document.getElementById('content').classList.remove('hidden');
+      document.getElementById('content').innerHTML = html;
+    }
+
+    function showLoader() {
+      document.getElementById('loader').classList.remove('hidden');
+      document.getElementById('content').classList.add('hidden');
+    }
+
+    function toast(msg, isError = false) {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.className = 'toast ' + (isError ? 'toast-error' : 'toast-success');
+      el.classList.remove('hidden');
+      setTimeout(() => el.classList.add('hidden'), 3000);
+    }
+
+    async function apiFetch(path, options = {}) {
+      const res = await fetch(API + path, {
+        ...options,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Telegram-Init-Data': initData,
+          ...(options.headers || {}),
+        },
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: res.statusText }));
+        throw new Error(err.error || 'Request failed');
+      }
+      return res.json();
+    }
+
+    function formatDate(dateStr) {
+      const d = new Date(dateStr);
+      return d.toLocaleDateString('ru-RU', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit'
+      });
+    }
+
+    // ─── Pages ───────────────────────────────────────────────────────────
+
+    async function renderCreateForm(type) {
+      showLoader();
+      try {
+        const [sports, locations] = await Promise.all([
+          fetch('/api/sports').then(r => r.json()),
+          groupId ? fetch(`/api/locations?group_id=${groupId}`).then(r => r.json()) : Promise.resolve([]),
+        ]);
+
+        const isTraining = type === 'training';
+        const title = isTraining ? '🏃 Создать тренировку' : '🎮 Создать игру';
+
+        const sportsOptions = sports.map(s =>
+          `<option value="${s.id}">${s.emoji} ${s.name}</option>`
+        ).join('');
+
+        const locationsOptions = locations.length
+          ? locations.map(l => `<option value="${l.id}">${l.name}</option>`).join('')
+          : '<option value="" disabled>Нет доступных площадок</option>';
+
+        // Default date: tomorrow at 18:00
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        tomorrow.setHours(18, 0, 0, 0);
+        const defaultDate = tomorrow.toISOString().slice(0, 16);
+
+        show(`
+          <div class="page">
+            <h2 class="page-title">${title}</h2>
+            <form id="createForm" class="form">
+
+              <div class="field">
+                <label class="label">Вид спорта</label>
+                <select name="sport_id" class="input" required>
+                  ${sportsOptions}
+                </select>
+              </div>
+
+              <div class="field">
+                <label class="label">Дата и время</label>
+                <input type="datetime-local" name="game_date" class="input" value="${defaultDate}" required />
+              </div>
+
+              <div class="field">
+                <label class="label">Площадка</label>
+                <select name="location_id" class="input" required>
+                  ${locationsOptions}
+                </select>
+              </div>
+
+              <div class="field-row">
+                <div class="field">
+                  <label class="label">Мин. игроков</label>
+                  <input type="number" name="min_participants" class="input" value="6" min="1" max="100" required />
+                </div>
+                <div class="field">
+                  <label class="label">Макс. игроков</label>
+                  <input type="number" name="max_participants" class="input" value="12" min="1" max="100" required />
+                </div>
+              </div>
+
+              <div class="field">
+                <label class="label">Стоимость (₽, необязательно)</label>
+                <input type="number" name="cost" class="input" placeholder="0" min="0" step="50" />
+              </div>
+
+              <div class="field">
+                <label class="label">Заметки (необязательно)</label>
+                <textarea name="notes" class="input textarea" rows="3" placeholder="Любая доп. информация..."></textarea>
+              </div>
+
+            </form>
+          </div>
+        `);
+
+        // Use Telegram MainButton for submit
+        tg.MainButton.setText('Создать');
+        tg.MainButton.show();
+        tg.MainButton.onClick(async () => {
+          const form = document.getElementById('createForm');
+          const data = Object.fromEntries(new FormData(form));
+
+          // Validate
+          if (!data.sport_id || !data.game_date || !data.location_id || !data.max_participants) {
+            toast('Заполните все обязательные поля', true);
+            return;
+          }
+
+          tg.MainButton.showProgress();
+
+          try {
+            await apiFetch('/api/games', {
+              method: 'POST',
+              body: JSON.stringify({ ...data, group_id: groupId, type }),
+            });
+
+            tg.MainButton.hideProgress();
+            tg.MainButton.hide();
+            toast(isTraining ? '✅ Тренировка создана!' : '✅ Игра создана!');
+            setTimeout(() => tg.close(), 1500);
+          } catch (err) {
+            tg.MainButton.hideProgress();
+            toast(err.message || 'Ошибка создания', true);
+          }
+        });
+
+      } catch (err) {
+        show(`<div class="error">❌ Ошибка загрузки: ${err.message}</div>`);
+      }
+    }
+
+    async function renderGamesList() {
+      showLoader();
+      if (!groupId) {
+        show('<div class="error">❌ group_id не указан</div>');
+        return;
+      }
+
+      try {
+        const games = await fetch(`/api/games?group_id=${groupId}`).then(r => r.json());
+
+        if (!games.length) {
+          show(`
+            <div class="page">
+              <h2 class="page-title">📋 Предстоящие игры</h2>
+              <div class="empty">Пока нет запланированных игр и тренировок.</div>
+            </div>
+          `);
+          return;
+        }
+
+        const gameCards = games.map(g => {
+          const confirmedCount = (g.participants || []).filter(p => p.participation_status === 'confirmed').length;
+          const isFull = confirmedCount >= g.max_participants;
+          const typeLabel = g.type === 'training' ? '🏃 Тренировка' : '🎮 Игра';
+          const sportLabel = g.sport ? `${g.sport.emoji} ${g.sport.name}` : '';
+          const locationLabel = g.location ? g.location.name : '';
+          const costLabel = g.cost ? `💰 ${g.cost} ₽` : '';
+
+          return `
+            <div class="game-card">
+              <div class="game-header">
+                <span class="game-type">${typeLabel}</span>
+                <span class="game-sport">${sportLabel}</span>
+              </div>
+              <div class="game-date">📅 ${formatDate(g.game_date)}</div>
+              ${locationLabel ? `<div class="game-location">📍 ${locationLabel}</div>` : ''}
+              <div class="game-meta">
+                <span>👥 ${confirmedCount} / ${g.max_participants}</span>
+                ${costLabel ? `<span>${costLabel}</span>` : ''}
+              </div>
+              ${g.notes ? `<div class="game-notes">${g.notes}</div>` : ''}
+              <button
+                class="btn ${isFull ? 'btn-disabled' : 'btn-primary'}"
+                onclick="registerForGame(${g.id}, this)"
+                ${isFull ? 'disabled' : ''}
+              >
+                ${isFull ? 'Нет мест' : 'Записаться'}
+              </button>
+            </div>
+          `;
+        }).join('');
+
+        show(`
+          <div class="page">
+            <h2 class="page-title">📋 Предстоящие события</h2>
+            <div class="games-list">${gameCards}</div>
+          </div>
+        `);
+
+      } catch (err) {
+        show(`<div class="error">❌ Ошибка загрузки: ${err.message}</div>`);
+      }
+    }
+
+    async function registerForGame(gameId, btn) {
+      btn.disabled = true;
+      btn.textContent = '…';
+      try {
+        await apiFetch(`/api/games/${gameId}/register`, { method: 'POST' });
+        btn.textContent = '✅ Записан';
+        btn.className = 'btn btn-success';
+        toast('✅ Вы записаны на игру!');
+      } catch (err) {
+        btn.disabled = false;
+        btn.textContent = 'Записаться';
+        toast(err.message || 'Ошибка записи', true);
+      }
+    }
+
+    // ─── Router ──────────────────────────────────────────────────────────
+    window.registerForGame = registerForGame;
+
+    switch (action) {
+      case 'create_game':     renderCreateForm('game');     break;
+      case 'create_training': renderCreateForm('training'); break;
+      case 'games_list':      renderGamesList();            break;
+      default:                renderGamesList();
+    }
+  </script>
+</body>
+</html>

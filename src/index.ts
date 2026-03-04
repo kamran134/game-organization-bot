@@ -5,6 +5,7 @@ import { Database } from './database/Database';
 import { SportService } from './services/SportService';
 import { runMigration } from './database/migrations/001_sport_refactor';
 import { migrateLocationsToManyToMany } from './database/migrations/migrateLocations';
+import { startWebAppServer } from './webapp/server';
 import * as path from 'path';
 
 // Load environment variables
@@ -37,6 +38,9 @@ async function main() {
     // Initialize default sports
     const sportService = new SportService(database);
     await sportService.initializeDefaultSports();
+
+    // Start WebApp HTTP server
+    startWebAppServer(database);
 
     // Initialize bot
     const bot = new Bot();

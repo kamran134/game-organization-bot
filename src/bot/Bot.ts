@@ -256,6 +256,24 @@ export class Bot {
       userService: this.userService,
     };
     new GamesFilterHandler(this.bot, gamesFilterServices);
+
+    // Callback: пошаговое создание игры (fallback кнопка из WebApp-режима)
+    this.bot.action(/^newgame_steps_(\d+)_(\d+)$/, async (ctx) => {
+      await ctx.answerCbQuery();
+      const groupId = parseInt(ctx.match[1]);
+      const userId = parseInt(ctx.match[2]);
+      const newGameCmd = this.commands.find(c => c.command === 'newgame') as NewGameCommand;
+      if (newGameCmd) await newGameCmd.startStepFlow(ctx as any, groupId, userId);
+    });
+
+    // Callback: пошаговое создание тренировки (fallback кнопка из WebApp-режима)
+    this.bot.action(/^newtraining_steps_(\d+)_(\d+)$/, async (ctx) => {
+      await ctx.answerCbQuery();
+      const groupId = parseInt(ctx.match[1]);
+      const userId = parseInt(ctx.match[2]);
+      const trainingCmd = this.commands.find(c => c.command === 'newtraining') as NewTrainingCommand;
+      if (trainingCmd) await trainingCmd.startStepFlow(ctx as any, groupId, userId);
+    });
   }
 
   private setupMiddleware() {

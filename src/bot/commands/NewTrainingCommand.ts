@@ -1,4 +1,5 @@
 import { Context } from 'telegraf';
+import { Markup } from 'telegraf';
 import { CommandHandler } from './base/CommandHandler';
 import { CommandServices } from './base/CommandHandler';
 // import { GameService } from '../../services/GameService';
@@ -51,14 +52,6 @@ export class NewTrainingCommand extends CommandHandler {
       return;
     }
 
-    // Получаем виды спорта
-    const sports = await this.services.sportService.getAllSports();
-
-    if (sports.length === 0) {
-      await ctx.reply('❌ В системе нет доступных видов спорта.');
-      return;
-    }
-
     // Получаем пользователя из БД
     const user = await this.services.userService.getUserByTelegramId(ctx.from.id);
     if (!user) {
@@ -66,15 +59,39 @@ export class NewTrainingCommand extends CommandHandler {
       return;
     }
 
-    // Инициализируем состояние создания тренировки
-    this.trainingStates.set(ctx.from.id, {
+    const webappUrl = process.env.WEBAPP_URL;
+
+    if (webappUrl) {
+      const url = `${webappUrl}?action=create_training&group_id=${group.id}`;
+      await ctx.reply(
+        '🏃 Создание тренировки\n\nОткройте форму или воспользуйтесь пошаговым созданием:',
+        Markup.inlineKeyboard([
+          [Markup.button.webApp('📝 Открыть форму', url)],
+          [Markup.button.callback('⌨️ Создать пошагово', `newtraining_steps_${group.id}_${user.id}`)],
+        ])
+      );
+      return;
+    }
+
+    // Fallback: пошаговое создание
+    await this.startStepFlow(ctx, group.id, user.id);
+  }
+
+  async startStepFlow(ctx: Context, groupId: number, userId: number): Promise<void> {
+    const sports = await this.services.sportService.getAllSports();
+
+    if (sports.length === 0) {
+      await ctx.reply('❌ В системе нет доступных видов спорта.');
+      return;
+    }
+
+    this.trainingStates.set(ctx.from!.id, {
       step: 'sport',
-      groupId: group.id,
-      userId: user.id, // Database user ID, не telegram ID!
+      groupId,
+      userId,
       data: {},
     });
 
-    // Показываем выбор вида спорта
     const keyboard = KeyboardBuilder.createSportSelectionKeyboard(sports);
     await ctx.reply(
       '🏋️ **Создание тренировки**\n\n' +

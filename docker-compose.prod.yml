@@ -14,6 +14,10 @@ services:
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_DATABASE=${DB_DATABASE}
       - TZ=Asia/Baku
+      - WEBAPP_URL=${WEBAPP_URL}
+      - WEBAPP_PORT=3000
+    ports:
+      - "3000:3000"
     networks:
       - bot-network
     logging:

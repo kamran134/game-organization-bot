@@ -1,0 +1,228 @@
+/* ── Telegram theme CSS variables (defaults, overridden by JS) ── */
+:root {
+  --tg-bg:       #ffffff;
+  --tg-text:     #000000;
+  --tg-hint:     #999999;
+  --tg-link:     #2678b6;
+  --tg-btn:      #2678b6;
+  --tg-btn-text: #ffffff;
+  --tg-secondary:#f0f0f0;
+  --radius: 12px;
+  --gap: 12px;
+}
+
+/* ── Reset ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--tg-bg);
+  color: var(--tg-text);
+  font-size: 15px;
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+/* ── Loader ── */
+.loader {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--tg-secondary);
+  border-top-color: var(--tg-btn);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.hidden { display: none !important; }
+
+/* ── Page ── */
+.page {
+  padding: 16px 16px 100px;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.page-title {
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 20px;
+  color: var(--tg-text);
+}
+
+/* ── Form ── */
+.form { display: flex; flex-direction: column; gap: var(--gap); }
+
+.field { display: flex; flex-direction: column; gap: 6px; }
+
+.field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--gap);
+}
+
+.label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--tg-hint);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1.5px solid var(--tg-secondary);
+  border-radius: var(--radius);
+  background: var(--tg-secondary);
+  color: var(--tg-text);
+  font-size: 15px;
+  outline: none;
+  transition: border-color 0.2s;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.input:focus {
+  border-color: var(--tg-btn);
+}
+
+.textarea { resize: vertical; min-height: 80px; }
+
+select.input {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23999' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  padding-right: 36px;
+  cursor: pointer;
+}
+
+/* ── Buttons ── */
+.btn {
+  display: block;
+  width: 100%;
+  padding: 13px;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+  transition: opacity 0.15s;
+  margin-top: 4px;
+}
+.btn:active { opacity: 0.75; }
+
+.btn-primary {
+  background: var(--tg-btn);
+  color: var(--tg-btn-text);
+}
+
+.btn-success {
+  background: #4caf50;
+  color: #fff;
+}
+
+.btn-disabled {
+  background: var(--tg-secondary);
+  color: var(--tg-hint);
+  cursor: not-allowed;
+}
+
+/* ── Game cards ── */
+.games-list { display: flex; flex-direction: column; gap: 12px; }
+
+.game-card {
+  background: var(--tg-secondary);
+  border-radius: var(--radius);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.game-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.game-type {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--tg-btn);
+}
+
+.game-sport {
+  font-size: 13px;
+  color: var(--tg-hint);
+}
+
+.game-date {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.game-location {
+  font-size: 13px;
+  color: var(--tg-hint);
+}
+
+.game-meta {
+  display: flex;
+  gap: 12px;
+  font-size: 13px;
+  color: var(--tg-hint);
+}
+
+.game-notes {
+  font-size: 13px;
+  color: var(--tg-hint);
+  font-style: italic;
+  border-left: 3px solid var(--tg-btn);
+  padding-left: 8px;
+}
+
+/* ── States ── */
+.empty {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--tg-hint);
+  font-size: 15px;
+}
+
+.error {
+  text-align: center;
+  padding: 60px 20px;
+  color: #e53935;
+  font-size: 15px;
+}
+
+/* ── Toast ── */
+.toast {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 10px 20px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  z-index: 999;
+  white-space: nowrap;
+  animation: fadeIn 0.2s ease;
+}
+
+.toast-success { background: #4caf50; }
+.toast-error   { background: #e53935; }
+
+@keyframes fadeIn { from { opacity: 0; transform: translateX(-50%) translateY(10px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
