@@ -35,10 +35,13 @@
       if (theme.secondary_bg_color) root.style.setProperty('--tg-secondary',  theme.secondary_bg_color);
     }
 
-    // Read URL params
+    // Read group_id: from Mini App start_param (e.g. "group_42") or fallback to URL param
+    const startParam = tg.initDataUnsafe?.start_param || '';
     const params   = new URLSearchParams(window.location.search);
     const action   = params.get('action')   || 'games_list';
-    const groupId  = params.get('group_id') || '';
+    const groupId  = startParam.startsWith('group_')
+      ? startParam.replace('group_', '')
+      : (params.get('group_id') || '');
 
     const API = '';  // same origin
     const initData = tg.initData; // sent as header for auth
