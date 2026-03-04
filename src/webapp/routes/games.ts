@@ -3,14 +3,19 @@ import { AuthRequest } from '../types/express';
 import { Database } from '../../database/Database';
 import { GameService } from '../../services/GameService';
 import { UserService } from '../../services/UserService';
+import { GroupService } from '../../services/GroupService';
 import { GameType } from '../../models/GameType';
 import { ParticipationStatus } from '../../models/GameParticipant';
 import { verifyTelegramInitData } from '../middleware/telegramAuth';
+import { Telegram } from 'telegraf';
+import { GameMessageBuilder } from '../../bot/ui/GameMessageBuilder';
+import { KeyboardBuilder } from '../../bot/ui/KeyboardBuilder';
 
 export function createGamesRouter(db: Database): Router {
   const router = Router();
   const gameService = new GameService(db);
   const userService = new UserService(db);
+  const groupService = new GroupService(db);
 
   // GET /api/games?group_id=X — upcoming games for a group
   router.get('/', async (req: AuthRequest, res: Response): Promise<void> => {
@@ -75,6 +80,29 @@ export function createGamesRouter(db: Database): Router {
 
       // Auto-register creator
       await gameService.addParticipant(game.id, user.id, ParticipationStatus.CONFIRMED);
+
+      // Send notification to the Telegram group
+      try {
+        const botToken = process.env.BOT_TOKEN;
+        const group = await groupService.getGroupById(parseInt(group_id));
+        if (botToken && group?.telegram_chat_id) {
+          const gameWithRelations = await gameService.getGameById(game.id);
+          if (gameWithRelations) {
+            const isAdmin = await groupService.isUserAdmin(user.id, parseInt(group_id));
+            const text = GameMessageBuilder.formatGameCreatedMessage(gameWithRelations);
+            const keyboard = KeyboardBuilder.createGameActionsKeyboard(game.id, 1, isAdmin);
+            const telegram = new Telegram(botToken);
+            await telegram.sendMessage(
+              Number(group.telegram_chat_id),
+              text,
+              { parse_mode: 'Markdown', ...keyboard }
+            );
+          }
+        }
+      } catch (notifyError) {
+        // Don't fail the request if notification fails
+        console.error('Failed to send group notification:', notifyError);
+      }
 
       res.status(201).json({ id: game.id, message: 'Created successfully' });
     } catch (error) {
