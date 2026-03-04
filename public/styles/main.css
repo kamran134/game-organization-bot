@@ -137,6 +137,31 @@ select.input {
   cursor: not-allowed;
 }
 
+.btn-secondary {
+  background: var(--tg-secondary);
+  color: var(--tg-text);
+}
+
+.btn-outline {
+  background: transparent;
+  color: var(--tg-btn);
+  border: 2px solid var(--tg-btn);
+}
+
+.btn-large {
+  padding: 16px;
+  font-size: 16px;
+  margin-top: 10px;
+}
+
+/* ── Home page ── */
+.home-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 16px;
+}
+
 /* ── Game cards ── */
 .games-list { display: flex; flex-direction: column; gap: 12px; }
 

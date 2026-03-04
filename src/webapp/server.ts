@@ -5,6 +5,7 @@ import { Database } from '../database/Database';
 import { createGamesRouter } from './routes/games';
 import { createSportsRouter } from './routes/sports';
 import { createLocationsRouter } from './routes/locations';
+import { createUserRouter } from './routes/user';
 
 export function createWebAppServer(db: Database) {
   const app = express();
@@ -21,6 +22,7 @@ export function createWebAppServer(db: Database) {
   app.use('/api/games', createGamesRouter(db));
   app.use('/api/sports', createSportsRouter(db));
   app.use('/api/locations', createLocationsRouter(db));
+  app.use('/api/user', createUserRouter(db));
 
   // Health check
   app.get('/health', (_req, res) => {
