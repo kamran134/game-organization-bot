@@ -8,12 +8,48 @@ import {
 } from '../ui.js';
 import { apiFetch } from '../api.js';
 import { escapeHtml, formatDate, getErrorMessage } from '../utils.js';
-import type { GameDto, Nav } from '../types.js';
+import type { GameDto, ParticipantDto, Nav } from '../types.js';
 
 interface GamesCtx {
   tg: TelegramWebApp;
   groupId: string;
   isAdmin: boolean;
+}
+
+function participantName(p: ParticipantDto): string {
+  if (p.user) {
+    const full = [p.user.first_name, p.user.last_name].filter(Boolean).join(' ');
+    return p.user.username ? `@${p.user.username}` : full || '—';
+  }
+  return p.guest_name || 'Гость';
+}
+
+function renderParticipantsList(participants: ParticipantDto[] | undefined): string {
+  if (!participants || participants.length === 0) {
+    return '<div class="participants-empty">Пока никто не записался</div>';
+  }
+  const confirmed = participants.filter((p) => p.participation_status === 'confirmed');
+  const maybe     = participants.filter((p) => p.participation_status === 'maybe');
+  let html = '';
+  if (confirmed.length) {
+    html += `<div class="participants-group-title">✅ Точно идут:</div>`;
+    html += confirmed.map((p, i) =>
+      `<div class="participant-row">` +
+        `<span class="participant-num">${i + 1}.</span>` +
+        `<span class="participant-name">${escapeHtml(participantName(p))}</span>` +
+      `</div>`
+    ).join('');
+  }
+  if (maybe.length) {
+    html += `<div class="participants-group-title">❓ Не точно:</div>`;
+    html += maybe.map((p, i) =>
+      `<div class="participant-row">` +
+        `<span class="participant-num">${i + 1}.</span>` +
+        `<span class="participant-name">${escapeHtml(participantName(p))}</span>` +
+      `</div>`
+    ).join('');
+  }
+  return html;
 }
 
 function myStatus(
@@ -86,6 +122,12 @@ function renderCard(g: GameDto, myTelegramId: number, isAdmin: boolean): string 
       </div>
       ${notes ? `<div class="game-notes">${notes}</div>` : ''}
       ${actionButtons}
+      <button class="btn btn-participants" data-action="toggle-participants" data-game-id="${gid}">
+        👥 Участники (${confirmedCount})
+      </button>
+      <div class="participants-list hidden" id="participants-${gid}">
+        ${renderParticipantsList(g.participants)}
+      </div>
       ${isAdmin ? `
       <div class="game-admin-actions">
         <button class="btn btn-secondary" data-action="edit-game"   data-game-id="${gid}">✏️ Редактировать</button>
@@ -138,6 +180,16 @@ export async function renderGamesList(ctx: GamesCtx, nav: Nav): Promise<void> {
       const action = btn.dataset['action']!;
       const gameId = btn.dataset['gameId']!;
       const origText = btn.textContent;
+      
+      // Toggle participants list — no API call needed
+      if (action === 'toggle-participants') {
+        const panel = document.getElementById(`participants-${gameId}`)!;
+        const nowHidden = panel.classList.toggle('hidden');
+        const count = btn.textContent!.match(/\((\d+)\)/)?.[1] ?? '';
+        btn.textContent = nowHidden ? `👥 Участники (${count})` : `👥 Участники (${count}) ▲`;
+        return;
+      }
+
       btn.disabled = true;
       btn.textContent = '…';
 

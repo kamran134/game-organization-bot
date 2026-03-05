@@ -179,6 +179,57 @@ select.input {
   padding: 9px 6px;
 }
 
+/* ── Participants toggle ── */
+.btn-participants {
+  background: transparent;
+  color: var(--tg-hint);
+  border: 1px solid rgba(127,127,127,0.3);
+  font-size: 13px;
+  padding: 7px;
+  margin-top: 6px;
+  cursor: pointer;
+}
+
+.participants-list {
+  background: var(--tg-bg);
+  border-radius: calc(var(--radius) - 2px);
+  padding: 10px 12px;
+  margin-top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.participants-list.hidden { display: none; }
+
+.participants-group-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--tg-hint);
+  margin-top: 6px;
+  margin-bottom: 2px;
+}
+
+.participants-group-title:first-child { margin-top: 0; }
+
+.participant-row {
+  display: flex;
+  gap: 6px;
+  font-size: 14px;
+}
+
+.participant-num {
+  color: var(--tg-hint);
+  min-width: 18px;
+}
+
+.participants-empty {
+  font-size: 13px;
+  color: var(--tg-hint);
+  text-align: center;
+  padding: 4px 0;
+}
+
 .btn-outline {
   background: transparent;
   color: var(--tg-btn);

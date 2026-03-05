@@ -8,3 +8,4 @@ export { GamesCommand } from './GamesCommand';
 export { MyGroupsCommand } from './MyGroupsCommand';
 export { CreateGroupCommand } from './CreateGroupCommand';
 export { AppCommand } from './AppCommand';
+export { PlayersCommand } from './PlayersCommand';

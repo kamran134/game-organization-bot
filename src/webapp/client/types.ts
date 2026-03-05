@@ -13,8 +13,12 @@ export interface LocationDto {
 
 export interface ParticipantDto {
   participation_status: 'confirmed' | 'maybe' | 'guest';
+  guest_name?: string;
   user?: {
     telegram_id: number | string;
+    first_name?: string;
+    last_name?: string;
+    username?: string;
   };
 }
 
