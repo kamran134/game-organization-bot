@@ -12,8 +12,8 @@ RUN npm ci
 # Copy source code
 COPY . .
 
-# Build TypeScript
-RUN npm run build
+# Build TypeScript (server + client)
+RUN npm run build:all
 
 # Production образ
 FROM node:20-alpine

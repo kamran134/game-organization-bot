@@ -12,7 +12,10 @@ const ALLOWED_ORIGINS = [
   'https://web.telegram.org',
   'https://webk.telegram.org',
   'https://webz.telegram.org',
-];
+  // Own webapp domain — Telegram WebView sends Origin even for same-origin requests.
+  // Read from env so no code change is needed per environment.
+  process.env.WEBAPP_URL,
+].filter(Boolean) as string[];
 
 export function createWebAppServer(db: Database) {
   const app = express();
