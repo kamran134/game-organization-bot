@@ -132,6 +132,26 @@ export function createGamesRouter(db: Database): Router {
       });
 
       await gameService.addParticipant(gameId, user.id, ParticipationStatus.CONFIRMED);
+
+      // Send notification to the Telegram group
+      try {
+        const botToken = process.env.BOT_TOKEN;
+        const updatedGame = await gameService.getGameById(gameId);
+        if (botToken && updatedGame?.group?.telegram_chat_id) {
+          const telegram = new Telegram(botToken);
+          const userName = [user.first_name, user.last_name].filter(Boolean).join(' ');
+          const userLink = user.username ? `@${user.username}` : userName;
+          const participantsText = GameMessageBuilder.formatParticipantsMessage(updatedGame);
+          await telegram.sendMessage(
+            Number(updatedGame.group.telegram_chat_id),
+            `✅ ${userLink} записался на игру через веб-приложение\n\n${participantsText}`,
+            { parse_mode: 'Markdown' }
+          );
+        }
+      } catch (notifyError) {
+        console.error('Failed to send join notification to group:', notifyError);
+      }
+
       res.json({ message: 'Registered successfully' });
     } catch (error) {
       const err = error as NodeJS.ErrnoException;
