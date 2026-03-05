@@ -21,7 +21,7 @@ function myStatus(
 ): 'confirmed' | 'maybe' | null {
   if (!myTelegramId) return null;
   const me = (g.participants ?? []).find(
-    (p) => p.user?.telegram_id === myTelegramId,
+    (p) => Number(p.user?.telegram_id) === myTelegramId,
   );
   return me ? (me.participation_status as 'confirmed' | 'maybe') : null;
 }

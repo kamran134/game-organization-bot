@@ -14,7 +14,7 @@ export interface LocationDto {
 export interface ParticipantDto {
   participation_status: 'confirmed' | 'maybe' | 'guest';
   user?: {
-    telegram_id: number;
+    telegram_id: number | string;
   };
 }
 
