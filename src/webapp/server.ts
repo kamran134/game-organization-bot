@@ -7,10 +7,35 @@ import { createSportsRouter } from './routes/sports';
 import { createLocationsRouter } from './routes/locations';
 import { createUserRouter } from './routes/user';
 
+/** Origins allowed to call the API. */
+const ALLOWED_ORIGINS = [
+  'https://web.telegram.org',
+  'https://webk.telegram.org',
+  'https://webz.telegram.org',
+];
+
 export function createWebAppServer(db: Database) {
   const app = express();
 
-  app.use(cors());
+  app.use(
+    cors({
+      origin(origin, callback) {
+        // Allow requests with no origin (Telegram mobile/desktop WebView)
+        // and explicitly whitelisted origins.
+        // In development, allow everything for convenience.
+        if (
+          !origin ||
+          ALLOWED_ORIGINS.includes(origin) ||
+          process.env.NODE_ENV === 'development'
+        ) {
+          callback(null, true);
+        } else {
+          callback(new Error(`CORS: origin '${origin}' not allowed`));
+        }
+      },
+      credentials: true,
+    }),
+  );
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
 

@@ -17,8 +17,8 @@ export function createGamesRouter(db: Database): Router {
   const userService = new UserService(db);
   const groupService = new GroupService(db);
 
-  // GET /api/games?group_id=X — upcoming games for a group
-  router.get('/', async (req: AuthRequest, res: Response): Promise<void> => {
+  // GET /api/games?group_id=X — upcoming games for a group (requires auth)
+  router.get('/', verifyTelegramInitData, async (req: AuthRequest, res: Response): Promise<void> => {
     const groupId = parseInt(req.query.group_id as string);
     if (!groupId) {
       res.status(400).json({ error: 'group_id is required' });

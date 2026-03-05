@@ -6,6 +6,9 @@ yarn.lock
 dist/
 build/
 
+# Compiled client-side JS (generated from src/webapp/client/)
+public/js/
+
 # Environment variables - НИКОГДА не коммитить!
 .env
 .env.local
