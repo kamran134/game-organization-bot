@@ -13,6 +13,9 @@ export interface LocationDto {
 
 export interface ParticipantDto {
   participation_status: 'confirmed' | 'maybe' | 'guest';
+  user?: {
+    telegram_id: number;
+  };
 }
 
 export type GameType = 'game' | 'training';

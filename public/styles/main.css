@@ -142,6 +142,29 @@ select.input {
   color: var(--tg-text);
 }
 
+.btn-danger {
+  background: #e53935;
+  color: #fff;
+}
+
+.btn-maybe {
+  background: #f57c00;
+  color: #fff;
+}
+
+.btn-registered {
+  cursor: default;
+  opacity: 1;
+}
+
+/* ── Game actions button group ── */
+.game-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+}
+
 .btn-outline {
   background: transparent;
   color: var(--tg-btn);

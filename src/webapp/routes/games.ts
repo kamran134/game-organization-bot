@@ -131,7 +131,11 @@ export function createGamesRouter(db: Database): Router {
         last_name: telegramUser.last_name,
       });
 
-      await gameService.addParticipant(gameId, user.id, ParticipationStatus.CONFIRMED);
+      const { status: rawStatus } = req.body as { status?: string };
+      const participationStatus =
+        rawStatus === 'maybe' ? ParticipationStatus.MAYBE : ParticipationStatus.CONFIRMED;
+
+      await gameService.addParticipant(gameId, user.id, participationStatus);
 
       // Send notification to the Telegram group
       try {
@@ -142,9 +146,13 @@ export function createGamesRouter(db: Database): Router {
           const userName = [user.first_name, user.last_name].filter(Boolean).join(' ');
           const userLink = user.username ? `@${user.username}` : userName;
           const participantsText = GameMessageBuilder.formatParticipantsMessage(updatedGame);
+          const emoji = participationStatus === ParticipationStatus.MAYBE ? '❓' : '✅';
+          const actionText = participationStatus === ParticipationStatus.MAYBE
+            ? 'отметился "не точно" через веб-приложение'
+            : 'записался на игру через веб-приложение';
           await telegram.sendMessage(
             Number(updatedGame.group.telegram_chat_id),
-            `✅ ${userLink} записался на игру через веб-приложение\n\n${participantsText}`,
+            `${emoji} ${userLink} ${actionText}\n\n${participantsText}`,
             { parse_mode: 'Markdown' }
           );
         }
@@ -177,6 +185,26 @@ export function createGamesRouter(db: Database): Router {
         return;
       }
       await gameService.removeParticipant(gameId, user.id);
+
+      // Send cancel notification to the Telegram group
+      try {
+        const botToken = process.env.BOT_TOKEN;
+        const updatedGame = await gameService.getGameById(gameId);
+        if (botToken && updatedGame?.group?.telegram_chat_id) {
+          const telegram = new Telegram(botToken);
+          const userName = [user.first_name, user.last_name].filter(Boolean).join(' ');
+          const userLink = user.username ? `@${user.username}` : userName;
+          const participantsText = GameMessageBuilder.formatParticipantsMessage(updatedGame);
+          await telegram.sendMessage(
+            Number(updatedGame.group.telegram_chat_id),
+            `❌ ${userLink} отказался от участия через веб-приложение\n\n${participantsText}`,
+            { parse_mode: 'Markdown' }
+          );
+        }
+      } catch (notifyError) {
+        console.error('Failed to send cancel notification to group:', notifyError);
+      }
+
       res.json({ message: 'Cancelled successfully' });
     } catch (error) {
       console.error('Error cancelling:', error);
