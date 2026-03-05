@@ -43,4 +43,5 @@ export interface Nav {
   goHome(): void;
   goGamesList(): void;
   goCreateForm(type: GameType): void;
+  goEditGame(gameId: number): void;
 }

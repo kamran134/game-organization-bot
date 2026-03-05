@@ -17,6 +17,7 @@ import { show } from './ui.js';
 import { renderHome } from './pages/home.js';
 import { renderGamesList } from './pages/games.js';
 import { renderCreateForm } from './pages/create.js';
+import { renderEditGame } from './pages/edit.js';
 import type { GameType, Nav, UserRoleDto } from './types.js';
 
 // ─── Telegram SDK ─────────────────────────────────────────────────────────────
@@ -68,10 +69,13 @@ const nav: Nav = {
     renderHome({ tg, isAdmin: _isAdmin }, nav);
   },
   goGamesList() {
-    renderGamesList({ tg, groupId }, nav);
+    renderGamesList({ tg, groupId, isAdmin: _isAdmin }, nav);
   },
   goCreateForm(type: GameType) {
     renderCreateForm({ tg, groupId, type }, nav);
+  },
+  goEditGame(gameId: number) {
+    renderEditGame({ tg, groupId, gameId }, nav);
   },
 };
 

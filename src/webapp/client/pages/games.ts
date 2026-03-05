@@ -13,6 +13,7 @@ import type { GameDto, Nav } from '../types.js';
 interface GamesCtx {
   tg: TelegramWebApp;
   groupId: string;
+  isAdmin: boolean;
 }
 
 function myStatus(
@@ -26,7 +27,7 @@ function myStatus(
   return me ? (me.participation_status as 'confirmed' | 'maybe') : null;
 }
 
-function renderCard(g: GameDto, myTelegramId: number): string {
+function renderCard(g: GameDto, myTelegramId: number, isAdmin: boolean): string {
   const confirmedCount = (g.participants ?? []).filter(
     (p) => p.participation_status === 'confirmed',
   ).length;
@@ -85,6 +86,11 @@ function renderCard(g: GameDto, myTelegramId: number): string {
       </div>
       ${notes ? `<div class="game-notes">${notes}</div>` : ''}
       ${actionButtons}
+      ${isAdmin ? `
+      <div class="game-admin-actions">
+        <button class="btn btn-secondary" data-action="edit-game"   data-game-id="${gid}">✏️ Редактировать</button>
+        <button class="btn btn-danger"    data-action="delete-game" data-game-id="${gid}">🗑 Удалить</button>
+      </div>` : ''}
     </div>`;
 }
 
@@ -92,7 +98,7 @@ function renderCard(g: GameDto, myTelegramId: number): string {
  * Renders the games list page.
  */
 export async function renderGamesList(ctx: GamesCtx, nav: Nav): Promise<void> {
-  const { tg, groupId } = ctx;
+  const { tg, groupId, isAdmin } = ctx;
   const myTelegramId = tg.initDataUnsafe?.user?.id ?? 0;
 
   showLoader();
@@ -117,7 +123,7 @@ export async function renderGamesList(ctx: GamesCtx, nav: Nav): Promise<void> {
       return;
     }
 
-    const gameCards = games.map((g) => renderCard(g, myTelegramId)).join('');
+    const gameCards = games.map((g) => renderCard(g, myTelegramId, isAdmin)).join('');
     show(`
       <div class="page">
         <h2 class="page-title">📅 Расписание</h2>
@@ -153,6 +159,17 @@ export async function renderGamesList(ctx: GamesCtx, nav: Nav): Promise<void> {
             method: 'DELETE',
           });
           toast('❌ Вы отказались от игры');
+        } else if (action === 'edit-game') {
+          nav.goEditGame(parseInt(gameId));
+          return;
+        } else if (action === 'delete-game') {
+          if (!window.confirm('Удалить эту игру?')) {
+            btn.disabled = false;
+            btn.textContent = origText;
+            return;
+          }
+          await apiFetch(`/api/games/${encodeURIComponent(gameId)}`, { method: 'DELETE' });
+          toast('🗑 Игра удалена');
         }
 
         // Reload data and re-render

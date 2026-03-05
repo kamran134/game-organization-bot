@@ -165,6 +165,20 @@ select.input {
   margin-top: 4px;
 }
 
+.game-admin-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(127,127,127,0.2);
+}
+
+.game-admin-actions .btn {
+  flex: 1;
+  font-size: 13px;
+  padding: 9px 6px;
+}
+
 .btn-outline {
   background: transparent;
   color: var(--tg-btn);

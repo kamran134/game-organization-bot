@@ -6,6 +6,7 @@ import { UserService } from '../../services/UserService';
 import { GroupService } from '../../services/GroupService';
 import { GameType } from '../../models/GameType';
 import { ParticipationStatus } from '../../models/GameParticipant';
+import { Game } from '../../models/Game';
 import { verifyTelegramInitData } from '../middleware/telegramAuth';
 import { Telegram } from 'telegraf';
 import { GameMessageBuilder } from '../../bot/ui/GameMessageBuilder';
@@ -30,6 +31,20 @@ export function createGamesRouter(db: Database): Router {
     } catch (error) {
       console.error('Error fetching games:', error);
       res.status(500).json({ error: 'Failed to fetch games' });
+    }
+  });
+
+  // GET /api/games/:id — get single game (requires auth)
+  router.get('/:id', verifyTelegramInitData, async (req: AuthRequest, res: Response): Promise<void> => {
+    const gameId = parseInt(req.params.id);
+    if (!gameId) { res.status(400).json({ error: 'Invalid game id' }); return; }
+    try {
+      const game = await gameService.getGameById(gameId);
+      if (!game) { res.status(404).json({ error: 'Game not found' }); return; }
+      res.json(game);
+    } catch (error) {
+      console.error('Error fetching game:', error);
+      res.status(500).json({ error: 'Failed to fetch game' });
     }
   });
 
@@ -209,6 +224,78 @@ export function createGamesRouter(db: Database): Router {
     } catch (error) {
       console.error('Error cancelling:', error);
       res.status(500).json({ error: 'Failed to cancel' });
+    }
+  });
+
+  // PUT /api/games/:id — update game (admin only)
+  router.put('/:id', verifyTelegramInitData, async (req: AuthRequest, res: Response): Promise<void> => {
+    const telegramUser = req.telegramUser;
+    const gameId = parseInt(req.params.id);
+    if (!telegramUser) { res.status(401).json({ error: 'Unauthorized' }); return; }
+    try {
+      const user = await userService.getUserByTelegramId(telegramUser.id);
+      if (!user) { res.status(404).json({ error: 'User not found' }); return; }
+      const game = await gameService.getGameById(gameId);
+      if (!game) { res.status(404).json({ error: 'Game not found' }); return; }
+      const isAdmin = await groupService.isUserAdmin(user.id, game.group_id);
+      if (!isAdmin) { res.status(403).json({ error: 'Admin only' }); return; }
+
+      const { sport_id, game_date, location_id, min_participants, max_participants, cost, notes } = req.body as Record<string, string | undefined>;
+      const gameRepo = db.getRepository(Game);
+      await gameRepo.update(gameId, {
+        ...(sport_id      && { sport_id: parseInt(sport_id) }),
+        ...(game_date     && { game_date: new Date(game_date) }),
+        ...(location_id   && { location_id: parseInt(location_id) }),
+        ...(min_participants && { min_participants: parseInt(min_participants) }),
+        ...(max_participants && { max_participants: parseInt(max_participants) }),
+        cost: cost ? parseFloat(cost) : undefined,
+        notes: notes || undefined,
+      });
+      res.json({ message: 'Updated successfully' });
+    } catch (error) {
+      console.error('Error updating game:', error);
+      res.status(500).json({ error: 'Failed to update game' });
+    }
+  });
+
+  // DELETE /api/games/:id — delete game (admin only)
+  router.delete('/:id', verifyTelegramInitData, async (req: AuthRequest, res: Response): Promise<void> => {
+    const telegramUser = req.telegramUser;
+    const gameId = parseInt(req.params.id);
+    if (!telegramUser) { res.status(401).json({ error: 'Unauthorized' }); return; }
+    try {
+      const user = await userService.getUserByTelegramId(telegramUser.id);
+      if (!user) { res.status(404).json({ error: 'User not found' }); return; }
+      const game = await gameService.getGameById(gameId);
+      if (!game) { res.status(404).json({ error: 'Game not found' }); return; }
+      const isAdmin = await groupService.isUserAdmin(user.id, game.group_id);
+      if (!isAdmin) { res.status(403).json({ error: 'Admin only' }); return; }
+
+      const gameRepo = db.getRepository(Game);
+      await gameRepo.remove(game);
+
+      // Notify group
+      try {
+        const botToken = process.env.BOT_TOKEN;
+        if (botToken && game.group?.telegram_chat_id) {
+          const telegram = new Telegram(botToken);
+          const sportName = game.sport ? `${game.sport.emoji} ${game.sport.name}` : 'Игра';
+          const dateStr = new Date(game.game_date).toLocaleString('ru-RU', {
+            day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit',
+          });
+          await telegram.sendMessage(
+            Number(game.group.telegram_chat_id),
+            `🗑 Игра удалена администратором\n\n${sportName}\n📅 ${dateStr}`
+          );
+        }
+      } catch (notifyError) {
+        console.error('Failed to send delete notification:', notifyError);
+      }
+
+      res.json({ message: 'Deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting game:', error);
+      res.status(500).json({ error: 'Failed to delete game' });
     }
   });
 
