@@ -11,6 +11,7 @@ import { verifyTelegramInitData } from '../middleware/telegramAuth';
 import { Telegram } from 'telegraf';
 import { GameMessageBuilder } from '../../bot/ui/GameMessageBuilder';
 import { KeyboardBuilder } from '../../bot/ui/KeyboardBuilder';
+import { jokeService } from '../../services/JokeService';
 
 export function createGamesRouter(db: Database): Router {
   const router = Router();
@@ -210,9 +211,10 @@ export function createGamesRouter(db: Database): Router {
           const userName = [user.first_name, user.last_name].filter(Boolean).join(' ');
           const userLink = user.username ? `@${user.username}` : userName;
           const participantsText = GameMessageBuilder.formatParticipantsMessage(updatedGame);
+          const joke = await jokeService.getDeclineJoke(userName);
           await telegram.sendMessage(
             Number(updatedGame.group.telegram_chat_id),
-            `❌ ${userLink} отказался от участия через веб-приложение\n\n${participantsText}`,
+            `❌ ${userLink} отказался от участия через веб-приложение\n\n🤖 _${joke}_\n\n${participantsText}`,
             { parse_mode: 'Markdown' }
           );
         }

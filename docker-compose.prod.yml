@@ -16,6 +16,7 @@ services:
       - TZ=Asia/Baku
       - WEBAPP_URL=${WEBAPP_URL}
       - WEBAPP_PORT=3000
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
     ports:
       - "3000:3000"
     networks:

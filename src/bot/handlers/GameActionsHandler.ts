@@ -6,6 +6,7 @@ import { KeyboardBuilder } from '../ui/KeyboardBuilder';
 import { GameMessageBuilder } from '../ui/GameMessageBuilder';
 import { Game } from '../../models/Game';
 import { Database } from '../../database/Database';
+import { jokeService } from '../../services/JokeService';
 
 export class GameActionsHandler extends ActionHandler {
   private db: Database;
@@ -70,9 +71,11 @@ export class GameActionsHandler extends ActionHandler {
           
           if (game.group.telegram_chat_id) {
             try {
+              const joke = await jokeService.getDeclineJoke(userName);
               await ctx.telegram.sendMessage(
                 game.group.telegram_chat_id,
-                `❌ ${userLink} отказался от участия`
+                `❌ ${userLink} отказался от участия\n\n🤖 _${joke}_`,
+                { parse_mode: 'Markdown' }
               );
             } catch (sendError) {
               console.error('Error sending decline notification to group:', sendError);
