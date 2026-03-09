@@ -212,11 +212,11 @@ export function createGamesRouter(db: Database): Router {
           const userLink = user.username ? `@${user.username}` : userName;
           const participantsText = GameMessageBuilder.formatParticipantsMessage(updatedGame);
           const joke = await jokeService.getDeclineJoke(userName);
-          const safeJoke = joke.replace(/[_*`\[]/g, '\\$&');
+          const safeJoke = joke.replace(/</g, '&lt;').replace(/>/g, '&gt;');
           await telegram.sendMessage(
             Number(updatedGame.group.telegram_chat_id),
-            `❌ ${userLink} отказался от участия через веб-приложение\n\n🤖 _${safeJoke}_\n\n${participantsText}`,
-            { parse_mode: 'Markdown' }
+            `❌ ${userLink} отказался от участия через веб-приложение\n\n🤖 <i>${safeJoke}</i>\n\n${participantsText}`,
+            { parse_mode: 'HTML' }
           );
         }
       } catch (notifyError) {
