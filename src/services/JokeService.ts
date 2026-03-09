@@ -18,11 +18,15 @@ export class JokeService {
     const apiKey = process.env.GEMINI_API_KEY;
     if (apiKey) {
       this.genAI = new GoogleGenerativeAI(apiKey);
+      console.log('JokeService: Gemini initialized ✅');
+    } else {
+      console.warn('JokeService: GEMINI_API_KEY not set, using fallback jokes ⚠️');
     }
   }
 
   async getDeclineJoke(userName: string): Promise<string> {
     if (!this.genAI) {
+      console.warn('JokeService: genAI is null, returning fallback');
       return this.getRandomFallback();
     }
 
