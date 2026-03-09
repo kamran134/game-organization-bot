@@ -97,7 +97,7 @@ jobs:
             export DB_PASSWORD=${{ secrets.DB_PASSWORD }}
             export DB_DATABASE=${{ secrets.DB_DATABASE }}
             export WEBAPP_URL=${{ secrets.WEBAPP_URL }}
-            export GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
+            export GROQ_API_KEY=${{ secrets.GROQ_API_KEY }}
             
             # Останавливаем старые контейнеры
             docker compose -f docker-compose.prod.yml down

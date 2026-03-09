@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import Groq from 'groq-sdk';
 
 const FALLBACK_JOKES = [
   'Говорят, лучшие игроки всегда немного опаздывают... или вообще не приходят.',
@@ -12,36 +12,40 @@ const FALLBACK_JOKES = [
 ];
 
 export class JokeService {
-  private genAI: GoogleGenerativeAI | null = null;
+  private groq: Groq | null = null;
 
   constructor() {
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = process.env.GROQ_API_KEY;
     if (apiKey) {
-      this.genAI = new GoogleGenerativeAI(apiKey);
-      console.log('JokeService: Gemini initialized ✅');
+      this.groq = new Groq({ apiKey });
+      console.log('JokeService: Groq initialized ✅');
     } else {
-      console.warn('JokeService: GEMINI_API_KEY not set, using fallback jokes ⚠️');
+      console.warn('JokeService: GROQ_API_KEY not set, using fallback jokes ⚠️');
     }
   }
 
   async getDeclineJoke(userName: string): Promise<string> {
-    if (!this.genAI) {
-      console.warn('JokeService: genAI is null, returning fallback');
+    if (!this.groq) {
       return this.getRandomFallback();
     }
 
     try {
-      const model = this.genAI.getGenerativeModel({ model: 'gemini-2.0-flash-lite' });
+      const completion = await this.groq.chat.completions.create({
+        model: 'llama-3.1-8b-instant',
+        messages: [
+          {
+            role: 'user',
+            content: `Придумай одну короткую смешную шутку (1-2 предложения максимум) на тему того, что игрок по имени ${userName} отказался от участия в спортивной игре или тренировке. Шутка должна быть добродушной, без оскорблений. Отвечай только текстом шутки, без кавычек и пояснений.`,
+          },
+        ],
+        max_tokens: 100,
+      });
 
-      const prompt = `Придумай одну короткую смешную шутку (1-2 предложения максимум) на тему того, что игрок по имени ${userName} отказался от участия в спортивной игре или тренировке. Шутка должна быть добродушной, без оскорблений. Отвечай только текстом шутки, без кавычек и пояснений.`;
-
-      const result = await model.generateContent(prompt);
-      const joke = result.response.text().trim();
-
+      const joke = completion.choices[0]?.message?.content?.trim();
       if (!joke) return this.getRandomFallback();
       return joke;
     } catch (error) {
-      console.error('JokeService: Gemini API error:', error);
+      console.error('JokeService: Groq API error:', error);
       return this.getRandomFallback();
     }
   }
