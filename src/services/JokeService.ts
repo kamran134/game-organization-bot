@@ -31,14 +31,19 @@ export class JokeService {
 
     try {
       const completion = await this.groq.chat.completions.create({
-        model: 'llama-3.1-8b-instant',
+        model: 'llama-3.3-70b-versatile',
         messages: [
           {
+            role: 'system',
+            content: 'Ты остроумный саркастичный комик. Шутишь коротко, по-русски, без банальностей. Никаких объяснений — только сама шутка.',
+          },
+          {
             role: 'user',
-            content: `Придумай одну короткую смешную шутку (1-2 предложения максимум) на тему того, что игрок по имени ${userName} отказался от участия в спортивной игре или тренировке. Шутка должна быть добродушной, без оскорблений. Отвечай только текстом шутки, без кавычек и пояснений.`,
+            content: `Придумай одну язвительную, но добродушную шутку про то, что ${userName} слился с игры или тренировки. 1-2 предложения, желательно с неожиданной концовкой.`,
           },
         ],
-        max_tokens: 100,
+        max_tokens: 120,
+        temperature: 0.9,
       });
 
       const joke = completion.choices[0]?.message?.content?.trim();
