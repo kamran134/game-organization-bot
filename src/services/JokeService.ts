@@ -31,7 +31,7 @@ export class JokeService {
     }
 
     try {
-      const model = this.genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+      const model = this.genAI.getGenerativeModel({ model: 'gemini-2.0-flash-lite' });
 
       const prompt = `Придумай одну короткую смешную шутку (1-2 предложения максимум) на тему того, что игрок по имени ${userName} отказался от участия в спортивной игре или тренировке. Шутка должна быть добродушной, без оскорблений. Отвечай только текстом шутки, без кавычек и пояснений.`;
 
