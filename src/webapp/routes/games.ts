@@ -299,5 +299,87 @@ export function createGamesRouter(db: Database): Router {
     }
   });
 
+  // ---- Guest management (admin only) ----
+
+  // POST /api/games/:id/guests — add a guest participant
+  router.post('/:id/guests', verifyTelegramInitData, async (req: AuthRequest, res: Response): Promise<void> => {
+    const telegramUser = req.telegramUser;
+    const gameId = parseInt(req.params.id);
+    if (!telegramUser) { res.status(401).json({ error: 'Unauthorized' }); return; }
+    if (!gameId) { res.status(400).json({ error: 'Invalid game id' }); return; }
+    try {
+      const user = await userService.getUserByTelegramId(telegramUser.id);
+      if (!user) { res.status(404).json({ error: 'User not found' }); return; }
+      const game = await gameService.getGameById(gameId);
+      if (!game) { res.status(404).json({ error: 'Game not found' }); return; }
+      const isAdmin = await groupService.isUserAdmin(user.id, game.group_id);
+      if (!isAdmin) { res.status(403).json({ error: 'Admin only' }); return; }
+
+      const { first_name, last_name } = req.body as { first_name?: string; last_name?: string };
+      if (!first_name?.trim()) {
+        res.status(400).json({ error: 'first_name is required' });
+        return;
+      }
+
+      const participant = await gameService.addGuest(gameId, first_name, last_name);
+      res.status(201).json({ id: participant.id, message: 'Guest added' });
+    } catch (error) {
+      console.error('Error adding guest:', error);
+      res.status(500).json({ error: 'Failed to add guest' });
+    }
+  });
+
+  // PUT /api/games/:id/guests/:participantId — edit a guest participant
+  router.put('/:id/guests/:participantId', verifyTelegramInitData, async (req: AuthRequest, res: Response): Promise<void> => {
+    const telegramUser = req.telegramUser;
+    const gameId = parseInt(req.params.id);
+    const participantId = parseInt(req.params.participantId);
+    if (!telegramUser) { res.status(401).json({ error: 'Unauthorized' }); return; }
+    if (!gameId || !participantId) { res.status(400).json({ error: 'Invalid ids' }); return; }
+    try {
+      const user = await userService.getUserByTelegramId(telegramUser.id);
+      if (!user) { res.status(404).json({ error: 'User not found' }); return; }
+      const game = await gameService.getGameById(gameId);
+      if (!game) { res.status(404).json({ error: 'Game not found' }); return; }
+      const isAdmin = await groupService.isUserAdmin(user.id, game.group_id);
+      if (!isAdmin) { res.status(403).json({ error: 'Admin only' }); return; }
+
+      const { first_name, last_name } = req.body as { first_name?: string; last_name?: string };
+      if (!first_name?.trim()) {
+        res.status(400).json({ error: 'first_name is required' });
+        return;
+      }
+
+      await gameService.updateGuest(participantId, gameId, first_name, last_name);
+      res.json({ message: 'Guest updated' });
+    } catch (error) {
+      console.error('Error updating guest:', error);
+      res.status(500).json({ error: 'Failed to update guest' });
+    }
+  });
+
+  // DELETE /api/games/:id/guests/:participantId — remove a guest participant
+  router.delete('/:id/guests/:participantId', verifyTelegramInitData, async (req: AuthRequest, res: Response): Promise<void> => {
+    const telegramUser = req.telegramUser;
+    const gameId = parseInt(req.params.id);
+    const participantId = parseInt(req.params.participantId);
+    if (!telegramUser) { res.status(401).json({ error: 'Unauthorized' }); return; }
+    if (!gameId || !participantId) { res.status(400).json({ error: 'Invalid ids' }); return; }
+    try {
+      const user = await userService.getUserByTelegramId(telegramUser.id);
+      if (!user) { res.status(404).json({ error: 'User not found' }); return; }
+      const game = await gameService.getGameById(gameId);
+      if (!game) { res.status(404).json({ error: 'Game not found' }); return; }
+      const isAdmin = await groupService.isUserAdmin(user.id, game.group_id);
+      if (!isAdmin) { res.status(403).json({ error: 'Admin only' }); return; }
+
+      await gameService.removeGuest(participantId, gameId);
+      res.json({ message: 'Guest removed' });
+    } catch (error) {
+      console.error('Error removing guest:', error);
+      res.status(500).json({ error: 'Failed to remove guest' });
+    }
+  });
+
   return router;
 }

@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import { DataSource } from 'typeorm';
 import * as dotenv from 'dotenv';
 import { AddGameTypeColumn1707649200000 } from './migrations/1707649200000-AddGameTypeColumn';
+import { MakeUserIdNullable1738000000000 } from './migrations/1738000000000-MakeUserIdNullable';
 
 // Загружаем переменные окружения
 dotenv.config();
@@ -14,7 +15,7 @@ const AppDataSource = new DataSource({
   password: process.env.DB_PASSWORD || 'postgres',
   database: process.env.DB_DATABASE || 'game_bot',
   entities: [],
-  migrations: [AddGameTypeColumn1707649200000],
+  migrations: [AddGameTypeColumn1707649200000, MakeUserIdNullable1738000000000],
   synchronize: false,
   logging: true,
   migrationsRun: false,

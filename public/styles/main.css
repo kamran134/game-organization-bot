@@ -147,6 +147,84 @@ select.input {
   color: #fff;
 }
 
+.btn-guest {
+  background: #6d4c9e;
+  color: #fff;
+}
+
+/* ── Guest badge & icon buttons ── */
+.participant-badge {
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 4px;
+  padding: 1px 5px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  flex-shrink: 0;
+}
+
+.guest-badge {
+  background: rgba(109, 76, 158, 0.18);
+  color: #7b51b5;
+}
+
+.btn-icon {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0 2px;
+  line-height: 1;
+  opacity: 0.6;
+  flex-shrink: 0;
+}
+.btn-icon:hover { opacity: 1; }
+
+/* ── Guest add/edit inline form ── */
+.guest-form {
+  margin-top: 6px;
+  padding: 10px 12px;
+  background: var(--tg-bg);
+  border-radius: calc(var(--radius) - 2px);
+  border: 1px solid rgba(109, 76, 158, 0.35);
+}
+
+.guest-form.hidden { display: none; }
+
+.guest-form-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.guest-input {
+  background: var(--tg-secondary);
+  border: 1px solid rgba(127,127,127,0.3);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 14px;
+  color: var(--tg-text);
+  outline: none;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.guest-input:focus {
+  border-color: #7b51b5;
+}
+
+.guest-form-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.guest-form-actions .btn {
+  flex: 1;
+  font-size: 13px;
+  padding: 9px 6px;
+}
+
 .btn-maybe {
   background: #f57c00;
   color: #fff;
@@ -214,6 +292,7 @@ select.input {
 
 .participant-row {
   display: flex;
+  align-items: center;
   gap: 6px;
   font-size: 14px;
 }

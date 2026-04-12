@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn, Unique } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
 import { Game } from './Game';
 import { User } from './User';
 
@@ -9,7 +9,8 @@ export enum ParticipationStatus {
 }
 
 @Entity('game_participants')
-@Unique(['game_id', 'user_id']) // Один пользователь может быть записан на игру только один раз
+// Note: unique constraint on (game_id, user_id) is enforced as a partial index in DB
+// (only when user_id IS NOT NULL), allowing multiple guests per game.
 export class GameParticipant {
   @PrimaryGeneratedColumn()
   id!: number;
@@ -21,12 +22,12 @@ export class GameParticipant {
   @JoinColumn({ name: 'game_id' })
   game!: Game;
 
-  @Column()
-  user_id!: number;
+  @Column({ nullable: true })
+  user_id?: number;
 
-  @ManyToOne(() => User, (user) => user.gameParticipations)
+  @ManyToOne(() => User, (user) => user.gameParticipations, { nullable: true })
   @JoinColumn({ name: 'user_id' })
-  user!: User;
+  user?: User;
 
   @Column({ type: 'varchar' })
   participation_status!: ParticipationStatus;

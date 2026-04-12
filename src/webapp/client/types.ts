@@ -12,6 +12,7 @@ export interface LocationDto {
 }
 
 export interface ParticipantDto {
+  id?: number;
   participation_status: 'confirmed' | 'maybe' | 'guest';
   guest_name?: string;
   user?: {

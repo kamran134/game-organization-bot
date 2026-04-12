@@ -188,4 +188,41 @@ export class GameService {
     const gameRepo = this.db.getRepository(Game);
     await gameRepo.update(gameId, { status: GameStatus.COMPLETED });
   }
+
+  async addGuest(gameId: number, firstName: string, lastName?: string): Promise<GameParticipant> {
+    const participantRepo = this.db.getRepository(GameParticipant);
+    const guestName = [firstName.trim(), lastName?.trim()].filter(Boolean).join(' ');
+    const participant = participantRepo.create({
+      game_id: gameId,
+      participation_status: ParticipationStatus.GUEST,
+      guest_name: guestName,
+    });
+    await participantRepo.save(participant);
+    await this.updateParticipantPositions(gameId);
+    return participant;
+  }
+
+  async updateGuest(participantId: number, gameId: number, firstName: string, lastName?: string): Promise<void> {
+    const participantRepo = this.db.getRepository(GameParticipant);
+    const participant = await participantRepo.findOne({
+      where: { id: participantId, game_id: gameId },
+    });
+    if (!participant || participant.participation_status !== ParticipationStatus.GUEST) {
+      throw new Error('Guest participant not found');
+    }
+    participant.guest_name = [firstName.trim(), lastName?.trim()].filter(Boolean).join(' ');
+    await participantRepo.save(participant);
+  }
+
+  async removeGuest(participantId: number, gameId: number): Promise<void> {
+    const participantRepo = this.db.getRepository(GameParticipant);
+    const participant = await participantRepo.findOne({
+      where: { id: participantId, game_id: gameId },
+    });
+    if (!participant || participant.participation_status !== ParticipationStatus.GUEST) {
+      throw new Error('Guest participant not found');
+    }
+    await participantRepo.remove(participant);
+    await this.updateParticipantPositions(gameId);
+  }
 }
