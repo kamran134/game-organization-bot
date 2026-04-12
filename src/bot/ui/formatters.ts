@@ -49,8 +49,9 @@ export function formatParticipantName(participant: GameParticipant): string {
  * Форматирование списка участников с группировкой по статусу
  */
 export function formatParticipantsList(participants: GameParticipant[]): string {
-  const confirmed = participants.filter(p => p.participation_status === 'confirmed');
-  const maybe = participants.filter(p => p.participation_status === 'maybe');
+  const sorted = [...participants].sort((a, b) => a.joined_at.getTime() - b.joined_at.getTime());
+  const confirmed = sorted.filter(p => p.participation_status === 'confirmed');
+  const maybe = sorted.filter(p => p.participation_status === 'maybe');
 
   let text = '';
 

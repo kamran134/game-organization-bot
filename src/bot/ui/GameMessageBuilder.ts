@@ -214,7 +214,7 @@ export class GameMessageBuilder {
   /**
    * Клавиатура действий для игры/тренировки
    */
-  static buildGameActionsKeyboard(gameId: number, confirmedCount: number, isAdmin: boolean) {
-    return KeyboardBuilder.createGameActionsKeyboard(gameId, confirmedCount, isAdmin);
+  static buildGameActionsKeyboard(gameId: number, confirmedCount: number, isAdmin: boolean, maybeCount: number = 0) {
+    return KeyboardBuilder.createGameActionsKeyboard(gameId, confirmedCount, isAdmin, maybeCount);
   }
 }

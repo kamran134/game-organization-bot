@@ -98,6 +98,7 @@ export class GamesFilterHandler {
       : GameMessageBuilder.formatGameCard(game);
     
     const confirmedCount = game.participants?.filter((p: any) => p.participation_status === ParticipationStatus.CONFIRMED).length || 0;
+    const maybeCount = game.participants?.filter((p: any) => p.participation_status === ParticipationStatus.MAYBE).length || 0;
     
     // Проверяем является ли пользователь админом
     let isAdmin = false;
@@ -108,7 +109,7 @@ export class GamesFilterHandler {
       }
     }
     
-    const actionKeyboard = KeyboardBuilder.createGameActionsKeyboard(game.id, confirmedCount, isAdmin);
+    const actionKeyboard = KeyboardBuilder.createGameActionsKeyboard(game.id, confirmedCount, isAdmin, maybeCount);
     
     await ctx.editMessageText(message, {
       ...actionKeyboard,

@@ -67,10 +67,10 @@ export class KeyboardBuilder {
    * @param confirmedCount - количество подтверждённых участников (для отображения в кнопке)
    * @param isAdmin - является ли пользователь администратором группы
    */
-  static createGameActionsKeyboard(gameId: number, confirmedCount: number = 0, isAdmin: boolean = false) {
+  static createGameActionsKeyboard(gameId: number, confirmedCount: number = 0, isAdmin: boolean = false, maybeCount: number = 0) {
     const buttons = [
       [Markup.button.callback(`✅ Точно (${confirmedCount})`, `join_confirmed_${gameId}`)],
-      [Markup.button.callback('❓ Не точно', `join_maybe_${gameId}`)],
+      [Markup.button.callback(`❓ Не точно (${maybeCount})`, `join_maybe_${gameId}`)],
       [Markup.button.callback('❌ Отказаться', `leave_game_${gameId}`)],
       [Markup.button.callback('👥 Список участников', `show_participants_${gameId}`)],
     ];

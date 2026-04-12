@@ -80,7 +80,7 @@ export class GameCreationActionsHandler extends ActionHandler {
         const createdMessage = GameMessageBuilder.formatGameCreatedMessage(game);
         await ctx.editMessageText(
           createdMessage + '\n\nУчастники могут записаться прямо здесь:',
-          KeyboardBuilder.createGameActionsKeyboard(game.id, 0, isAdmin)
+          KeyboardBuilder.createGameActionsKeyboard(game.id, 0, isAdmin, 0)
         );
         await ctx.answerCbQuery('✅ Игра создана!');
       } catch (error) {

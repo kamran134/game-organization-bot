@@ -368,7 +368,7 @@ export class TrainingCreationFlow {
       await ctx.editMessageText('✅ Тренировка создана!');
       await ctx.reply(
         message,
-        GameMessageBuilder.buildGameActionsKeyboard(training.id, 0, true)
+        GameMessageBuilder.buildGameActionsKeyboard(training.id, 0, true, 0)
       );
     } catch (error) {
       console.error('Error creating training:', error);

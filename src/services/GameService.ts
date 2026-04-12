@@ -48,15 +48,19 @@ export class GameService {
 
   async getGameById(gameId: number): Promise<Game | null> {
     const gameRepo = this.db.getRepository(Game);
-    return gameRepo.findOne({
+    const game = await gameRepo.findOne({
       where: { id: gameId },
       relations: ['group', 'creator', 'sport', 'location', 'participants', 'participants.user'],
     });
+    if (game?.participants) {
+      game.participants.sort((a, b) => a.joined_at.getTime() - b.joined_at.getTime());
+    }
+    return game;
   }
 
   async getUpcomingGroupGames(groupId: number): Promise<Game[]> {
     const gameRepo = this.db.getRepository(Game);
-    return gameRepo.find({
+    const games = await gameRepo.find({
       where: {
         group_id: groupId,
         status: GameStatus.PLANNED,
@@ -65,6 +69,12 @@ export class GameService {
       relations: ['sport', 'location', 'participants', 'participants.user'],
       order: { game_date: 'ASC' },
     });
+    for (const game of games) {
+      if (game.participants) {
+        game.participants.sort((a, b) => a.joined_at.getTime() - b.joined_at.getTime());
+      }
+    }
+    return games;
   }
 
   async addParticipant(

@@ -55,9 +55,10 @@ export class TrainingsCommand extends CommandHandler {
     // Отправляем карточки тренировок
     for (const training of trainings) {
       const confirmedCount = training.participants?.filter(p => p.participation_status === 'confirmed').length || 0;
+      const maybeCount = training.participants?.filter(p => p.participation_status === 'maybe').length || 0;
       
       const message = GameMessageBuilder.buildTrainingCard(training);
-      const keyboard = KeyboardBuilder.createGameActionsKeyboard(training.id, confirmedCount, isAdmin);
+      const keyboard = KeyboardBuilder.createGameActionsKeyboard(training.id, confirmedCount, isAdmin, maybeCount);
 
       await ctx.reply(message, {
         parse_mode: 'Markdown',

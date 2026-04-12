@@ -59,10 +59,11 @@ export class GameActionsHandler extends ActionHandler {
         const game = await this.services.gameService.getGameById(gameId);
         if (game) {
           const confirmedCount = game.participants?.filter((p: any) => p.participation_status === ParticipationStatus.CONFIRMED).length || 0;
+          const maybeCount = game.participants?.filter((p: any) => p.participation_status === ParticipationStatus.MAYBE).length || 0;
           const isAdmin = await this.services.groupService.isUserAdmin(user.id, game.group_id);
           
           await ctx.editMessageReplyMarkup(
-            KeyboardBuilder.createGameActionsKeyboard(gameId, confirmedCount, isAdmin).reply_markup
+            KeyboardBuilder.createGameActionsKeyboard(gameId, confirmedCount, isAdmin, maybeCount).reply_markup
           );
           
           // Отправляем сообщение в группу о том кто отказался
@@ -247,12 +248,13 @@ export class GameActionsHandler extends ActionHandler {
       const updatedGame = await this.services.gameService.getGameById(gameId);
       if (updatedGame) {
         const confirmedCount = updatedGame.participants?.filter((p: any) => p.participation_status === ParticipationStatus.CONFIRMED).length || 0;
+        const maybeCount = updatedGame.participants?.filter((p: any) => p.participation_status === ParticipationStatus.MAYBE).length || 0;
         
         // Проверяем isAdmin
         const isAdmin = await this.services.groupService.isUserAdmin(user.id, updatedGame.group_id);
         
         await ctx.editMessageReplyMarkup(
-          KeyboardBuilder.createGameActionsKeyboard(gameId, confirmedCount, isAdmin).reply_markup
+          KeyboardBuilder.createGameActionsKeyboard(gameId, confirmedCount, isAdmin, maybeCount).reply_markup
         );
         
         // Показываем список участников
@@ -272,6 +274,7 @@ export class GameActionsHandler extends ActionHandler {
   private async showGameDetails(ctx: Context, game: any) {
     const message = GameMessageBuilder.formatGameCard(game);
     const confirmedCount = game.participants?.filter((p: any) => p.participation_status === ParticipationStatus.CONFIRMED).length || 0;
+    const maybeCount = game.participants?.filter((p: any) => p.participation_status === ParticipationStatus.MAYBE).length || 0;
     
     // Проверяем isAdmin
     let isAdmin = false;
@@ -284,7 +287,7 @@ export class GameActionsHandler extends ActionHandler {
     
     await ctx.reply(
       message,
-      KeyboardBuilder.createGameActionsKeyboard(game.id, confirmedCount, isAdmin)
+      KeyboardBuilder.createGameActionsKeyboard(game.id, confirmedCount, isAdmin, maybeCount)
     );
   }
 }

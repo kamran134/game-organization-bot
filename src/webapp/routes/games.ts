@@ -94,9 +94,6 @@ export function createGamesRouter(db: Database): Router {
         type: gameType,
       });
 
-      // Auto-register creator
-      await gameService.addParticipant(game.id, user.id, ParticipationStatus.CONFIRMED);
-
       // Send notification to the Telegram group
       try {
         const botToken = process.env.BOT_TOKEN;
@@ -106,7 +103,7 @@ export function createGamesRouter(db: Database): Router {
           if (gameWithRelations) {
             const isAdmin = await groupService.isUserAdmin(user.id, parseInt(group_id));
             const text = GameMessageBuilder.formatGameCreatedMessage(gameWithRelations);
-            const keyboard = KeyboardBuilder.createGameActionsKeyboard(game.id, 1, isAdmin);
+            const keyboard = KeyboardBuilder.createGameActionsKeyboard(game.id, 0, isAdmin, 0);
             const telegram = new Telegram(botToken);
             await telegram.sendMessage(
               Number(group.telegram_chat_id),
