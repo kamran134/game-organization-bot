@@ -14,7 +14,8 @@ export class GameMessageBuilder {
     const sportName = game.sport?.name || 'Игра';
     
     const confirmedCount = game.participants?.filter(p => p.participation_status === 'confirmed').length || 0;
-    const maybeCount = game.participants?.filter(p => p.participation_status === 'maybe').length || 0;
+    const maybeCount     = game.participants?.filter(p => p.participation_status === 'maybe').length || 0;
+    const guestCount     = game.participants?.filter(p => p.participation_status === 'guest').length || 0;
 
     let text = `${sportEmoji} ${sportName}\n\n`;
     text += `📅 Дата: ${formatDate(game.game_date)}\n`;
@@ -30,6 +31,9 @@ export class GameMessageBuilder {
     
     if (maybeCount > 0) {
       text += ` (ещё ${maybeCount} под вопросом)`;
+    }
+    if (guestCount > 0) {
+      text += ` + ${guestCount} гост${guestCount === 1 ? 'ь' : guestCount < 5 ? 'я' : 'ей'}`;
     }
     text += `\n`;
 

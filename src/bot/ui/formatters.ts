@@ -51,14 +51,15 @@ export function formatParticipantName(participant: GameParticipant): string {
 export function formatParticipantsList(participants: GameParticipant[]): string {
   const sorted = [...participants].sort((a, b) => a.joined_at.getTime() - b.joined_at.getTime());
   const confirmed = sorted.filter(p => p.participation_status === 'confirmed');
-  const maybe = sorted.filter(p => p.participation_status === 'maybe');
+  const maybe     = sorted.filter(p => p.participation_status === 'maybe');
+  const guests    = sorted.filter(p => p.participation_status === 'guest');
 
   let text = '';
 
   if (confirmed.length > 0) {
     text += '✅ Точно идут:\n';
     confirmed.forEach((p, idx) => {
-      const name = p.user 
+      const name = p.user
         ? (p.user.username ? `@${p.user.username}` : p.user.first_name)
         : p.guest_name || 'Гость';
       text += `${idx + 1}. ${name}\n`;
@@ -69,18 +70,34 @@ export function formatParticipantsList(participants: GameParticipant[]): string 
   if (maybe.length > 0) {
     text += '❓ Возможно придут:\n';
     maybe.forEach((p, idx) => {
-      const name = p.user 
+      const name = p.user
         ? (p.user.username ? `@${p.user.username}` : p.user.first_name)
         : p.guest_name || 'Гость';
       text += `${idx + 1}. ${name}\n`;
     });
+    text += '\n';
   }
 
-  if (confirmed.length === 0 && maybe.length === 0) {
+  if (guests.length > 0) {
+    text += '👤 Гости:\n';
+    guests.forEach((p, idx) => {
+      text += `${idx + 1}. ${p.guest_name || 'Гость'}\n`;
+    });
+    text += '\n';
+  }
+
+  if (confirmed.length === 0 && maybe.length === 0 && guests.length === 0) {
     text = 'Пока никто не записался';
+  } else {
+    const parts: string[] = [];
+    if (confirmed.length > 0) parts.push(`${confirmed.length} точно`);
+    if (maybe.length > 0)     parts.push(`${maybe.length} под вопросом`);
+    if (guests.length > 0)    parts.push(`${guests.length} гост${guests.length === 1 ? 'ь' : guests.length < 5 ? 'я' : 'ей'}`);
+    const total = confirmed.length + maybe.length + guests.length;
+    text += `📊 Всего: ${total} (${parts.join(', ')})`;
   }
 
-  return text;
+  return text.trimEnd();
 }
 
 /**
