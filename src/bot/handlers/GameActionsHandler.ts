@@ -213,7 +213,7 @@ export class GameActionsHandler extends ActionHandler {
     }
 
     try {
-      // Получаем игру чтобы знать группу
+      // First fetch: need group_id and current participants before mutation
       const game = await this.services.gameService.getGameById(gameId);
       if (!game) {
         await ctx.answerCbQuery('❌ Игра не найдена');
@@ -238,29 +238,26 @@ export class GameActionsHandler extends ActionHandler {
       // Проверяем, записан ли уже на игру
       const existingParticipant = game.participants?.find((p: any) => p.user_id === user.id);
       
-      // Записываем на игру (создаёт новую запись или обновляет статус существующей)
       await this.services.gameService.addParticipant(gameId, user.id, status);
       
       const statusText = status === ParticipationStatus.CONFIRMED ? '✅ Точно иду' : '❓ Не точно';
       const actionText = existingParticipant ? 'статус обновлён' : 'вы записаны';
       await ctx.answerCbQuery(`${statusText} - ${actionText}!`);
       
-      // Обновляем сообщение с актуальным списком
+      // Second fetch: need updated participants after mutation for UI
       const updatedGame = await this.services.gameService.getGameById(gameId);
-      if (updatedGame) {
-        const confirmedCount = updatedGame.participants?.filter((p: any) => p.participation_status === ParticipationStatus.CONFIRMED).length || 0;
-        const maybeCount = updatedGame.participants?.filter((p: any) => p.participation_status === ParticipationStatus.MAYBE).length || 0;
-        
-        // Проверяем isAdmin
-        const isAdmin = await this.services.groupService.isUserAdmin(user.id, updatedGame.group_id);
-        
-        await ctx.editMessageReplyMarkup(
-          KeyboardBuilder.createGameActionsKeyboard(gameId, confirmedCount, isAdmin, maybeCount).reply_markup
-        );
-        
-        // Показываем список участников
-        await this.showParticipantsList(ctx, updatedGame);
-      }
+      if (!updatedGame) return;
+
+      const confirmedCount = updatedGame.participants?.filter((p: any) => p.participation_status === ParticipationStatus.CONFIRMED).length || 0;
+      const maybeCount = updatedGame.participants?.filter((p: any) => p.participation_status === ParticipationStatus.MAYBE).length || 0;
+      
+      const isAdmin = await this.services.groupService.isUserAdmin(user.id, game.group_id);
+      
+      await ctx.editMessageReplyMarkup(
+        KeyboardBuilder.createGameActionsKeyboard(gameId, confirmedCount, isAdmin, maybeCount).reply_markup
+      );
+      
+      await this.showParticipantsList(ctx, updatedGame);
     } catch (error) {
       console.error('Error joining game:', error);
       await ctx.answerCbQuery('❌ Ошибка записи');

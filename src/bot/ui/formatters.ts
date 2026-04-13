@@ -1,18 +1,7 @@
 import { GameParticipant, ParticipationStatus } from '../../models/GameParticipant';
 
-/**
- * Форматирование даты для отображения
- */
-export function formatDate(date: Date): string {
-  const options: Intl.DateTimeFormatOptions = {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  };
-  return new Date(date).toLocaleDateString('ru-RU', options);
-}
+// Single source of truth for date formatting lives in helpers.ts
+export { formatDate } from '../../utils/helpers';
 
 /**
  * Форматирование статуса игры с emoji
