@@ -124,14 +124,13 @@ export class GameService {
       }
     }
 
-    // Recalculate positions
-    await this.updateParticipantPositions(gameId);
+    // Recalculate positions is no longer needed — positions are computed lazily
+    // in getParticipantsByStatus() to avoid an extra DB round-trip on every mutation.
   }
 
   async removeParticipant(gameId: number, userId: number): Promise<void> {
     const participantRepo = this.db.getRepository(GameParticipant);
     await participantRepo.delete({ game_id: gameId, user_id: userId });
-    await this.updateParticipantPositions(gameId);
   }
 
   async updateParticipantPositions(gameId: number): Promise<void> {
@@ -167,14 +166,19 @@ export class GameService {
       return { confirmed: [], maybe: [], guests: [], waiting: [] };
     }
 
-    const participants = game.participants.sort((a, b) => (a.position || 0) - (b.position || 0));
+    // Sort by priority (confirmed -> maybe -> guest) then join time
+    const sorted = [...game.participants].sort((a, b) => {
+      const pd = a.getPriority() - b.getPriority();
+      return pd !== 0 ? pd : a.joined_at.getTime() - b.joined_at.getTime();
+    });
 
-    const confirmed = participants.filter((p) => p.participation_status === ParticipationStatus.CONFIRMED);
-    const maybe = participants.filter((p) => p.participation_status === ParticipationStatus.MAYBE);
-    const guests = participants.filter((p) => p.participation_status === ParticipationStatus.GUEST);
+    // Assign virtual slot positions in memory (no DB write)
+    sorted.forEach((p, i) => { p.position = i + 1; });
 
-    // Those with position > max_participants are in waiting list
-    const waiting = participants.filter((p) => (p.position || 0) > game.max_participants);
+    const confirmed = sorted.filter((p) => p.participation_status === ParticipationStatus.CONFIRMED);
+    const maybe     = sorted.filter((p) => p.participation_status === ParticipationStatus.MAYBE);
+    const guests    = sorted.filter((p) => p.participation_status === ParticipationStatus.GUEST);
+    const waiting   = sorted.filter((p) => (p.position ?? 0) > game.max_participants);
 
     return { confirmed, maybe, guests, waiting };
   }
@@ -198,7 +202,7 @@ export class GameService {
       guest_name: guestName,
     });
     await participantRepo.save(participant);
-    await this.updateParticipantPositions(gameId);
+    // position is now computed lazily in getParticipantsByStatus
     return participant;
   }
 
@@ -223,6 +227,5 @@ export class GameService {
       throw new Error('Guest participant not found');
     }
     await participantRepo.remove(participant);
-    await this.updateParticipantPositions(gameId);
   }
 }

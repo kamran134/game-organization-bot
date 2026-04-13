@@ -122,14 +122,7 @@ export class GameActionsHandler extends ActionHandler {
       }
 
       // Проверяем что пользователь - админ группы
-      const user = await this.services.userService.getUserByTelegramId(ctx.from!.id);
-      if (!user) {
-        await ctx.answerCbQuery('❌ Ошибка');
-        return;
-      }
-
-      const isAdmin = await this.services.groupService.isUserAdmin(user.id, game.group_id);
-      if (!isAdmin) {
+      if (!await this.checkAdmin(ctx, game.group_id)) {
         await ctx.answerCbQuery('❌ Только администраторы могут удалять игры');
         return;
       }
@@ -163,15 +156,8 @@ export class GameActionsHandler extends ActionHandler {
         return;
       }
 
-      // Проверяем права
-      const user = await this.services.userService.getUserByTelegramId(ctx.from!.id);
-      if (!user) {
-        await ctx.editMessageText('❌ Ошибка');
-        return;
-      }
-
-      const isAdmin = await this.services.groupService.isUserAdmin(user.id, game.group_id);
-      if (!isAdmin) {
+      // Check admin rights
+      if (!await this.checkAdmin(ctx, game.group_id)) {
         await ctx.editMessageText('❌ Только администраторы могут удалять игры');
         return;
       }

@@ -134,15 +134,8 @@ export class GroupActionsHandler extends ActionHandler {
     bot.action(/remove_member_(\d+)_(\d+)/, async (ctx) => {
       const groupId = parseInt(ctx.match[1]);
       const memberUserId = parseInt(ctx.match[2]);
-      const admin = await this.services.userService.getUserByTelegramId(ctx.from!.id);
-      
-      if (!admin) {
-        await ctx.answerCbQuery('Ошибка: пользователь не найден');
-        return;
-      }
 
-      const isAdmin = await this.services.groupService.isUserAdmin(admin.id, groupId);
-      if (!isAdmin) {
+      if (!await this.checkAdmin(ctx, groupId)) {
         await ctx.answerCbQuery('⛔ Только администраторы могут удалять участников');
         return;
       }
@@ -180,12 +173,8 @@ export class GroupActionsHandler extends ActionHandler {
     // Manage group (admin menu)
     bot.action(/manage_(\d+)/, async (ctx) => {
       const groupId = parseInt(ctx.match[1]);
-      const user = await this.services.userService.getUserByTelegramId(ctx.from!.id);
-      
-      if (!user) return;
 
-      const isAdmin = await this.services.groupService.isUserAdmin(user.id, groupId);
-      if (!isAdmin) {
+      if (!await this.checkAdmin(ctx, groupId)) {
         await ctx.answerCbQuery('⛔ Только администраторы имеют доступ');
         return;
       }
@@ -245,16 +234,8 @@ export class GroupActionsHandler extends ActionHandler {
     // Manage locations
     bot.action(/^manage_locations_(\d+)$/, async (ctx) => {
       const groupId = parseInt(ctx.match[1]);
-      
-      // Проверяем права
-      const user = await this.services.userService.getUserByTelegramId(ctx.from!.id);
-      if (!user) {
-        await ctx.answerCbQuery('❌ Ошибка');
-        return;
-      }
 
-      const isAdmin = await this.services.groupService.isUserAdmin(user.id, groupId);
-      if (!isAdmin) {
+      if (!await this.checkAdmin(ctx, groupId)) {
         await ctx.answerCbQuery('❌ Только администраторы могут управлять локациями');
         return;
       }
@@ -289,15 +270,7 @@ export class GroupActionsHandler extends ActionHandler {
         return;
       }
 
-      // Проверяем права
-      const user = await this.services.userService.getUserByTelegramId(ctx.from!.id);
-      if (!user) {
-        await ctx.answerCbQuery('❌ Ошибка');
-        return;
-      }
-
-      const isAdmin = await this.services.groupService.isUserAdmin(user.id, location.group_id);
-      if (!isAdmin) {
+      if (!await this.checkAdmin(ctx, location.group_id)) {
         await ctx.answerCbQuery('❌ Только администраторы могут просматривать детали локаций');
         return;
       }
@@ -328,15 +301,7 @@ export class GroupActionsHandler extends ActionHandler {
         return;
       }
 
-      // Проверяем права
-      const user = await this.services.userService.getUserByTelegramId(ctx.from!.id);
-      if (!user) {
-        await ctx.answerCbQuery('❌ Ошибка');
-        return;
-      }
-
-      const isAdmin = await this.services.groupService.isUserAdmin(user.id, location.group_id);
-      if (!isAdmin) {
+      if (!await this.checkAdmin(ctx, location.group_id)) {
         await ctx.answerCbQuery('❌ Только администраторы могут редактировать локации');
         return;
       }
@@ -374,15 +339,7 @@ export class GroupActionsHandler extends ActionHandler {
         return;
       }
 
-      // Проверяем права
-      const user = await this.services.userService.getUserByTelegramId(ctx.from!.id);
-      if (!user) {
-        await ctx.answerCbQuery('❌ Ошибка');
-        return;
-      }
-
-      const isAdmin = await this.services.groupService.isUserAdmin(user.id, location.group_id);
-      if (!isAdmin) {
+      if (!await this.checkAdmin(ctx, location.group_id)) {
         await ctx.answerCbQuery('❌ Только администраторы могут удалять локации');
         return;
       }
@@ -414,15 +371,7 @@ export class GroupActionsHandler extends ActionHandler {
         return;
       }
 
-      // Проверяем права
-      const user = await this.services.userService.getUserByTelegramId(ctx.from!.id);
-      if (!user) {
-        await ctx.editMessageText('❌ Ошибка');
-        return;
-      }
-
-      const isAdmin = await this.services.groupService.isUserAdmin(user.id, location.group_id);
-      if (!isAdmin) {
+      if (!await this.checkAdmin(ctx, location.group_id)) {
         await ctx.editMessageText('❌ Только администраторы могут удалять локации');
         return;
       }
@@ -454,15 +403,7 @@ export class GroupActionsHandler extends ActionHandler {
       const groupId = parseInt(ctx.match[1]);
       const userId = parseInt(ctx.match[2]);
       
-      // Проверяем права текущего пользователя
-      const currentUser = await this.services.userService.getUserByTelegramId(ctx.from!.id);
-      if (!currentUser) {
-        await ctx.answerCbQuery('❌ Ошибка');
-        return;
-      }
-
-      const isAdmin = await this.services.groupService.isUserAdmin(currentUser.id, groupId);
-      if (!isAdmin) {
+      if (!await this.checkAdmin(ctx, groupId)) {
         await ctx.answerCbQuery('❌ Только администраторы могут удалять участников');
         return;
       }

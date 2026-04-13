@@ -26,22 +26,24 @@ export abstract class ActionHandler {
     this.services = services;
   }
 
-  /**
-   * Регистрирует обработчик действий на экземпляре бота
-   */
   abstract register(bot: Telegraf): void;
 
-  /**
-   * Проверяет, что контекст - это групповой чат
-   */
   protected isGroupChat(ctx: Context): boolean {
     return ctx.chat?.type !== 'private';
   }
 
-  /**
-   * Проверяет, что контекст - это приватный чат
-   */
   protected isPrivateChat(ctx: Context): boolean {
     return ctx.chat?.type === 'private';
+  }
+
+  /**
+   * Returns true if the calling Telegram user is an admin in the given group.
+   * Combines getUserByTelegramId + isUserAdmin in one call.
+   */
+  protected async checkAdmin(ctx: Context, groupId: number): Promise<boolean> {
+    if (!ctx.from) return false;
+    const user = await this.services.userService.getUserByTelegramId(ctx.from.id);
+    if (!user) return false;
+    return this.services.groupService.isUserAdmin(user.id, groupId);
   }
 }

@@ -8,31 +8,34 @@ import { Sport } from '../models/Sport';
 import { Location } from '../models/Location';
 import { SportLocation } from '../models/SportLocation';
 
+/** Base connection config read from environment variables.
+ *  Shared by Database and standalone CLI scripts (e.g. runMigrations.ts). */
+export function getDbConnectionConfig() {
+  const host     = process.env.DB_HOST || 'localhost';
+  const port     = parseInt(process.env.DB_PORT || '5432', 10);
+  const username = process.env.DB_USERNAME || process.env.DB_USER;
+  const password = process.env.DB_PASSWORD;
+  const database = process.env.DB_DATABASE || process.env.DB_NAME;
+
+  if (!username || password === undefined || !database) {
+    throw new Error(
+      'Database credentials are not properly configured. ' +
+      `Missing: ${!username ? 'DB_USERNAME/DB_USER ' : ''}${password === undefined ? 'DB_PASSWORD ' : ''}${!database ? 'DB_DATABASE/DB_NAME' : ''}`
+    );
+  }
+
+  return { type: 'postgres' as const, host, port, username, password, database };
+}
+
 export class Database {
   private static instance: Database;
   public dataSource: DataSource;
 
   constructor() {
-    const dbHost = process.env.DB_HOST || 'localhost';
-    const dbPort = parseInt(process.env.DB_PORT || '5432', 10);
-    const dbUser = process.env.DB_USERNAME || process.env.DB_USER;
-    const dbPassword = process.env.DB_PASSWORD;
-    const dbName = process.env.DB_DATABASE || process.env.DB_NAME;
-
-    if (!dbUser || dbPassword === undefined || !dbName) {
-      throw new Error(
-        'Database credentials are not properly configured. ' +
-        `Missing: ${!dbUser ? 'DB_USERNAME/DB_USER ' : ''}${dbPassword === undefined ? 'DB_PASSWORD ' : ''}${!dbName ? 'DB_DATABASE/DB_NAME' : ''}`
-      );
-    }
+    const conn = getDbConnectionConfig();
 
     this.dataSource = new DataSource({
-      type: 'postgres',
-      host: dbHost,
-      port: dbPort,
-      username: dbUser,
-      password: dbPassword,
-      database: dbName,
+      ...conn,
       entities: [User, Group, GroupMember, Game, GameParticipant, Sport, Location, SportLocation],
       synchronize: process.env.NODE_ENV === 'development', // Auto-sync schema in dev
       logging: process.env.NODE_ENV === 'development',
