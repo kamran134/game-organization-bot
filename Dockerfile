@@ -1,5 +1,5 @@
 # Multi-stage build для оптимизации размера образа
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 
 WORKDIR /app
 
@@ -16,7 +16,7 @@ COPY . .
 RUN npm run build:all
 
 # Production образ
-FROM node:20-alpine
+FROM node:22-alpine
 
 WORKDIR /app
 
@@ -40,9 +40,9 @@ USER nodejs
 # Expose port (if needed for webhooks/health)
 EXPOSE 3000
 
-# Healthcheck для мониторинга
-HEALTHCHECK --interval=30s --timeout=3s --start-period=40s \
-  CMD node -e "console.log('Bot is running')" || exit 1
+# Healthcheck — probe the HTTP /health endpoint
+HEALTHCHECK --interval=30s --timeout=5s --start-period=45s \
+  CMD wget -qO- http://localhost:${WEBAPP_PORT:-3000}/health || exit 1
 
 # Start the bot
 CMD ["node", "dist/index.js"]

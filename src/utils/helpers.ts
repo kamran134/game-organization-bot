@@ -51,6 +51,12 @@ export function formatParticipantsList(
   return result || 'Нет участников';
 }
 
+/** Escapes special characters for Telegram Markdown v1 (legacy parse_mode: 'Markdown'). */
+export function escapeMarkdownV1(text: string): string {
+  return text.replace(/[_*`[]/g, '\\$&');
+}
+
+/** Escapes special characters for Telegram MarkdownV2. */
 export function escapeMarkdown(text: string): string {
   return text.replace(/[_*[\]()~`>#+=|{}.!-]/g, '\\$&');
 }

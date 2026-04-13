@@ -158,6 +158,18 @@ export class KeyboardBuilder {
   }
 
   /**
+   * Клавиатура подтверждения создания тренировки
+   */
+  static createTrainingConfirmationKeyboard(userId: number) {
+    return Markup.inlineKeyboard([
+      [
+        Markup.button.callback('✅ Создать', `confirm_training_${userId}`),
+        Markup.button.callback('❌ Отмена', `cancel_training_${userId}`),
+      ]
+    ]);
+  }
+
+  /**
    * Клавиатура списка групп пользователя
    */
   static createUserGroupsKeyboard(groups: Array<{ id: number; name: string }>) {

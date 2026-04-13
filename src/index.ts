@@ -40,7 +40,7 @@ async function main() {
     await sportService.initializeDefaultSports();
 
     // Start WebApp HTTP server
-    startWebAppServer(database);
+    const httpServer = startWebAppServer(database);
 
     // Initialize bot
     const bot = new Bot();
@@ -52,8 +52,13 @@ async function main() {
     });
 
     // Graceful shutdown
-    process.once('SIGINT', () => bot.stop('SIGINT'));
-    process.once('SIGTERM', () => bot.stop('SIGTERM'));
+    const shutdown = (signal: string) => {
+      console.log(`\n${signal} received, shutting down...`);
+      bot.stop(signal);
+      httpServer.close(() => console.log('✅ HTTP server closed'));
+    };
+    process.once('SIGINT', () => shutdown('SIGINT'));
+    process.once('SIGTERM', () => shutdown('SIGTERM'));
 
   } catch (error) {
     console.error('❌ Failed to start bot:', error);

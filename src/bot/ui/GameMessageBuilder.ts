@@ -2,6 +2,7 @@ import { Game } from '../../models/Game';
 import { GameType } from '../../models/GameType';
 import { GameCreationState } from '../../utils/GameCreationState';
 import { formatDate, formatParticipantsList } from './formatters';
+import { escapeMarkdownV1 } from '../../utils/helpers';
 import { Markup } from 'telegraf';
 import { KeyboardBuilder } from './KeyboardBuilder';
 
@@ -45,7 +46,7 @@ export class GameMessageBuilder {
       text += `💰 Стоимость: ${game.cost} ₼\n`;
     }
     if (game.notes) {
-      text += `\n📝 Заметки: ${game.notes}`;
+      text += `\n📝 Заметки: ${escapeMarkdownV1(game.notes)}`;
     }
 
     return text;

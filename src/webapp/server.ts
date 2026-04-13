@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
+import type { Request, Response, NextFunction } from 'express';
 import { Database } from '../database/Database';
 import { createGamesRouter } from './routes/games';
 import { createSportsRouter } from './routes/sports';
@@ -16,6 +17,39 @@ const ALLOWED_ORIGINS = [
   // Read from env so no code change is needed per environment.
   process.env.WEBAPP_URL,
 ].filter(Boolean) as string[];
+
+// ── Simple in-memory rate limiter ────────────────────────────────────────────
+interface RateLimitEntry { count: number; resetAt: number }
+const rateLimitStore = new Map<string, RateLimitEntry>();
+const RATE_LIMIT_WINDOW_MS = 60_000; // 1 minute
+const RATE_LIMIT_MAX = 60;           // requests per window per IP
+
+function rateLimiter(req: Request, res: Response, next: NextFunction): void {
+  const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0].trim() || req.socket.remoteAddress || 'unknown';
+  const now = Date.now();
+  const entry = rateLimitStore.get(ip);
+
+  if (!entry || now > entry.resetAt) {
+    rateLimitStore.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return next();
+  }
+
+  entry.count += 1;
+  if (entry.count > RATE_LIMIT_MAX) {
+    res.status(429).json({ error: 'Too many requests, please slow down.' });
+    return;
+  }
+  next();
+}
+
+// Periodically clean up expired entries to avoid memory growth
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, entry] of rateLimitStore.entries()) {
+    if (now > entry.resetAt) rateLimitStore.delete(ip);
+  }
+}, RATE_LIMIT_WINDOW_MS);
+// ─────────────────────────────────────────────────────────────────────────────
 
 export function createWebAppServer(db: Database) {
   const app = express();
@@ -42,6 +76,9 @@ export function createWebAppServer(db: Database) {
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
 
+  // Apply rate limiting to all API routes
+  app.use('/api', rateLimiter);
+
   // Serve static files from /public
   const publicDir = path.join(__dirname, '../../public');
   app.use(express.static(publicDir));
@@ -65,11 +102,13 @@ export function createWebAppServer(db: Database) {
   return app;
 }
 
-export function startWebAppServer(db: Database): void {
+export function startWebAppServer(db: Database): import('http').Server {
   const port = parseInt(process.env.WEBAPP_PORT || '3000', 10);
   const app = createWebAppServer(db);
 
-  app.listen(port, () => {
+  const server = app.listen(port, () => {
     console.log(`✅ WebApp server running on http://localhost:${port}`);
   });
+
+  return server;
 }

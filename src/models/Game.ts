@@ -49,8 +49,8 @@ export class Game {
   @JoinColumn({ name: 'location_id' })
   location?: Location;
 
-  // Старое текстовое поле location - сохраняем для миграции
-  @Column({ type: 'varchar', nullable: true })
+  /** @deprecated Legacy text field kept for data migration only — use location_id instead. */
+  @Column({ type: 'varchar', nullable: true, select: false })
   location_text?: string;
 
   @Column({ default: 2 })

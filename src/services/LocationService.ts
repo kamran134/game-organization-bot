@@ -80,15 +80,12 @@ export class LocationService {
 
     const savedLocation = await this.locationRepository.save(location);
 
-    // Создаём связи с видами спорта
+    // Создаём связи с видами спорта (bulk insert instead of loop)
     if (data.sport_ids && data.sport_ids.length > 0) {
-      for (const sportId of data.sport_ids) {
-        const sportLocation = this.sportLocationRepository.create({
-          location_id: savedLocation.id,
-          sport_id: sportId,
-        });
-        await this.sportLocationRepository.save(sportLocation);
-      }
+      const sportLocations = data.sport_ids.map(sportId =>
+        this.sportLocationRepository.create({ location_id: savedLocation.id, sport_id: sportId })
+      );
+      await this.sportLocationRepository.save(sportLocations);
     }
 
     // Возвращаем локацию со связями

@@ -231,8 +231,7 @@ select.input {
 }
 
 .btn-registered {
-  cursor: default;
-  opacity: 1;
+  /* not interactive — overridden at end of file */
 }
 
 /* ── Game actions button group ── */
@@ -418,3 +417,27 @@ select.input {
 .toast-error   { background: #e53935; }
 
 @keyframes fadeIn { from { opacity: 0; transform: translateX(-50%) translateY(10px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+@keyframes fadeOut { from { opacity: 1; transform: translateX(-50%) translateY(0); } to { opacity: 0; transform: translateX(-50%) translateY(10px); } }
+.toast.hiding { animation: fadeOut 0.2s ease forwards; }
+
+/* ── Accessibility: focus-visible for interactive elements ── */
+.btn:focus-visible,
+.input:focus-visible,
+.btn-icon:focus-visible {
+  outline: 2px solid var(--tg-btn);
+  outline-offset: 2px;
+}
+
+/* ── btn-registered: not interactive ── */
+.btn-registered {
+  cursor: default;
+  pointer-events: none;
+  opacity: 1;
+}
+
+/* ── Tablet media query (≥ 600px) ── */
+@media (min-width: 600px) {
+  .page { padding: 24px 32px 120px; }
+  .game-card { padding: 18px; }
+  .field-row { grid-template-columns: 1fr 1fr 1fr; }
+}

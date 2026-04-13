@@ -95,8 +95,8 @@ export class TrainingCreationHandler {
           await ctx.editMessageText(
             message,
             { reply_markup: { inline_keyboard: [[
-              { text: '✅ Создать', callback_data: `confirm_game_${userId}` },
-              { text: '❌ Отмена', callback_data: `cancel_game_${userId}` }
+              { text: '✅ Создать', callback_data: `confirm_training_${userId}` },
+              { text: '❌ Отмена', callback_data: `cancel_training_${userId}` }
             ]] }}
           );
         } else {
@@ -132,12 +132,13 @@ export class TrainingCreationHandler {
     });
 
     // Подтверждение создания
-    this.bot.action(/^confirm_game_(\d+)$/, async (ctx, next) => {
+    this.bot.action(/^confirm_training_(\d+)$/, async (ctx) => {
       const userId = parseInt(ctx.match[1]);
       
       const state = this.services.trainingCreationStates.get(userId);
       if (!state) {
-        return next();
+        await ctx.answerCbQuery('❌ Сессия создания истекла');
+        return;
       }
       
       if (ctx.from!.id !== userId) {
@@ -149,12 +150,13 @@ export class TrainingCreationHandler {
     });
 
     // Отмена создания
-    this.bot.action(/^cancel_game_(\d+)$/, async (ctx, next) => {
+    this.bot.action(/^cancel_training_(\d+)$/, async (ctx) => {
       const userId = parseInt(ctx.match[1]);
       
       const state = this.services.trainingCreationStates.get(userId);
       if (!state) {
-        return next();
+        await ctx.answerCbQuery();
+        return;
       }
       
       if (ctx.from!.id !== userId) {

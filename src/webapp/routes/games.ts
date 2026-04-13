@@ -162,8 +162,11 @@ export function createGamesRouter(db: Database): Router {
 
       await gameService.addParticipant(gameId, user.id, participationStatus);
 
-      // Send notification to the Telegram group
-      try {
+      // Respond immediately, notify group in background
+      res.json({ message: 'Registered successfully' });
+
+      // Send notification to the Telegram group (fire-and-forget)
+      setImmediate(async () => { try {
         const botToken = process.env.BOT_TOKEN;
         const updatedGame = await gameService.getGameById(gameId);
         if (botToken && updatedGame?.group?.telegram_chat_id) {
@@ -183,9 +186,7 @@ export function createGamesRouter(db: Database): Router {
         }
       } catch (notifyError) {
         console.error('Failed to send join notification to group:', notifyError);
-      }
-
-      res.json({ message: 'Registered successfully' });
+      }});
     } catch (error) {
       const err = error as NodeJS.ErrnoException;
       if ((err as {code?: string})?.code === '23505' || (err as Error)?.message?.includes('duplicate')) {
@@ -212,8 +213,11 @@ export function createGamesRouter(db: Database): Router {
       }
       await gameService.removeParticipant(gameId, user.id);
 
-      // Send cancel notification to the Telegram group
-      try {
+      // Respond immediately, notify group in background
+      res.json({ message: 'Cancelled successfully' });
+
+      // Send cancel notification (fire-and-forget)
+      setImmediate(async () => { try {
         const botToken = process.env.BOT_TOKEN;
         const updatedGame = await gameService.getGameById(gameId);
         if (botToken && updatedGame?.group?.telegram_chat_id) {
@@ -231,9 +235,7 @@ export function createGamesRouter(db: Database): Router {
         }
       } catch (notifyError) {
         console.error('Failed to send cancel notification to group:', notifyError);
-      }
-
-      res.json({ message: 'Cancelled successfully' });
+      }});
     } catch (error) {
       console.error('Error cancelling:', error);
       res.status(500).json({ error: 'Failed to cancel' });
