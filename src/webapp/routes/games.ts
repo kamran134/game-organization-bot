@@ -11,13 +11,14 @@ import { verifyTelegramInitData } from '../middleware/telegramAuth';
 import { Telegram } from 'telegraf';
 import { GameMessageBuilder } from '../../bot/ui/GameMessageBuilder';
 import { KeyboardBuilder } from '../../bot/ui/KeyboardBuilder';
-import { jokeService } from '../../services/JokeService';
+import { JokeService } from '../../services/JokeService';
 
 export function createGamesRouter(db: Database): Router {
   const router = Router();
   const gameService = new GameService(db);
   const userService = new UserService(db);
   const groupService = new GroupService(db);
+  const jokeService = new JokeService();
 
   // GET /api/games?group_id=X — upcoming games for a group (requires auth)
   router.get('/', verifyTelegramInitData, async (req: AuthRequest, res: Response): Promise<void> => {

@@ -1,24 +1,25 @@
-import { Telegraf } from 'telegraf';
+import { BotHandler } from './base/BotHandler';
 import { TrainingCreationStateManager } from '../../utils/TrainingCreationState';
 import { TrainingCreationFlow } from '../flows/TrainingCreationFlow';
-import { Database } from '../../database/Database';
+import { LocationService } from '../../services/LocationService';
+import { SportService } from '../../services/SportService';
 
 interface TrainingCreationHandlerServices {
   trainingCreationStates: TrainingCreationStateManager;
   trainingCreationFlow: TrainingCreationFlow;
+  locationService: LocationService;
+  sportService: SportService;
 }
 
-export class TrainingCreationHandler {
-  private bot: Telegraf;
+export class TrainingCreationHandler extends BotHandler {
   private services: TrainingCreationHandlerServices;
 
-  constructor(bot: Telegraf, services: TrainingCreationHandlerServices) {
-    this.bot = bot;
+  constructor(services: TrainingCreationHandlerServices) {
+    super();
     this.services = services;
-    this.registerHandlers();
   }
 
-  private registerHandlers(): void {
+  protected registerHandlers(): void {
     // Выбор вида спорта для тренировки
     this.bot.action(/^sport_(\d+)$/, async (ctx, next) => {
       const sportId = parseInt(ctx.match[1]);
@@ -31,10 +32,7 @@ export class TrainingCreationHandler {
         return next();
       }
 
-      const { SportService } = await import('../../services/SportService');
-      const db = Database.getInstance();
-      const sportService = new SportService(db);
-      const sport = await sportService.getSportById(sportId);
+      const sport = await this.services.sportService.getSportById(sportId);
 
       if (!sport) {
         await ctx.answerCbQuery('❌ Вид спорта не найден');
@@ -73,9 +71,7 @@ export class TrainingCreationHandler {
       }
 
       if (state) {
-        const { LocationService } = await import('../../services/LocationService');
-        const locationService = new LocationService();
-        const location = await locationService.getById(locationId);
+        const location = await this.services.locationService.getById(locationId);
 
         if (!location) {
           await ctx.answerCbQuery('❌ Локация не найдена');

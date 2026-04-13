@@ -1,4 +1,5 @@
 import { Telegraf, Context } from 'telegraf';
+import { BotHandler } from './base/BotHandler';
 import { LocationEditStateManager } from '../../utils/LocationEditState';
 import { LocationEditFlow } from '../flows/LocationEditFlow';
 import { LocationService } from '../../services/LocationService';
@@ -11,17 +12,15 @@ interface LocationEditHandlerServices {
   locationEditFlow: LocationEditFlow;
 }
 
-export class LocationEditHandler {
-  private bot: Telegraf;
+export class LocationEditHandler extends BotHandler {
   private services: LocationEditHandlerServices;
 
-  constructor(bot: Telegraf, services: LocationEditHandlerServices) {
-    this.bot = bot;
+  constructor(services: LocationEditHandlerServices) {
+    super();
     this.services = services;
-    this.registerHandlers();
   }
 
-  private registerHandlers(): void {
+  protected registerHandlers(): void {
     // Редактировать название
     this.bot.action(/^edit_location_name_(\d+)$/, async (ctx) => {
       const locationId = parseInt(ctx.match[1]);

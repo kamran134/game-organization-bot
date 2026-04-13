@@ -7,9 +7,9 @@ export class LocationService {
   private locationRepository: Repository<Location>;
   private sportLocationRepository: Repository<SportLocation>;
 
-  constructor() {
-    this.locationRepository = Database.getInstance().dataSource.getRepository(Location);
-    this.sportLocationRepository = Database.getInstance().dataSource.getRepository(SportLocation);
+  constructor(private db: Database) {
+    this.locationRepository = db.dataSource.getRepository(Location);
+    this.sportLocationRepository = db.dataSource.getRepository(SportLocation);
   }
 
   async getAll(includeInactive: boolean = false): Promise<Location[]> {

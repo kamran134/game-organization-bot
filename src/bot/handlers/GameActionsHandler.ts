@@ -6,7 +6,6 @@ import { KeyboardBuilder } from '../ui/KeyboardBuilder';
 import { GameMessageBuilder } from '../ui/GameMessageBuilder';
 import { Game } from '../../models/Game';
 import { Database } from '../../database/Database';
-import { jokeService } from '../../services/JokeService';
 
 export class GameActionsHandler extends ActionHandler {
   private db: Database;
@@ -72,7 +71,7 @@ export class GameActionsHandler extends ActionHandler {
           
           if (game.group.telegram_chat_id) {
             try {
-              const joke = await jokeService.getDeclineJoke(userName);
+              const joke = await this.services.jokeService.getDeclineJoke(userName);
               const safeJoke = joke.replace(/</g, '&lt;').replace(/>/g, '&gt;');
               await ctx.telegram.sendMessage(
                 game.group.telegram_chat_id,

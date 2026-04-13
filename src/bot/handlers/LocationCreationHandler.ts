@@ -1,4 +1,5 @@
-import { Telegraf, Context } from 'telegraf';
+import { Context } from 'telegraf';
+import { BotHandler } from './base/BotHandler';
 import { LocationManagementFlow } from '../flows/LocationManagementFlow';
 import { LocationCreationStateManager } from '../../utils/LocationCreationState';
 
@@ -7,17 +8,15 @@ interface LocationHandlerServices {
   locationCreationStates: LocationCreationStateManager;
 }
 
-export class LocationCreationHandler {
-  private bot: Telegraf;
+export class LocationCreationHandler extends BotHandler {
   private services: LocationHandlerServices;
 
-  constructor(bot: Telegraf, services: LocationHandlerServices) {
-    this.bot = bot;
+  constructor(services: LocationHandlerServices) {
+    super();
     this.services = services;
-    this.registerHandlers();
   }
 
-  private registerHandlers(): void {
+  protected registerHandlers(): void {
     // Обработка выбора вида спорта для локации
     this.bot.action(/^location_sport_(\d+)$/, async (ctx) => {
       const sportId = parseInt(ctx.match[1], 10);

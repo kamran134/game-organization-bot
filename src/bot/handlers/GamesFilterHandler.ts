@@ -1,4 +1,5 @@
-import { Telegraf, Context } from 'telegraf';
+import { Context } from 'telegraf';
+import { BotHandler } from './base/BotHandler';
 import { GamesView, GamesFilter } from '../ui/GamesView';
 
 interface HandlerServices {
@@ -7,15 +8,12 @@ interface HandlerServices {
   userService: any;
 }
 
-export class GamesFilterHandler {
-  constructor(
-    private bot: Telegraf,
-    private services: HandlerServices
-  ) {
-    this.registerHandlers();
+export class GamesFilterHandler extends BotHandler {
+  constructor(private services: HandlerServices) {
+    super();
   }
 
-  private registerHandlers(): void {
+  protected registerHandlers(): void {
     this.bot.action(/^filter_(games|trainings|all)_(\d+)$/, this.handleFilter.bind(this));
   }
 
@@ -32,6 +30,4 @@ export class GamesFilterHandler {
     await GamesView.show(ctx, this.services, groupId, filterType as GamesFilter, 'edit');
   }
 }
-
-
 

@@ -59,5 +59,3 @@ export class JokeService {
     return FALLBACK_JOKES[Math.floor(Math.random() * FALLBACK_JOKES.length)];
   }
 }
-
-export const jokeService = new JokeService();

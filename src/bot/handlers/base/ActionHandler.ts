@@ -4,6 +4,7 @@ import { GroupService } from '../../../services/GroupService';
 import { GameService } from '../../../services/GameService';
 import { SportService } from '../../../services/SportService';
 import { LocationService } from '../../../services/LocationService';
+import { JokeService } from '../../../services/JokeService';
 import { GameCreationStateManager } from '../../../utils/GameCreationState';
 import { LocationEditStateManager } from '../../../utils/LocationEditState';
 import { LocationEditFlow } from '../../flows/LocationEditFlow';
@@ -14,6 +15,7 @@ export interface ActionServices {
   gameService: GameService;
   sportService: SportService;
   locationService: LocationService;
+  jokeService: JokeService;
   gameCreationStates: GameCreationStateManager;
   locationEditStates?: LocationEditStateManager;
   locationEditFlow?: LocationEditFlow;

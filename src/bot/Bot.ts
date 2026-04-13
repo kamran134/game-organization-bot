@@ -1,14 +1,5 @@
 ﻿import { Telegraf } from 'telegraf';
 import { Database } from '../database/Database';
-import { UserService } from '../services/UserService';
-import { GroupService } from '../services/GroupService';
-import { GameService } from '../services/GameService';
-import { SportService } from '../services/SportService';
-import { LocationService } from '../services/LocationService';
-import { GameCreationStateManager } from '../utils/GameCreationState';
-import { TrainingCreationStateManager } from '../utils/TrainingCreationState';
-import { LocationCreationStateManager } from '../utils/LocationCreationState';
-import { LocationEditStateManager } from '../utils/LocationEditState';
 import {
   CommandHandler,
   CommandServices,
@@ -34,148 +25,66 @@ import {
   GameActionsHandler,
   GroupActionsHandler,
   GameCreationActionsHandler,
-  GroupEventHandler,
-  GroupEventServices,
 } from './handlers';
 import { LocationCreationHandler } from './handlers/LocationCreationHandler';
 import { LocationEditHandler } from './handlers/LocationEditHandler';
 import { TrainingCreationHandler } from './handlers/TrainingCreationHandler';
 import { GamesFilterHandler } from './handlers/GamesFilterHandler';
-import { GameCreationFlow, GameCreationServices } from './flows';
-import { TrainingCreationFlow } from './flows/TrainingCreationFlow';
-import { LocationManagementFlow } from './flows/LocationManagementFlow';
-import { LocationEditFlow } from './flows/LocationEditFlow';
+import { ServiceContainer } from './ServiceContainer';
 
 export class Bot {
   private bot: Telegraf;
-  private db: Database;
-  private userService: UserService;
-  private groupService: GroupService;
-  private gameService: GameService;
-  private sportService: SportService;
-  private locationService: LocationService;
-  private gameCreationStates: GameCreationStateManager;
-  private trainingCreationStates: TrainingCreationStateManager;
+  private container: ServiceContainer;
   private commands: (CommandHandler | AddLocationCommand | ListLocationsCommand | EditLocationCommand | NewTrainingCommand | TrainingsCommand)[];
   private handlers: ActionHandler[];
-  private gameCreationFlow: GameCreationFlow;
-  private trainingCreationFlow: TrainingCreationFlow;
-  private locationManagementFlow: LocationManagementFlow;
-  private locationEditFlow: LocationEditFlow;
-  private locationCreationStates: LocationCreationStateManager;
-  private locationEditStates: LocationEditStateManager;
-  private groupEventHandler: GroupEventHandler;
 
   constructor() {
     const token = process.env.BOT_TOKEN;
-    
+
     if (!token) {
       throw new Error('BOT_TOKEN is not defined in environment variables');
     }
 
     this.bot = new Telegraf(token);
-    this.db = Database.getInstance();
-    this.userService = new UserService(this.db);
-    this.groupService = new GroupService(this.db);
-    this.gameService = new GameService(this.db);
-    this.sportService = new SportService(this.db);
-    this.locationService = new LocationService();
-    this.gameCreationStates = new GameCreationStateManager();
-    this.trainingCreationStates = new TrainingCreationStateManager();
-    this.locationCreationStates = new LocationCreationStateManager();
-    this.locationEditStates = new LocationEditStateManager();
+    this.container = new ServiceContainer(Database.getInstance());
 
-    // Инициализируем game creation flow
-    const flowServices: GameCreationServices = {
-      gameService: this.gameService,
-      sportService: this.sportService,
-      locationService: this.locationService,
-      gameCreationStates: this.gameCreationStates,
-    };
-    this.gameCreationFlow = new GameCreationFlow(flowServices);
-
-    // Инициализируем training creation flow
-    const trainingFlowServices = {
-      gameService: this.gameService,
-      sportService: this.sportService,
-      locationService: this.locationService,
-      trainingCreationStates: this.trainingCreationStates,
-    };
-    this.trainingCreationFlow = new TrainingCreationFlow(trainingFlowServices);
-
-    // Инициализируем location management flow
-    const locationFlowServices = {
-      locationService: this.locationService,
-      sportService: this.sportService,
-      locationCreationStates: this.locationCreationStates,
-    };
-    this.locationManagementFlow = new LocationManagementFlow(locationFlowServices);
-
-    // Инициализируем location edit flow
-    const locationEditFlowServices = {
-      locationService: this.locationService,
-      sportService: this.sportService,
-      locationEditStates: this.locationEditStates,
-    };
-    this.locationEditFlow = new LocationEditFlow(locationEditFlowServices);
-
-    // Инициализируем group event handler
-    const groupEventServices: GroupEventServices = {
-      userService: this.userService,
-      groupService: this.groupService,
-    };
-    this.groupEventHandler = new GroupEventHandler(groupEventServices);
-
-    // Инициализируем команды
     this.commands = this.initializeCommands();
     this.handlers = this.initializeHandlers();
 
     this.setupMiddleware();
     this.registerCommands();
     this.registerHandlers();
-    this.groupEventHandler.register(this.bot);
+    this.container.groupEventHandler.register(this.bot);
     this.setupTextHandlers();
   }
 
   private initializeCommands(): (CommandHandler | AddLocationCommand | ListLocationsCommand | EditLocationCommand | NewTrainingCommand | TrainingsCommand)[] {
+    const c = this.container;
+
     const services: CommandServices = {
-      userService: this.userService,
-      groupService: this.groupService,
-      gameService: this.gameService,
-      sportService: this.sportService,
-      gameCreationStates: this.gameCreationStates,
+      userService: c.userService,
+      groupService: c.groupService,
+      gameService: c.gameService,
+      sportService: c.sportService,
+      gameCreationStates: c.gameCreationStates,
     };
 
     const trainingCommandServices: NewTrainingCommandServices = {
-      userService: this.userService,
-      groupService: this.groupService,
-      gameService: this.gameService,
-      sportService: this.sportService,
-      gameCreationStates: this.gameCreationStates,
-      locationService: this.locationService,
-      trainingCreationStates: this.trainingCreationStates,
+      userService: c.userService,
+      groupService: c.groupService,
+      gameService: c.gameService,
+      sportService: c.sportService,
+      gameCreationStates: c.gameCreationStates,
+      locationService: c.locationService,
+      trainingCreationStates: c.trainingCreationStates,
     };
 
     const locationCommandServices = {
-      userService: this.userService,
-      groupService: this.groupService,
-      sportService: this.sportService,
-      locationCreationStates: this.locationCreationStates,
-      gameCreationStates: this.gameCreationStates,
-    };
-
-    const listLocationsServices = {
-      locationService: this.locationService,
-      groupService: this.groupService,
-      userService: this.userService,
-    };
-
-    const editLocationServices = {
-      locationService: this.locationService,
-      groupService: this.groupService,
-      userService: this.userService,
-      locationEditStates: this.locationEditStates,
-      locationEditFlow: this.locationEditFlow,
+      userService: c.userService,
+      groupService: c.groupService,
+      sportService: c.sportService,
+      locationCreationStates: c.locationCreationStates,
+      gameCreationStates: c.gameCreationStates,
     };
 
     return [
@@ -192,8 +101,18 @@ export class Bot {
       new MyGroupsCommand(services),
       new CreateGroupCommand(services),
       new AddLocationCommand(locationCommandServices),
-      new ListLocationsCommand(listLocationsServices),
-      new EditLocationCommand(editLocationServices),
+      new ListLocationsCommand({
+        locationService: c.locationService,
+        groupService: c.groupService,
+        userService: c.userService,
+      }),
+      new EditLocationCommand({
+        locationService: c.locationService,
+        groupService: c.groupService,
+        userService: c.userService,
+        locationEditStates: c.locationEditStates,
+        locationEditFlow: c.locationEditFlow,
+      }),
     ];
   }
 
@@ -204,15 +123,18 @@ export class Bot {
   }
 
   private initializeHandlers(): ActionHandler[] {
+    const c = this.container;
+
     const services: ActionServices = {
-      userService: this.userService,
-      groupService: this.groupService,
-      gameService: this.gameService,
-      sportService: this.sportService,
-      locationService: this.locationService,
-      gameCreationStates: this.gameCreationStates,
-      locationEditStates: this.locationEditStates,
-      locationEditFlow: this.locationEditFlow,
+      userService: c.userService,
+      groupService: c.groupService,
+      gameService: c.gameService,
+      sportService: c.sportService,
+      locationService: c.locationService,
+      jokeService: c.jokeService,
+      gameCreationStates: c.gameCreationStates,
+      locationEditStates: c.locationEditStates,
+      locationEditFlow: c.locationEditFlow,
     };
 
     return [
@@ -223,60 +145,50 @@ export class Bot {
   }
 
   private registerHandlers() {
-    this.handlers.forEach(handler => {
-      handler.register(this.bot);
-    });
+    const c = this.container;
 
-    // Регистрируем handler для создания локаций
-    const locationHandlerServices = {
-      locationManagementFlow: this.locationManagementFlow,
-      locationCreationStates: this.locationCreationStates,
-    };
-    new LocationCreationHandler(this.bot, locationHandlerServices);
+    this.handlers.forEach(handler => handler.register(this.bot));
 
-    // Регистрируем handler для редактирования локаций
-    const locationEditHandlerServices = {
-      locationService: this.locationService,
-      sportService: this.sportService,
-      locationEditStates: this.locationEditStates,
-      locationEditFlow: this.locationEditFlow,
-    };
-    new LocationEditHandler(this.bot, locationEditHandlerServices);
+    new LocationCreationHandler({
+      locationManagementFlow: c.locationManagementFlow,
+      locationCreationStates: c.locationCreationStates,
+    }).register(this.bot);
 
-    // Регистрируем handler для создания тренировок
-    const trainingHandlerServices = {
-      gameService: this.gameService,
-      sportService: this.sportService,
-      groupService: this.groupService,
-      locationService: this.locationService,
-      trainingCreationStates: this.trainingCreationStates,
-      trainingCreationFlow: this.trainingCreationFlow,
-    };
-    new TrainingCreationHandler(this.bot, trainingHandlerServices);
+    new LocationEditHandler({
+      locationService: c.locationService,
+      sportService: c.sportService,
+      locationEditStates: c.locationEditStates,
+      locationEditFlow: c.locationEditFlow,
+    }).register(this.bot);
 
-    // Регистрируем handler для фильтров игр
-    const gamesFilterServices = {
-      gameService: this.gameService,
-      groupService: this.groupService,
-      userService: this.userService,
-    };
-    new GamesFilterHandler(this.bot, gamesFilterServices);
+    new TrainingCreationHandler({
+      sportService: c.sportService,
+      locationService: c.locationService,
+      trainingCreationStates: c.trainingCreationStates,
+      trainingCreationFlow: c.trainingCreationFlow,
+    }).register(this.bot);
 
-    // Callback: пошаговое создание игры (fallback кнопка из WebApp-режима)
+    new GamesFilterHandler({
+      gameService: c.gameService,
+      groupService: c.groupService,
+      userService: c.userService,
+    }).register(this.bot);
+
+    // Callback: step-based game creation (fallback from WebApp mode)
     this.bot.action(/^newgame_steps_(\d+)_(\d+)$/, async (ctx) => {
       await ctx.answerCbQuery();
       const groupId = parseInt(ctx.match[1]);
       const userId = parseInt(ctx.match[2]);
-      const newGameCmd = this.commands.find(c => c.command === 'newgame') as NewGameCommand;
+      const newGameCmd = this.commands.find(cmd => cmd.command === 'newgame') as NewGameCommand;
       if (newGameCmd) await newGameCmd.startStepFlow(ctx, groupId, userId);
     });
 
-    // Callback: пошаговое создание тренировки (fallback кнопка из WebApp-режима)
+    // Callback: step-based training creation (fallback from WebApp mode)
     this.bot.action(/^newtraining_steps_(\d+)_(\d+)$/, async (ctx) => {
       await ctx.answerCbQuery();
       const groupId = parseInt(ctx.match[1]);
       const userId = parseInt(ctx.match[2]);
-      const trainingCmd = this.commands.find(c => c.command === 'newtraining') as NewTrainingCommand;
+      const trainingCmd = this.commands.find(cmd => cmd.command === 'newtraining') as NewTrainingCommand;
       if (trainingCmd) await trainingCmd.startStepFlow(ctx, groupId, userId);
     });
   }
@@ -286,7 +198,7 @@ export class Bot {
     this.bot.use(async (ctx, next) => {
       if (ctx.from && !ctx.from.is_bot) {
         try {
-          await this.userService.findOrCreateUser(ctx.from);
+          await this.container.userService.findOrCreateUser(ctx.from);
         } catch (error) {
           console.error('Error in user auto-registration:', error);
         }
@@ -306,30 +218,33 @@ export class Bot {
   }
 
   private setupTextHandlers() {
-    // Обработка текстовых сообщений для многошаговых диалогов
+    const c = this.container;
+
     this.bot.on('text', async (ctx) => {
       if (!ctx.from || !ctx.message) return;
 
       const userId = ctx.from.id;
       const text = ctx.message.text.trim();
 
-      // Пропускаем команды — они обрабатываются отдельно
       if (text.startsWith('/')) return;
 
-      // Проверяем, находится ли пользователь в процессе создания тренировки
-      if (this.trainingCreationStates.has(userId)) {
-        await this.trainingCreationFlow.handleTextInput(ctx, userId, text);
+      if (c.trainingCreationStates.has(userId)) {
+        await c.trainingCreationFlow.handleTextInput(ctx, userId, text);
         return;
       }
 
-      // Если есть активное состояние создания игры
-      if (this.gameCreationStates.has(userId)) {
-        await this.gameCreationFlow.handleTextInput(ctx, userId, text);
+      if (c.gameCreationStates.has(userId)) {
+        await c.gameCreationFlow.handleTextInput(ctx, userId, text);
         return;
       }
 
-      // Если пользователь отвечает на сообщение бота, а состояние потеряно
-      // (например, бот был перезапущен) — мягко подсказываем начать заново
+      const createGroupCmd = this.commands.find(cmd => cmd.command === 'creategroup') as CreateGroupCommand;
+      if (createGroupCmd?.hasPendingState(userId)) {
+        await createGroupCmd.handleTextInput(ctx, userId, text);
+        return;
+      }
+
+      // Lost session: gently prompt to restart when user replies to the bot
       const replyTo = ctx.message.reply_to_message;
       if (replyTo && 'from' in replyTo && replyTo.from?.id === ctx.botInfo.id) {
         await ctx.reply('⚠️ Сессия создания истекла (бот был перезапущен).\n\nНачните заново:\n/newgame — создать игру\n/newtraining — создать тренировку');
