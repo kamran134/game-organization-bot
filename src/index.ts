@@ -31,9 +31,11 @@ async function main() {
     await migrateLocationsToManyToMany();
     console.log('✅ Locations migration completed');
 
-    // Now synchronize schema with new models
-    await database.synchronize();
-    console.log('✅ Schema synchronized');
+    // Synchronize schema only in development (never in production — use migrations)
+    if (process.env.NODE_ENV !== 'production') {
+      await database.synchronize();
+      console.log('✅ Schema synchronized');
+    }
 
     // Initialize default sports
     const sportService = new SportService(database);

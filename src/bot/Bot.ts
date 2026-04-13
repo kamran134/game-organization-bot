@@ -26,7 +26,7 @@ import {
 import { AddLocationCommand } from './commands/AddLocationCommand';
 import { ListLocationsCommand } from './commands/ListLocationsCommand';
 import { EditLocationCommand } from './commands/EditLocationCommand';
-import { NewTrainingCommand } from './commands/NewTrainingCommand';
+import { NewTrainingCommand, NewTrainingCommandServices } from './commands/NewTrainingCommand';
 import { TrainingsCommand } from './commands/TrainingsCommand';
 import {
   ActionHandler,
@@ -146,11 +146,12 @@ export class Bot {
       gameCreationStates: this.gameCreationStates,
     };
 
-    const trainingCommandServices = {
+    const trainingCommandServices: NewTrainingCommandServices = {
       userService: this.userService,
       groupService: this.groupService,
       gameService: this.gameService,
       sportService: this.sportService,
+      gameCreationStates: this.gameCreationStates,
       locationService: this.locationService,
       trainingCreationStates: this.trainingCreationStates,
     };
@@ -184,7 +185,7 @@ export class Bot {
       new RegisterCommand(services),
       new NewGameCommand(services),
       new AppCommand(services),
-      new NewTrainingCommand(trainingCommandServices as any),
+      new NewTrainingCommand(trainingCommandServices),
       new GamesCommand(services),
       new TrainingsCommand(services),
       new PlayersCommand(services),
@@ -267,7 +268,7 @@ export class Bot {
       const groupId = parseInt(ctx.match[1]);
       const userId = parseInt(ctx.match[2]);
       const newGameCmd = this.commands.find(c => c.command === 'newgame') as NewGameCommand;
-      if (newGameCmd) await newGameCmd.startStepFlow(ctx as any, groupId, userId);
+      if (newGameCmd) await newGameCmd.startStepFlow(ctx, groupId, userId);
     });
 
     // Callback: пошаговое создание тренировки (fallback кнопка из WebApp-режима)
@@ -276,7 +277,7 @@ export class Bot {
       const groupId = parseInt(ctx.match[1]);
       const userId = parseInt(ctx.match[2]);
       const trainingCmd = this.commands.find(c => c.command === 'newtraining') as NewTrainingCommand;
-      if (trainingCmd) await trainingCmd.startStepFlow(ctx as any, groupId, userId);
+      if (trainingCmd) await trainingCmd.startStepFlow(ctx, groupId, userId);
     });
   }
 
