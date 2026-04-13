@@ -3,6 +3,8 @@ import { GameService } from '../../services/GameService';
 import { SportService } from '../../services/SportService';
 import { LocationService } from '../../services/LocationService';
 import { GameCreationStateManager, GameCreationState } from '../../utils/GameCreationState';
+
+const CURRENCY = process.env.CURRENCY_SYMBOL ?? '₼';
 import { KeyboardBuilder } from '../ui/KeyboardBuilder';
 import { GameMessageBuilder } from '../ui/GameMessageBuilder';
 import { GameCreationValidator } from './GameCreationValidator';
@@ -272,7 +274,7 @@ export class GameCreationFlow {
     state.step = 'notes';
     this.services.gameCreationStates.set(ctx.from!.id, state);
 
-    const costMessage = result.value ? `✅ Стоимость: ${result.value} ₼\n\n` : '✅ Игра бесплатная\n\n';
+    const costMessage = result.value ? `✅ Стоимость: ${result.value} ${CURRENCY}\n\n` : '✅ Игра бесплатная\n\n';
     await ctx.reply(
       costMessage +
         '📝 Добавьте дополнительные заметки или отправьте "-" чтобы пропустить:\n' +

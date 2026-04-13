@@ -9,6 +9,9 @@ build/
 # Compiled client-side JS (generated from src/webapp/client/)
 public/js/
 
+# One-off utility scripts (not part of the application)
+scripts/
+
 # Environment variables - НИКОГДА не коммитить!
 .env
 .env.local

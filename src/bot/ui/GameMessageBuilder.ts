@@ -6,6 +6,9 @@ import { escapeMarkdownV1 } from '../../utils/helpers';
 import { Markup } from 'telegraf';
 import { KeyboardBuilder } from './KeyboardBuilder';
 
+/** Currency symbol — override via CURRENCY_SYMBOL env var if needed. */
+const CURRENCY = process.env.CURRENCY_SYMBOL ?? '₼';
+
 export class GameMessageBuilder {
   /**
    * Полная карточка игры с деталями
@@ -43,7 +46,7 @@ export class GameMessageBuilder {
     }
 
     if (game.cost) {
-      text += `💰 Стоимость: ${game.cost} ₼\n`;
+      text += `💰 Стоимость: ${game.cost} ${CURRENCY}\n`;
     }
     if (game.notes) {
       text += `\n📝 Заметки: ${escapeMarkdownV1(game.notes)}`;
@@ -81,7 +84,7 @@ export class GameMessageBuilder {
     }
 
     if (state.data.cost) {
-      text += `💰 Стоимость: ${state.data.cost} ₼\n`;
+      text += `💰 Стоимость: ${state.data.cost} ${CURRENCY}\n`;
     }
 
     if (state.data.notes) {
@@ -163,7 +166,7 @@ export class GameMessageBuilder {
     text += `👥 Минимум: ${minParticipants}, Максимум: ${maxParticipants === 999 ? 'Безлимит' : maxParticipants}\n`;
     
     if (cost !== undefined && cost > 0) {
-      text += `💰 Стоимость: ${cost} ₼\n`;
+      text += `💰 Стоимость: ${cost} ${CURRENCY}\n`;
     }
 
     if (notes) {
@@ -206,7 +209,7 @@ export class GameMessageBuilder {
     }
 
     if (training.cost && training.cost > 0) {
-      text += `💰 Стоимость: ${training.cost} ₼\n`;
+      text += `💰 Стоимость: ${training.cost} ${CURRENCY}\n`;
     }
     if (training.notes) {
       text += `\n📝 Заметки: ${training.notes}`;
