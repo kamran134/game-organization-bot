@@ -149,11 +149,11 @@ export class GameService {
       return a.joined_at.getTime() - b.joined_at.getTime();
     });
 
-    // Update positions
+    // Update positions (bulk save instead of N individual queries)
     for (let i = 0; i < participants.length; i++) {
       participants[i].position = i + 1;
-      await participantRepo.save(participants[i]);
     }
+    await participantRepo.save(participants);
   }
 
   async getParticipantsByStatus(gameId: number): Promise<{

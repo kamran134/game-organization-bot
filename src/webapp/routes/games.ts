@@ -79,6 +79,18 @@ export function createGamesRouter(db: Database): Router {
         last_name: telegramUser.last_name,
       });
 
+      // Verify user is a member of the group
+      const parsedGroupId = parseInt(group_id);
+      if (isNaN(parsedGroupId) || isNaN(parseInt(sport_id)) || isNaN(parseInt(location_id)) || isNaN(parseInt(max_participants))) {
+        res.status(400).json({ error: 'Invalid numeric field' });
+        return;
+      }
+      const isMember = await groupService.isUserMember(user.id, parsedGroupId);
+      if (!isMember) {
+        res.status(403).json({ error: 'You are not a member of this group' });
+        return;
+      }
+
       const gameType = type === 'training' ? GameType.TRAINING : GameType.GAME;
 
       const game = await gameService.createGame({
@@ -189,6 +201,7 @@ export function createGamesRouter(db: Database): Router {
   router.delete('/:id/register', verifyTelegramInitData, async (req: AuthRequest, res: Response): Promise<void> => {
     const telegramUser = req.telegramUser;
     const gameId = parseInt(req.params.id);
+    if (!gameId) { res.status(400).json({ error: 'Invalid game id' }); return; }
 
     try {
       if (!telegramUser) { res.status(401).json({ error: 'Unauthorized' }); return; }
@@ -232,6 +245,7 @@ export function createGamesRouter(db: Database): Router {
     const telegramUser = req.telegramUser;
     const gameId = parseInt(req.params.id);
     if (!telegramUser) { res.status(401).json({ error: 'Unauthorized' }); return; }
+    if (!gameId) { res.status(400).json({ error: 'Invalid game id' }); return; }
     try {
       const user = await userService.getUserByTelegramId(telegramUser.id);
       if (!user) { res.status(404).json({ error: 'User not found' }); return; }
@@ -248,8 +262,8 @@ export function createGamesRouter(db: Database): Router {
         ...(location_id   && { location_id: parseInt(location_id) }),
         ...(min_participants && { min_participants: parseInt(min_participants) }),
         ...(max_participants && { max_participants: parseInt(max_participants) }),
-        cost: cost ? parseFloat(cost) : undefined,
-        notes: notes || undefined,
+        ...(cost !== undefined && { cost: cost === '' || cost === null ? undefined : parseFloat(cost) }),
+        ...(notes !== undefined && { notes: notes || undefined }),
       });
       res.json({ message: 'Updated successfully' });
     } catch (error) {
@@ -263,6 +277,7 @@ export function createGamesRouter(db: Database): Router {
     const telegramUser = req.telegramUser;
     const gameId = parseInt(req.params.id);
     if (!telegramUser) { res.status(401).json({ error: 'Unauthorized' }); return; }
+    if (!gameId) { res.status(400).json({ error: 'Invalid game id' }); return; }
     try {
       const user = await userService.getUserByTelegramId(telegramUser.id);
       if (!user) { res.status(404).json({ error: 'User not found' }); return; }

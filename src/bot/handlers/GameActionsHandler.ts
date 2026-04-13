@@ -73,9 +73,10 @@ export class GameActionsHandler extends ActionHandler {
           if (game.group.telegram_chat_id) {
             try {
               const joke = await jokeService.getDeclineJoke(userName);
+              const safeJoke = joke.replace(/</g, '&lt;').replace(/>/g, '&gt;');
               await ctx.telegram.sendMessage(
                 game.group.telegram_chat_id,
-                `❌ ${userLink} отказался от участия\n\n🤖 <i>${joke}</i>`,
+                `❌ ${userLink} отказался от участия\n\n🤖 <i>${safeJoke}</i>`,
                 { parse_mode: 'HTML' }
               );
             } catch (sendError) {

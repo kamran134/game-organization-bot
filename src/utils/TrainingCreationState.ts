@@ -20,11 +20,18 @@ export interface TrainingCreationState {
   };
 }
 
+/** Default TTL for creation states: 30 minutes */
+const STATE_TTL_MS = 30 * 60 * 1000;
+
 export class TrainingCreationStateManager {
   private states: Map<number, TrainingCreationState> = new Map();
+  private timers: Map<number, ReturnType<typeof setTimeout>> = new Map();
 
   set(userId: number, state: TrainingCreationState): void {
     this.states.set(userId, state);
+    const existing = this.timers.get(userId);
+    if (existing) clearTimeout(existing);
+    this.timers.set(userId, setTimeout(() => this.delete(userId), STATE_TTL_MS));
   }
 
   get(userId: number): TrainingCreationState | undefined {
@@ -33,6 +40,8 @@ export class TrainingCreationStateManager {
 
   delete(userId: number): void {
     this.states.delete(userId);
+    const timer = this.timers.get(userId);
+    if (timer) { clearTimeout(timer); this.timers.delete(userId); }
   }
 
   has(userId: number): boolean {

@@ -2,6 +2,9 @@ import { Response, NextFunction } from 'express';
 import * as crypto from 'crypto';
 import { AuthRequest } from '../types/express';
 
+/** Maximum age (in seconds) of Telegram initData before it's considered stale. */
+const MAX_AUTH_AGE_SECONDS = 86400; // 24 hours
+
 // Verifies Telegram WebApp initData and attaches user to request
 export function verifyTelegramInitData(
   req: AuthRequest,
@@ -16,8 +19,8 @@ export function verifyTelegramInitData(
 
   const initData = req.headers['x-telegram-init-data'] as string;
 
-  // In development mode, allow skipping verification
-  if (process.env.NODE_ENV === 'development' && !initData) {
+  // In development mode, allow skipping verification only when explicitly opted-in
+  if (process.env.NODE_ENV === 'development' && process.env.SKIP_TELEGRAM_AUTH === 'true' && !initData) {
     req.telegramUser = { id: 0, first_name: 'Dev', username: 'dev' };
     next();
     return;
@@ -52,9 +55,20 @@ export function verifyTelegramInitData(
       .update(dataCheckString)
       .digest('hex');
 
-    if (expectedHash !== hash) {
+    if (!crypto.timingSafeEqual(Buffer.from(expectedHash, 'hex'), Buffer.from(hash, 'hex'))) {
       res.status(401).json({ error: 'Invalid init data' });
       return;
+    }
+
+    // Verify auth_date is not too old
+    const authDate = params.get('auth_date');
+    if (authDate) {
+      const authTimestamp = parseInt(authDate, 10);
+      const now = Math.floor(Date.now() / 1000);
+      if (isNaN(authTimestamp) || now - authTimestamp > MAX_AUTH_AGE_SECONDS) {
+        res.status(401).json({ error: 'Init data expired' });
+        return;
+      }
     }
 
     const userParam = params.get('user');

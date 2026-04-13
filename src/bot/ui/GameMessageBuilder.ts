@@ -67,11 +67,10 @@ export class GameMessageBuilder {
    * Подтверждение создания игры
    */
   static formatGameConfirmation(state: GameCreationState): string {
-    const sportName = state.data.sportName || 'Игра';
-    const sportEmoji = '⚽'; // TODO: получать emoji из БД по sportId
+    const sportName = state.data.sportName || '⚽ Игра';
 
     let text = `🎮 Подтверждение создания игры\n\n`;
-    text += `${sportEmoji} Вид спорта: ${sportName}\n`;
+    text += `Вид спорта: ${sportName}\n`;
     text += `📅 Дата: ${formatDate(state.data.gameDate!)}\n`;
     text += `📍 Место: ${state.data.locationName || 'Не указано'}\n`;
     text += `👥 Максимум участников: ${state.data.maxParticipants}\n`;

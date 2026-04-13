@@ -89,6 +89,6 @@ export class Game {
   }
 
   isFull(): boolean {
-    return this.participants?.length >= this.max_participants;
+    return (this.participants?.length ?? 0) >= this.max_participants;
   }
 }
