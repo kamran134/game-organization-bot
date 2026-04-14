@@ -17,10 +17,9 @@ export class StateManager<T> {
     this.states.set(userId, state);
     const existing = this.timers.get(userId);
     if (existing) clearTimeout(existing);
-    this.timers.set(
-      userId,
-      setTimeout(() => this.delete(userId), STATE_TTL_MS)
-    );
+    const timer = setTimeout(() => this.delete(userId), STATE_TTL_MS);
+    timer.unref();
+    this.timers.set(userId, timer);
   }
 
   delete(userId: number): void {

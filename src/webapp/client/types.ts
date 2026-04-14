@@ -49,4 +49,5 @@ export interface Nav {
   goGamesList(): void;
   goCreateForm(type: GameType): void;
   goEditGame(gameId: number): void;
+  goCreateLocation(): void;
 }

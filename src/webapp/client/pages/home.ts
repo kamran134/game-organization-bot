@@ -19,6 +19,7 @@ export function renderHome(ctx: HomeCtx, nav: Nav): void {
     ? `
       <button class="btn btn-primary btn-large" data-action="create-game">🎮 Создать игру</button>
       <button class="btn btn-secondary btn-large" data-action="create-training">🏃 Создать тренировку</button>
+      <button class="btn btn-outline btn-large" data-action="create-location">📍 Добавить площадку</button>
     `
     : '';
 
@@ -39,6 +40,7 @@ export function renderHome(ctx: HomeCtx, nav: Nav): void {
     const action = btn.dataset['action'];
     if (action === 'create-game')     nav.goCreateForm('game');
     if (action === 'create-training') nav.goCreateForm('training');
+    if (action === 'create-location') nav.goCreateLocation();
     if (action === 'list-games')      nav.goGamesList();
   });
 }
