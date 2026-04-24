@@ -1,6 +1,7 @@
 import { Markup, Telegraf } from 'telegraf';
 import { ActionHandler, ActionServices } from './base/ActionHandler';
 import { KeyboardBuilder } from '../ui/KeyboardBuilder';
+import { GamesView } from '../ui/GamesView';
 
 export class GroupActionsHandler extends ActionHandler {
   constructor(services: ActionServices) {
@@ -49,6 +50,13 @@ export class GroupActionsHandler extends ActionHandler {
         Markup.inlineKeyboard(keyboard)
       );
       await ctx.answerCbQuery();
+    });
+
+    // Show games list for a group (works from DM via /mygroups)
+    bot.action(/^games_(\d+)$/, async (ctx) => {
+      const groupId = parseInt(ctx.match[1]);
+      await ctx.answerCbQuery();
+      await GamesView.show(ctx, this.services, groupId, 'all', 'edit');
     });
 
     // Back to my groups

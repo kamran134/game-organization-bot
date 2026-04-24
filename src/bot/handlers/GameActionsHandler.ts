@@ -86,9 +86,6 @@ export class GameActionsHandler extends ActionHandler {
           } else {
             console.error('Game group has no telegram_chat_id:', game.id);
           }
-          
-          // Показываем обновленный список
-          await this.showParticipantsList(ctx, game);
         }
       } catch (error) {
         console.error('Error leaving game:', error);
@@ -241,8 +238,22 @@ export class GameActionsHandler extends ActionHandler {
       await ctx.editMessageReplyMarkup(
         KeyboardBuilder.createGameActionsKeyboard(gameId, confirmedCount, isAdmin, maybeCount).reply_markup
       );
-      
-      await this.showParticipantsList(ctx, updatedGame);
+
+      const displayName = ctx.from!.first_name + (ctx.from!.last_name ? ` ${ctx.from!.last_name}` : '');
+      const notifyEmoji = status === ParticipationStatus.CONFIRMED ? '✅' : '❓';
+      const notifyStatus = status === ParticipationStatus.CONFIRMED ? 'точно идёт' : 'возможно придёт';
+      const actionLabel = existingParticipant ? 'обновил статус' : 'записался';
+
+      if (updatedGame.group?.telegram_chat_id) {
+        try {
+          await ctx.telegram.sendMessage(
+            updatedGame.group.telegram_chat_id,
+            `${notifyEmoji} ${displayName} ${actionLabel} — ${notifyStatus}`
+          );
+        } catch (err) {
+          console.error('Error sending join notification to group:', err);
+        }
+      }
     } catch (error) {
       console.error('Error joining game:', error);
       await ctx.answerCbQuery('❌ Ошибка записи');
