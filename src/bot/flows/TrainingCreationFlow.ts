@@ -317,7 +317,7 @@ export class TrainingCreationFlow {
     state: TrainingCreationState
   ): Promise<void> {
     const message = this.buildConfirmationMessage(state);
-    await ctx.reply(message, KeyboardBuilder.createTrainingConfirmationKeyboard(state.userId));
+    await ctx.reply(message, KeyboardBuilder.createTrainingConfirmationKeyboard(ctx.from!.id));
   }
 
   async createTraining(ctx: Context, userId: number): Promise<void> {
