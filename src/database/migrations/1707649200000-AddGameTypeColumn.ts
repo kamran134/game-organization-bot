@@ -5,15 +5,17 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  */
 export class AddGameTypeColumn1707649200000 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
-    // Создаём ENUM тип
     await queryRunner.query(`
-      CREATE TYPE game_type AS ENUM ('GAME', 'TRAINING')
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'game_type') THEN
+          CREATE TYPE game_type AS ENUM ('GAME', 'TRAINING');
+        END IF;
+      END $$;
     `);
 
-    // Добавляем колонку с NOT NULL и default значением
     await queryRunner.query(`
-      ALTER TABLE games 
-      ADD COLUMN type game_type NOT NULL DEFAULT 'GAME'
+      ALTER TABLE games
+      ADD COLUMN IF NOT EXISTS type game_type NOT NULL DEFAULT 'GAME'
     `);
   }
 
