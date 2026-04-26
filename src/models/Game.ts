@@ -75,6 +75,9 @@ export class Game {
   @Column({ type: 'text', nullable: true })
   notes?: string;
 
+  @Column({ type: 'integer', nullable: true })
+  registration_lock_hours?: number;
+
   @CreateDateColumn()
   created_at!: Date;
 
@@ -90,5 +93,16 @@ export class Game {
 
   isFull(): boolean {
     return (this.participants?.length ?? 0) >= this.max_participants;
+  }
+
+  isRegistrationLocked(): boolean {
+    if (!this.registration_lock_hours) return false;
+    const lockAt = new Date(this.game_date.getTime() - this.registration_lock_hours * 3600 * 1000);
+    return new Date() >= lockAt;
+  }
+
+  registrationLockTime(): Date | null {
+    if (!this.registration_lock_hours) return null;
+    return new Date(this.game_date.getTime() - this.registration_lock_hours * 3600 * 1000);
   }
 }

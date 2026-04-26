@@ -244,10 +244,25 @@ export class Bot {
         return;
       }
 
-      // Lost session: gently prompt to restart when user replies to the bot
+      // Lost session: only prompt when the user is replying to a creation-flow message
       const replyTo = ctx.message.reply_to_message;
       if (replyTo && 'from' in replyTo && replyTo.from?.id === ctx.botInfo.id) {
-        await ctx.reply('⚠️ Сессия создания истекла (бот был перезапущен).\n\nНачните заново:\n/newgame — создать игру\n/newtraining — создать тренировку');
+        const replyText = ('text' in replyTo && replyTo.text) ? replyTo.text : '';
+        const isCreationMessage =
+          replyText.includes('Введите дату') ||
+          replyText.includes('Введите максимальное') ||
+          replyText.includes('Введите минимальное') ||
+          replyText.includes('Введите стоимость') ||
+          replyText.includes('Добавьте дополнительные заметки') ||
+          replyText.includes('Выберите место') ||
+          replyText.includes('Введите место') ||
+          replyText.includes('Введите название места') ||
+          replyText.includes('Создание новой игры') ||
+          replyText.includes('Создание новой тренировки') ||
+          replyText.includes('Ответьте (reply) на это сообщение');
+        if (isCreationMessage) {
+          await ctx.reply('⚠️ Сессия создания истекла (бот был перезапущен).\n\nНачните заново:\n/newgame — создать игру\n/newtraining — создать тренировку');
+        }
       }
     });
   }

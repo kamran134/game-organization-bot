@@ -4,6 +4,7 @@ import * as dotenv from 'dotenv';
 import * as path from 'path';
 import { AddGameTypeColumn1707649200000 } from './migrations/1707649200000-AddGameTypeColumn';
 import { MakeUserIdNullable1738000000000 } from './migrations/1738000000000-MakeUserIdNullable';
+import { AddRegistrationLockHours1745500000000 } from './migrations/1745500000000-AddRegistrationLockHours';
 import { getDbConnectionConfig } from './Database';
 
 dotenv.config({ path: path.resolve(process.cwd(), process.env.NODE_ENV === 'production' ? '.env.prod' : '.env.dev') });
@@ -11,7 +12,7 @@ dotenv.config({ path: path.resolve(process.cwd(), process.env.NODE_ENV === 'prod
 const AppDataSource = new DataSource({
   ...getDbConnectionConfig(),
   entities: [],
-  migrations: [AddGameTypeColumn1707649200000, MakeUserIdNullable1738000000000],
+  migrations: [AddGameTypeColumn1707649200000, MakeUserIdNullable1738000000000, AddRegistrationLockHours1745500000000],
   synchronize: false,
   logging: true,
   migrationsRun: false,

@@ -183,6 +183,14 @@ export class GameService {
     return { confirmed, maybe, guests, waiting };
   }
 
+  async setRegistrationLock(gameId: number, hours: number | null): Promise<void> {
+    const gameRepo = this.db.getRepository(Game);
+    const game = await gameRepo.findOne({ where: { id: gameId } });
+    if (!game) return;
+    game.registration_lock_hours = hours ?? undefined;
+    await gameRepo.save(game);
+  }
+
   async cancelGame(gameId: number): Promise<void> {
     const gameRepo = this.db.getRepository(Game);
     await gameRepo.update(gameId, { status: GameStatus.CANCELLED });

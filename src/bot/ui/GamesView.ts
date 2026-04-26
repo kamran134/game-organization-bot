@@ -118,11 +118,14 @@ export class GamesView {
       }
     }
 
+    const inGroup = ctx.chat?.type !== 'private';
     const actionKeyboard = KeyboardBuilder.createGameActionsKeyboard(
       game.id,
       confirmedCount,
       isAdmin,
-      maybeCount
+      maybeCount,
+      inGroup,
+      game.registration_lock_hours
     );
     const msgOptions: any = {
       ...actionKeyboard,

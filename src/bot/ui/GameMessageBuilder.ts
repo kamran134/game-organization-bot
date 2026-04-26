@@ -52,6 +52,17 @@ export class GameMessageBuilder {
       text += `\n📝 Заметки: ${escapeMarkdownV1(game.notes)}`;
     }
 
+    if (game.registration_lock_hours) {
+      const lockAt = new Date(new Date(game.game_date).getTime() - game.registration_lock_hours * 3600 * 1000);
+      const isLocked = new Date() >= lockAt;
+      if (isLocked) {
+        text += `\n\n🔒 Запись закрыта`;
+      } else {
+        const timeStr = lockAt.toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
+        text += `\n\n🔒 Запись закроется ${timeStr}`;
+      }
+    }
+
     return text;
   }
 
@@ -213,6 +224,17 @@ export class GameMessageBuilder {
     }
     if (training.notes) {
       text += `\n📝 Заметки: ${training.notes}`;
+    }
+
+    if (training.registration_lock_hours) {
+      const lockAt = new Date(new Date(training.game_date).getTime() - training.registration_lock_hours * 3600 * 1000);
+      const isLocked = new Date() >= lockAt;
+      if (isLocked) {
+        text += `\n\n🔒 Запись закрыта`;
+      } else {
+        const timeStr = lockAt.toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
+        text += `\n\n🔒 Запись закроется ${timeStr}`;
+      }
     }
 
     return text;

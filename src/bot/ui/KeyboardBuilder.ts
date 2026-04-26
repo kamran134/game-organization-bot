@@ -67,7 +67,14 @@ export class KeyboardBuilder {
    * @param confirmedCount - количество подтверждённых участников (для отображения в кнопке)
    * @param isAdmin - является ли пользователь администратором группы
    */
-  static createGameActionsKeyboard(gameId: number, confirmedCount: number = 0, isAdmin: boolean = false, maybeCount: number = 0) {
+  static createGameActionsKeyboard(
+    gameId: number,
+    confirmedCount: number = 0,
+    isAdmin: boolean = false,
+    maybeCount: number = 0,
+    inGroup: boolean = true,
+    registrationLockHours?: number
+  ) {
     const buttons = [
       [Markup.button.callback(`✅ Точно (${confirmedCount})`, `join_confirmed_${gameId}`)],
       [Markup.button.callback(`❓ Не точно (${maybeCount})`, `join_maybe_${gameId}`)],
@@ -75,7 +82,15 @@ export class KeyboardBuilder {
       [Markup.button.callback('👥 Список участников', `show_participants_${gameId}`)],
     ];
 
+    if (inGroup) {
+      buttons.push([Markup.button.callback('📩 В личку', `send_to_dm_${gameId}`)]);
+    }
+
     if (isAdmin) {
+      const lockLabel = registrationLockHours
+        ? `🔒 Заморозка: за ${registrationLockHours}ч`
+        : '🔓 Заморозить запись';
+      buttons.push([Markup.button.callback(lockLabel, `set_lock_${gameId}`)]);
       buttons.push([Markup.button.callback('🗑 Удалить игру', `delete_game_${gameId}`)]);
     }
 
