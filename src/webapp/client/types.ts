@@ -43,6 +43,20 @@ export interface UserRoleDto {
   userId: number;
 }
 
+export interface PaymentPersonDto {
+  user_id: number | null;
+  guest_name: string | null;
+  first_name?: string;
+  last_name?: string;
+  username?: string;
+  payment_amount: number | null;
+}
+
+export interface PaymentsDto {
+  people: PaymentPersonDto[];
+  total: number;
+}
+
 /** Shared navigation object passed to every page renderer. */
 export interface Nav {
   goHome(): void;

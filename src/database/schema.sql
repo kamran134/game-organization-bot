@@ -105,6 +105,22 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_game_participants_game_user
   ON game_participants (game_id, user_id)
   WHERE user_id IS NOT NULL;
 
+-- ── payments ─────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS payments (
+  id           SERIAL PRIMARY KEY,
+  game_id      INTEGER NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+  user_id      INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  guest_name   VARCHAR,
+  amount       DECIMAL(10, 2) NOT NULL,
+  confirmed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  confirmed_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at   TIMESTAMP NOT NULL DEFAULT NOW(),
+  CONSTRAINT uq_payments_game_user
+    UNIQUE (game_id, user_id),
+  CONSTRAINT chk_payments_user_or_guest
+    CHECK (user_id IS NOT NULL OR guest_name IS NOT NULL)
+);
+
 -- ── Performance indexes ───────────────────────────────────────
 CREATE INDEX IF NOT EXISTS idx_users_telegram_id            ON users(telegram_id);
 CREATE INDEX IF NOT EXISTS idx_group_members_user_id        ON group_members(user_id);
@@ -115,3 +131,5 @@ CREATE INDEX IF NOT EXISTS idx_game_participants_game_id    ON game_participants
 CREATE INDEX IF NOT EXISTS idx_game_participants_user_id    ON game_participants(user_id);
 CREATE INDEX IF NOT EXISTS idx_locations_group_id           ON locations(group_id);
 CREATE INDEX IF NOT EXISTS idx_sport_locations_location_id  ON sport_locations(location_id);
+CREATE INDEX IF NOT EXISTS idx_payments_game_id             ON payments(game_id);
+CREATE INDEX IF NOT EXISTS idx_payments_user_id             ON payments(user_id);

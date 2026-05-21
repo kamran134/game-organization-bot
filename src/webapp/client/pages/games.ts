@@ -8,7 +8,7 @@ import {
 } from '../ui.js';
 import { apiFetch } from '../api.js';
 import { escapeHtml, formatDate, getErrorMessage } from '../utils.js';
-import type { GameDto, ParticipantDto, Nav } from '../types.js';
+import type { GameDto, ParticipantDto, Nav, PaymentPersonDto, PaymentsDto } from '../types.js';
 
 interface GamesCtx {
   tg: TelegramWebApp;
@@ -66,6 +66,46 @@ function renderParticipantsList(participants: ParticipantDto[] | undefined, game
     ).join('');
   }
   return html;
+}
+
+function paymentPersonName(p: PaymentPersonDto): string {
+  if (p.guest_name) return p.guest_name;
+  const full = [p.first_name, p.last_name].filter(Boolean).join(' ');
+  return p.username ? `@${p.username}` : full || '—';
+}
+
+function renderPaymentsPanel(gameId: number, data: PaymentsDto): string {
+  const gid = escapeHtml(String(gameId));
+  const rows = data.people.map((p) => {
+    const name = escapeHtml(paymentPersonName(p));
+    const amountDisplay = p.payment_amount != null
+      ? `<span class="payment-amount">${escapeHtml(String(p.payment_amount))} ₼</span>`
+      : `<span class="payment-amount payment-amount--empty">—</span>`;
+    const uid  = p.user_id  != null ? `data-user-id="${p.user_id}"` : '';
+    const gname = p.guest_name ? `data-guest-name="${escapeHtml(p.guest_name)}"` : '';
+    return `
+      <div class="payment-row">
+        <span class="payment-name">${name}</span>
+        ${amountDisplay}
+        <button class="btn-icon payment-confirm-btn"
+                data-action="confirm-payment"
+                data-game-id="${gid}"
+                ${uid}
+                ${gname}
+                title="Подтвердить оплату">💳</button>
+      </div>`;
+  }).join('');
+
+  const total = escapeHtml(String(data.total.toFixed(2)));
+
+  return `
+    <div class="payments-panel" id="payments-panel-${gid}">
+      <div class="payments-header">💰 Учёт оплат</div>
+      ${data.people.length === 0
+        ? '<div class="payments-empty">Нет участников для сбора оплаты</div>'
+        : rows}
+      <div class="payments-total">Итого: <strong>${total} ₼</strong></div>
+    </div>`;
 }
 
 function myStatus(
@@ -152,6 +192,7 @@ function renderCard(g: GameDto, myTelegramId: number, isAdmin: boolean): string 
       <div class="game-admin-actions">
         <button class="btn btn-secondary" data-action="edit-game"   data-game-id="${gid}">✏️ Редактировать</button>
         <button class="btn btn-guest"     data-action="add-guest"   data-game-id="${gid}">👤 Добавить гостя</button>
+        <button class="btn btn-money"     data-action="toggle-payments" data-game-id="${gid}">💰 Оплата</button>
         <button class="btn btn-danger"    data-action="delete-game" data-game-id="${gid}">🗑 Удалить</button>
       </div>
       <div class="guest-form hidden" id="guest-form-${gid}">
@@ -161,6 +202,19 @@ function renderCard(g: GameDto, myTelegramId: number, isAdmin: boolean): string 
           <div class="guest-form-actions">
             <button class="btn btn-primary"   data-action="submit-guest" data-game-id="${gid}">Добавить</button>
             <button class="btn btn-secondary" data-action="cancel-guest" data-game-id="${gid}">Отмена</button>
+          </div>
+        </div>
+      </div>
+      <div class="payments-panel-container hidden" id="payments-container-${gid}">
+        <!-- Payment panel is loaded dynamically -->
+      </div>
+      <div class="payment-input-form hidden" id="payment-form-${gid}">
+        <div class="payment-form-inner">
+          <span class="payment-form-name" id="payment-form-name-${gid}"></span>
+          <input class="payment-input" id="payment-amount-${gid}" type="number" min="0" step="0.01" placeholder="Сумма (₼)" />
+          <div class="payment-form-actions">
+            <button class="btn btn-primary"   data-action="submit-payment" data-game-id="${gid}">Сохранить</button>
+            <button class="btn btn-secondary" data-action="cancel-payment" data-game-id="${gid}">Отмена</button>
           </div>
         </div>
       </div>` : ''}
@@ -218,6 +272,83 @@ export async function renderGamesList(ctx: GamesCtx, nav: Nav): Promise<void> {
         const nowHidden = panel.classList.toggle('hidden');
         const count = btn.textContent!.match(/\((\d+)\)/)?.[1] ?? '';
         btn.textContent = nowHidden ? `👥 Участники (${count})` : `👥 Участники (${count}) ▲`;
+        return;
+      }
+
+      // Toggle payments panel
+      if (action === 'toggle-payments') {
+        const container = document.getElementById(`payments-container-${gameId}`)!;
+        const isNowHidden = container.classList.toggle('hidden');
+        if (!isNowHidden) {
+          // Load/refresh payment data
+          btn.disabled = true;
+          try {
+            const data = await apiFetch<PaymentsDto>(`/api/payments?game_id=${encodeURIComponent(gameId)}`);
+            container.innerHTML = renderPaymentsPanel(parseInt(gameId), data);
+          } catch (err) {
+            container.innerHTML = `<div class="error">❌ ${escapeHtml(getErrorMessage(err))}</div>`;
+          } finally {
+            btn.disabled = false;
+          }
+        }
+        return;
+      }
+
+      // Open payment amount form
+      if (action === 'confirm-payment') {
+        const form = document.getElementById(`payment-form-${gameId}`)!;
+        const nameEl = document.getElementById(`payment-form-name-${gameId}`)!;
+        const amountInput = document.getElementById(`payment-amount-${gameId}`) as HTMLInputElement;
+        nameEl.textContent = btn.closest('.payment-row')?.querySelector('.payment-name')?.textContent ?? '';
+        amountInput.value = '';
+        form.setAttribute('data-user-id', btn.dataset['userId'] ?? '');
+        form.setAttribute('data-guest-name', btn.dataset['guestName'] ?? '');
+        form.classList.remove('hidden');
+        amountInput.focus();
+        return;
+      }
+
+      if (action === 'cancel-payment') {
+        document.getElementById(`payment-form-${gameId}`)!.classList.add('hidden');
+        return;
+      }
+
+      if (action === 'submit-payment') {
+        const form = document.getElementById(`payment-form-${gameId}`)!;
+        const amountInput = document.getElementById(`payment-amount-${gameId}`) as HTMLInputElement;
+        const amount = parseFloat(amountInput.value);
+        if (isNaN(amount) || amount < 0) {
+          toast('Введите корректную сумму', true);
+          return;
+        }
+        const userId    = form.getAttribute('data-user-id') || null;
+        const guestName = form.getAttribute('data-guest-name') || null;
+        btn.disabled = true;
+        btn.textContent = '…';
+        try {
+          await apiFetch('/api/payments/upsert', {
+            method: 'POST',
+            body: JSON.stringify({
+              game_id:    parseInt(gameId),
+              user_id:    userId ? parseInt(userId) : null,
+              guest_name: guestName || null,
+              amount,
+            }),
+          });
+          form.classList.add('hidden');
+          toast('✅ Оплата сохранена');
+          // Refresh payments panel
+          const container = document.getElementById(`payments-container-${gameId}`)!;
+          if (!container.classList.contains('hidden')) {
+            const data = await apiFetch<PaymentsDto>(`/api/payments?game_id=${encodeURIComponent(gameId)}`);
+            container.innerHTML = renderPaymentsPanel(parseInt(gameId), data);
+          }
+        } catch (err) {
+          toast(getErrorMessage(err), true);
+        } finally {
+          btn.disabled = false;
+          btn.textContent = 'Сохранить';
+        }
         return;
       }
 

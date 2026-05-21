@@ -230,6 +230,134 @@ select.input {
   color: #fff;
 }
 
+/* ── Money / payments button ── */
+.btn-money {
+  background: #2e7d32;
+  color: #fff;
+}
+
+/* ── Payments panel ── */
+.payments-panel-container {
+  margin-top: 6px;
+}
+
+.payments-panel-container.hidden { display: none; }
+
+.payments-panel {
+  padding: 10px 12px;
+  background: var(--tg-bg);
+  border-radius: calc(var(--radius) - 2px);
+  border: 1px solid rgba(46, 125, 50, 0.4);
+}
+
+.payments-header {
+  font-size: 13px;
+  font-weight: 600;
+  color: #2e7d32;
+  margin-bottom: 8px;
+}
+
+.payments-empty {
+  font-size: 13px;
+  color: var(--tg-hint);
+  text-align: center;
+  padding: 8px 0;
+}
+
+.payment-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+  border-bottom: 1px solid rgba(127,127,127,0.1);
+}
+
+.payment-row:last-of-type { border-bottom: none; }
+
+.payment-name {
+  flex: 1;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.payment-amount {
+  font-size: 13px;
+  font-weight: 600;
+  color: #2e7d32;
+  flex-shrink: 0;
+  min-width: 60px;
+  text-align: right;
+}
+
+.payment-amount--empty {
+  color: var(--tg-hint);
+  font-weight: 400;
+}
+
+.payment-confirm-btn {
+  flex-shrink: 0;
+}
+
+.payments-total {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(127,127,127,0.2);
+  font-size: 14px;
+  text-align: right;
+}
+
+/* ── Payment amount input form ── */
+.payment-input-form {
+  margin-top: 6px;
+  padding: 10px 12px;
+  background: var(--tg-bg);
+  border-radius: calc(var(--radius) - 2px);
+  border: 1px solid rgba(46, 125, 50, 0.4);
+}
+
+.payment-input-form.hidden { display: none; }
+
+.payment-form-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.payment-form-name {
+  font-size: 13px;
+  color: var(--tg-hint);
+}
+
+.payment-input {
+  background: var(--tg-secondary);
+  border: 1px solid rgba(127,127,127,0.3);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 14px;
+  color: var(--tg-text);
+  outline: none;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.payment-input:focus {
+  border-color: #2e7d32;
+}
+
+.payment-form-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.payment-form-actions .btn {
+  flex: 1;
+  font-size: 13px;
+  padding: 9px 6px;
+}
+
 .btn-registered {
   /* not interactive — overridden at end of file */
 }

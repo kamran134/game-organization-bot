@@ -7,6 +7,7 @@ import { createGamesRouter } from './routes/games';
 import { createSportsRouter } from './routes/sports';
 import { createLocationsRouter } from './routes/locations';
 import { createUserRouter } from './routes/user';
+import { createPaymentsRouter } from './routes/payments';
 
 /** Origins allowed to call the API. */
 const ALLOWED_ORIGINS = [
@@ -88,6 +89,7 @@ export function createWebAppServer(db: Database) {
   app.use('/api/sports', createSportsRouter(db));
   app.use('/api/locations', createLocationsRouter(db));
   app.use('/api/user', createUserRouter(db));
+  app.use('/api/payments', createPaymentsRouter(db));
 
   // Health check
   app.get('/health', (_req, res) => {
