@@ -55,8 +55,11 @@ export interface PaymentPersonDto {
 export interface PaymentsDto {
   people: PaymentPersonDto[];
   total: number;
-  month: string; // 'YYYY-MM' — always present; for games it's the current month (unused)
+  month: string; // 'YYYY-MM'
 }
+
+/** Alias – training payments endpoint returns the same shape. */
+export type TrainingPaymentsDto = PaymentsDto;
 
 /** Shared navigation object passed to every page renderer. */
 export interface Nav {

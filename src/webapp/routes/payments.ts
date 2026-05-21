@@ -270,5 +270,140 @@ export function createPaymentsRouter(db: Database): Router {
     }
   });
 
+  // ── GET /api/payments/training ──────────────────────────────────────────
+  //
+  // ?group_id=X&month=YYYY-MM  (month defaults to current month)
+  // Returns all group members with their training payment status for the given month.
+  // Only group admins may access this endpoint.
+  router.get('/training', verifyTelegramInitData, async (req: AuthRequest, res: Response): Promise<void> => {
+    const telegramUser = req.telegramUser;
+    const groupId = parseInt(req.query['group_id'] as string);
+    const monthParam = (req.query['month'] as string | undefined) ?? currentMonth();
+
+    if (!telegramUser || isNaN(groupId)) {
+      res.status(400).json({ error: 'group_id is required' });
+      return;
+    }
+    if (!isValidMonth(monthParam)) {
+      res.status(400).json({ error: 'month must be in YYYY-MM format' });
+      return;
+    }
+
+    try {
+      const user = await userService.findOrCreateUser({
+        id: telegramUser.id,
+        username: telegramUser.username,
+        first_name: telegramUser.first_name,
+        last_name: telegramUser.last_name,
+      });
+
+      const isAdmin = await groupService.isUserAdmin(user.id, groupId);
+      if (!isAdmin) {
+        res.status(403).json({ error: 'Only group admins can view payments' });
+        return;
+      }
+
+      const rows = await db.dataSource.query<Array<{
+        user_id: number;
+        first_name: string | null;
+        last_name: string | null;
+        username: string | null;
+        amount: string | null;
+      }>>(
+        `SELECT gm.user_id, u.first_name, u.last_name, u.username,
+                p.amount
+         FROM group_members gm
+         JOIN users u ON u.id = gm.user_id
+         LEFT JOIN payments p
+           ON p.group_id     = $1
+          AND p.period_month = $2
+          AND p.user_id      = gm.user_id
+          AND p.game_id IS NULL
+         WHERE gm.group_id = $1
+         ORDER BY u.first_name, u.last_name`,
+        [groupId, monthParam],
+      );
+
+      const people = rows.map((r) => ({
+        user_id:        r.user_id,
+        guest_name:     null as null,
+        first_name:     r.first_name ?? undefined,
+        last_name:      r.last_name ?? undefined,
+        username:       r.username ?? undefined,
+        payment_amount: r.amount != null ? parseFloat(r.amount) : null,
+      }));
+
+      const total = people.reduce((sum, p) => sum + (p.payment_amount ?? 0), 0);
+      res.json({ people, total, month: monthParam });
+    } catch (error) {
+      console.error('Error fetching training payments:', error);
+      res.status(500).json({ error: 'Failed to fetch training payments' });
+    }
+  });
+
+  // ── POST /api/payments/training/upsert ──────────────────────────────────
+  //
+  // Body: { group_id, user_id, amount, month? }
+  // Upserts a monthly training payment for a group member.
+  // Only group admins may call this.
+  router.post('/training/upsert', verifyTelegramInitData, async (req: AuthRequest, res: Response): Promise<void> => {
+    const telegramUser = req.telegramUser;
+
+    const {
+      group_id,
+      user_id,
+      amount,
+      month,
+    }: {
+      group_id: unknown;
+      user_id: unknown;
+      amount: unknown;
+      month?: unknown;
+    } = req.body;
+
+    const parsedGroupId = parseInt(String(group_id));
+    const parsedUserId  = parseInt(String(user_id));
+    const parsedAmount  = parseFloat(String(amount));
+    const monthStr: string = typeof month === 'string' && isValidMonth(month) ? month : currentMonth();
+
+    if (!telegramUser || isNaN(parsedGroupId) || isNaN(parsedUserId) || isNaN(parsedAmount) || parsedAmount < 0) {
+      res.status(400).json({ error: 'group_id, user_id and a non-negative amount are required' });
+      return;
+    }
+
+    try {
+      const admin = await userService.findOrCreateUser({
+        id: telegramUser.id,
+        username: telegramUser.username,
+        first_name: telegramUser.first_name,
+        last_name: telegramUser.last_name,
+      });
+
+      const isAdmin = await groupService.isUserAdmin(admin.id, parsedGroupId);
+      if (!isAdmin) {
+        res.status(403).json({ error: 'Only group admins can confirm payments' });
+        return;
+      }
+
+      await db.dataSource.query(
+        `INSERT INTO payments
+           (group_id, game_id, period_month, user_id, amount, confirmed_by, confirmed_at, updated_at)
+         VALUES ($1, NULL, $2, $3, $4, $5, NOW(), NOW())
+         ON CONFLICT (group_id, period_month, user_id)
+           WHERE game_id IS NULL AND user_id IS NOT NULL
+         DO UPDATE SET
+           amount       = EXCLUDED.amount,
+           confirmed_by = EXCLUDED.confirmed_by,
+           updated_at   = NOW()`,
+        [parsedGroupId, monthStr, parsedUserId, parsedAmount, admin.id],
+      );
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error upserting training payment:', error);
+      res.status(500).json({ error: 'Failed to save training payment' });
+    }
+  });
+
   return router;
 }

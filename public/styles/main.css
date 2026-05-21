@@ -280,6 +280,57 @@ select.input {
   color: var(--tg-text);
 }
 
+/* ─── Tabs ─────────────────────────────────────────────────────────────── */
+
+.tabs-bar {
+  display: flex;
+  border-bottom: 2px solid var(--tg-divider, #e0e0e0);
+  margin: 0 -16px 16px;
+  padding: 0 8px;
+}
+
+.tab-btn {
+  flex: 1;
+  padding: 10px 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--tg-hint);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.tab-btn.tab-active {
+  color: var(--tg-link, #2e7d32);
+  border-bottom-color: var(--tg-link, #2e7d32);
+}
+
+.tab-panel {
+  /* displayed by default */
+}
+
+.tab-panel.hidden {
+  display: none;
+}
+
+.training-payments-month-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 8px 0 12px;
+}
+
+.tp-nav {
+  font-size: 18px;
+  padding: 4px 8px;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────── */
+
 .payments-loading {
   font-size: 13px;
   color: var(--tg-hint);

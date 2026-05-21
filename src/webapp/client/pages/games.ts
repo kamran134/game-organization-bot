@@ -8,7 +8,7 @@ import {
 } from '../ui.js';
 import { apiFetch } from '../api.js';
 import { escapeHtml, formatDate, getErrorMessage } from '../utils.js';
-import type { GameDto, ParticipantDto, Nav, PaymentPersonDto, PaymentsDto } from '../types.js';
+import type { GameDto, ParticipantDto, Nav, PaymentPersonDto, PaymentsDto, TrainingPaymentsDto } from '../types.js';
 
 interface GamesCtx {
   tg: TelegramWebApp;
@@ -74,7 +74,7 @@ function paymentPersonName(p: PaymentPersonDto): string {
   return p.username ? `@${p.username}` : full || '—';
 }
 
-function renderPaymentsPanel(gameId: number, data: PaymentsDto, isTraining: boolean): string {
+function renderPaymentsPanel(gameId: number, data: PaymentsDto): string {
   const gid = escapeHtml(String(gameId));
   const rows = data.people.map((p) => {
     const name = escapeHtml(paymentPersonName(p));
@@ -90,7 +90,7 @@ function renderPaymentsPanel(gameId: number, data: PaymentsDto, isTraining: bool
         <button class="btn-icon payment-confirm-btn"
                 data-action="confirm-payment"
                 data-game-id="${gid}"
-                data-month="${escapeHtml(data.month)}"
+                data-month=""
                 ${uid}
                 ${gname}
                 title="Подтвердить оплату">💳</button>
@@ -98,24 +98,48 @@ function renderPaymentsPanel(gameId: number, data: PaymentsDto, isTraining: bool
   }).join('');
 
   const total = escapeHtml(String(data.total.toFixed(2)));
-  const monthLabel = isTraining ? `<div class="payments-month-label">📅 ${escapeHtml(data.month)}</div>` : '';
-
   return `
-    <div class="payments-panel" id="payments-panel-${gid}">
+    <div class="payments-panel">
       <div class="payments-panel-header">
         <span class="payments-header">💰 Учёт оплат</span>
-        ${isTraining ? `
-        <div class="payments-month-nav">
-          <button class="btn-icon" data-action="payments-prev-month" data-game-id="${gid}" data-month="${escapeHtml(data.month)}" title="Пред. месяц">◀</button>
-          ${monthLabel}
-          <button class="btn-icon" data-action="payments-next-month" data-game-id="${gid}" data-month="${escapeHtml(data.month)}" title="След. месяц">▶</button>
-        </div>` : ''}
       </div>
       ${data.people.length === 0
         ? '<div class="payments-empty">Нет участников для сбора оплаты</div>'
         : rows}
       <div class="payments-total">Итого: <strong>${total} ₼</strong></div>
     </div>`;
+}
+
+function renderTrainingPaymentsTab(data: TrainingPaymentsDto): string {
+  const rows = data.people.map((p) => {
+    const name = escapeHtml(paymentPersonName(p));
+    const amountDisplay = p.payment_amount != null
+      ? `<span class="payment-amount">${escapeHtml(String(p.payment_amount))} ₼</span>`
+      : `<span class="payment-amount payment-amount--empty">—</span>`;
+    const uid = p.user_id != null ? `data-user-id="${p.user_id}"` : '';
+    return `
+      <div class="payment-row">
+        <span class="payment-name">${name}</span>
+        ${amountDisplay}
+        <button class="btn-icon"
+                data-action="training-confirm-payment"
+                data-month="${escapeHtml(data.month)}"
+                ${uid}
+                title="Подтвердить оплату">💳</button>
+      </div>`;
+  }).join('');
+
+  const total = escapeHtml(String(data.total.toFixed(2)));
+  return `
+    <div class="training-payments-month-nav">
+      <button class="btn-icon tp-nav" data-action="training-prev-month" data-month="${escapeHtml(data.month)}" title="Пред. месяц">◀</button>
+      <span class="payments-month-label">📅 ${escapeHtml(data.month)}</span>
+      <button class="btn-icon tp-nav" data-action="training-next-month" data-month="${escapeHtml(data.month)}" title="След. месяц">▶</button>
+    </div>
+    ${data.people.length === 0
+      ? '<div class="payments-empty">В группе нет участников</div>'
+      : rows}
+    <div class="payments-total">Итого: <strong>${total} ₼</strong></div>`;
 }
 
 function myStatus(
@@ -202,7 +226,7 @@ function renderCard(g: GameDto, myTelegramId: number, isAdmin: boolean): string 
       <div class="game-admin-actions">
         <button class="btn btn-secondary" data-action="edit-game"   data-game-id="${gid}">✏️ Редактировать</button>
         <button class="btn btn-guest"     data-action="add-guest"   data-game-id="${gid}">👤 Добавить гостя</button>
-        <button class="btn btn-money"     data-action="toggle-payments" data-game-id="${gid}" data-game-type="${escapeHtml(g.type)}">💰 Оплата</button>
+        ${g.type !== 'training' ? `<button class="btn btn-money" data-action="toggle-payments" data-game-id="${gid}">💰 Оплата</button>` : ''}
         <button class="btn btn-danger"    data-action="delete-game" data-game-id="${gid}">🗑 Удалить</button>
       </div>
       <div class="guest-form hidden" id="guest-form-${gid}">
@@ -215,6 +239,7 @@ function renderCard(g: GameDto, myTelegramId: number, isAdmin: boolean): string 
           </div>
         </div>
       </div>
+      ${g.type !== 'training' ? `
       <div class="payments-panel-container hidden" id="payments-container-${gid}">
         <!-- Payment panel is loaded dynamically -->
       </div>
@@ -227,12 +252,14 @@ function renderCard(g: GameDto, myTelegramId: number, isAdmin: boolean): string 
             <button class="btn btn-secondary" data-action="cancel-payment" data-game-id="${gid}">Отмена</button>
           </div>
         </div>
-      </div>` : ''}
+      </div>` : ''}` : ''}
     </div>`;
 }
 
 /**
  * Renders the games list page.
+ * For admins: shows two tabs — Schedule and Training Payments.
+ * For regular members: shows only the schedule.
  */
 export async function renderGamesList(ctx: GamesCtx, nav: Nav): Promise<void> {
   const { tg, groupId, isAdmin } = ctx;
@@ -249,295 +276,394 @@ export async function renderGamesList(ctx: GamesCtx, nav: Nav): Promise<void> {
 
   let games: GameDto[] = [];
 
-  function renderList(): void {
-    if (!games.length) {
-      show(`
-        <div class="page">
-          <h2 class="page-title">📅 Расписание</h2>
-          <div class="empty">Пока нет запланированных игр и тренировок.</div>
-        </div>
-      `);
-      return;
-    }
+  // ── Schedule tab content ───────────────────────────────────────────────────
 
-    const gameCards = games.map((g) => renderCard(g, myTelegramId, isAdmin)).join('');
+  function renderScheduleContent(): string {
+    if (!games.length) {
+      return '<div class="empty">Пока нет запланированных игр и тренировок.</div>';
+    }
+    return `<div class="games-list" id="gamesList">${games.map((g) => renderCard(g, myTelegramId, isAdmin)).join('')}</div>`;
+  }
+
+  // ── Full page render ───────────────────────────────────────────────────────
+
+  function renderPage(activeTab: 'schedule' | 'payments'): void {
+    const tabBar = isAdmin ? `
+      <div class="tabs-bar">
+        <button class="tab-btn ${activeTab === 'schedule' ? 'tab-active' : ''}" data-tab="schedule">📅 Расписание</button>
+        <button class="tab-btn ${activeTab === 'payments' ? 'tab-active' : ''}" data-tab="payments">💰 Оплата</button>
+      </div>` : '';
+
+    const schedulePanel = `
+      <div class="tab-panel ${activeTab !== 'schedule' ? 'hidden' : ''}" id="tab-schedule">
+        ${renderScheduleContent()}
+      </div>`;
+
+    const paymentsPanel = isAdmin ? `
+      <div class="tab-panel ${activeTab !== 'payments' ? 'hidden' : ''}" id="tab-payments">
+        <div class="training-payments-body" id="trainingPaymentsBody">
+          <div class="payments-loading">Загрузка…</div>
+        </div>
+        <div class="payment-input-form hidden" id="training-payment-form">
+          <div class="payment-form-inner">
+            <span class="payment-form-name" id="training-payment-form-name"></span>
+            <input class="payment-input" id="training-payment-amount" type="number" min="0" step="0.01" placeholder="Сумма (₼)" />
+            <div class="payment-form-actions">
+              <button class="btn btn-primary"   data-action="training-submit-payment">Сохранить</button>
+              <button class="btn btn-secondary" data-action="training-cancel-payment">Отмена</button>
+            </div>
+          </div>
+        </div>
+      </div>` : '';
+
     show(`
       <div class="page">
         <h2 class="page-title">📅 Расписание</h2>
-        <div class="games-list" id="gamesList">${gameCards}</div>
+        ${tabBar}
+        ${schedulePanel}
+        ${paymentsPanel}
       </div>
     `);
 
-    document.getElementById('gamesList')!.addEventListener('click', async (e) => {
-      const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-action]');
-      if (!btn || btn.disabled) return;
+    // Wire schedule tab events
+    document.getElementById('gamesList')?.addEventListener('click', handleScheduleClick);
 
-      const action = btn.dataset['action']!;
-      const gameId = btn.dataset['gameId']!;
-      const origText = btn.textContent;
-      
-      // Toggle participants list — no API call needed
-      if (action === 'toggle-participants') {
-        const panel = document.getElementById(`participants-${gameId}`)!;
-        const nowHidden = panel.classList.toggle('hidden');
-        const count = btn.textContent!.match(/\((\d+)\)/)?.[1] ?? '';
-        btn.textContent = nowHidden ? `👥 Участники (${count})` : `👥 Участники (${count}) ▲`;
-        return;
-      }
-
-      // Toggle payments panel
-      if (action === 'toggle-payments') {
-        const container = document.getElementById(`payments-container-${gameId}`)!;
-        const isNowHidden = container.classList.toggle('hidden');
-        if (!isNowHidden) {
-          const isTraining = btn.dataset['gameType'] === 'training';
-          btn.disabled = true;
-          try {
-            const data = await apiFetch<PaymentsDto>(`/api/payments?game_id=${encodeURIComponent(gameId)}`);
-            container.innerHTML = renderPaymentsPanel(parseInt(gameId), data, isTraining);
-          } catch (err) {
-            container.innerHTML = `<div class="error">❌ ${escapeHtml(getErrorMessage(err))}</div>`;
-          } finally {
-            btn.disabled = false;
-          }
-        }
-        return;
-      }
-
-      // Navigate to previous/next month in training payments panel
-      if (action === 'payments-prev-month' || action === 'payments-next-month') {
-        const month = btn.dataset['month'] ?? '';
-        const [year, mon] = month.split('-').map(Number);
-        const d = new Date(Date.UTC(year, mon - 1 + (action === 'payments-next-month' ? 1 : -1), 1));
-        const newMonth = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
-        const container = document.getElementById(`payments-container-${gameId}`)!;
-        container.innerHTML = '<div class="payments-loading">Загрузка…</div>';
-        try {
-          const data = await apiFetch<PaymentsDto>(
-            `/api/payments?game_id=${encodeURIComponent(gameId)}&month=${encodeURIComponent(newMonth)}`,
-          );
-          container.innerHTML = renderPaymentsPanel(parseInt(gameId), data, true);
-        } catch (err) {
-          container.innerHTML = `<div class="error">❌ ${escapeHtml(getErrorMessage(err))}</div>`;
-        }
-        return;
-      }
-
-      // Open payment amount form
-      if (action === 'confirm-payment') {
-        const form = document.getElementById(`payment-form-${gameId}`)!;
-        const nameEl = document.getElementById(`payment-form-name-${gameId}`)!;
-        const amountInput = document.getElementById(`payment-amount-${gameId}`) as HTMLInputElement;
-        nameEl.textContent = btn.closest('.payment-row')?.querySelector('.payment-name')?.textContent ?? '';
-        amountInput.value = '';
-        form.setAttribute('data-user-id',    btn.dataset['userId']    ?? '');
-        form.setAttribute('data-guest-name', btn.dataset['guestName'] ?? '');
-        form.setAttribute('data-month',      btn.dataset['month']     ?? '');
-        form.classList.remove('hidden');
-        amountInput.focus();
-        return;
-      }
-
-      if (action === 'cancel-payment') {
-        document.getElementById(`payment-form-${gameId}`)!.classList.add('hidden');
-        return;
-      }
-
-      if (action === 'submit-payment') {
-        const form = document.getElementById(`payment-form-${gameId}`)!;
-        const amountInput = document.getElementById(`payment-amount-${gameId}`) as HTMLInputElement;
-        const amount = parseFloat(amountInput.value);
-        if (isNaN(amount) || amount < 0) {
-          toast('Введите корректную сумму', true);
-          return;
-        }
-        const userId    = form.getAttribute('data-user-id') || null;
-        const guestName = form.getAttribute('data-guest-name') || null;
-        const month     = form.getAttribute('data-month') || undefined;
-        btn.disabled = true;
-        btn.textContent = '…';
-        try {
-          await apiFetch('/api/payments/upsert', {
-            method: 'POST',
-            body: JSON.stringify({
-              game_id:    parseInt(gameId),
-              user_id:    userId ? parseInt(userId) : null,
-              guest_name: guestName || null,
-              amount,
-              month,
-            }),
-          });
-          form.classList.add('hidden');
-          toast('✅ Оплата сохранена');
-          // Refresh payments panel
-          const container = document.getElementById(`payments-container-${gameId}`)!;
-          if (!container.classList.contains('hidden')) {
-            const savedMonth = form.getAttribute('data-month') || undefined;
-            const isTraining = !!savedMonth;
-            const url = savedMonth
-              ? `/api/payments?game_id=${encodeURIComponent(gameId)}&month=${encodeURIComponent(savedMonth)}`
-              : `/api/payments?game_id=${encodeURIComponent(gameId)}`;
-            const data = await apiFetch<PaymentsDto>(url);
-            container.innerHTML = renderPaymentsPanel(parseInt(gameId), data, isTraining);
-          }
-        } catch (err) {
-          toast(getErrorMessage(err), true);
-        } finally {
-          btn.disabled = false;
-          btn.textContent = 'Сохранить';
-        }
-        return;
-      }
-
-      // Show guest form
-      if (action === 'add-guest') {
-        const form = document.getElementById(`guest-form-${gameId}`)!;
-        const firstInput = document.getElementById(`guest-first-${gameId}`) as HTMLInputElement;
-        const lastInput  = document.getElementById(`guest-last-${gameId}`)  as HTMLInputElement;
-        // Reset to "add" mode (clear hidden participant id)
-        form.removeAttribute('data-editing-id');
-        firstInput.value = '';
-        lastInput.value  = '';
-        const submitBtn = form.querySelector<HTMLButtonElement>('[data-action="submit-guest"]')!;
-        submitBtn.textContent = 'Добавить';
-        form.classList.toggle('hidden');
-        return;
-      }
-
-      if (action === 'cancel-guest') {
-        document.getElementById(`guest-form-${gameId}`)!.classList.add('hidden');
-        return;
-      }
-
-      if (action === 'edit-guest') {
-        const participantId = btn.dataset['participantId']!;
-        const guestName     = btn.dataset['guestName'] ?? '';
-        const parts         = guestName.split(' ');
-        const firstName     = parts[0] ?? '';
-        const lastName      = parts.slice(1).join(' ');
-        const form = document.getElementById(`guest-form-${gameId}`)!;
-        const firstInput = document.getElementById(`guest-first-${gameId}`) as HTMLInputElement;
-        const lastInput  = document.getElementById(`guest-last-${gameId}`)  as HTMLInputElement;
-        form.setAttribute('data-editing-id', participantId);
-        firstInput.value = firstName;
-        lastInput.value  = lastName;
-        const submitBtn = form.querySelector<HTMLButtonElement>('[data-action="submit-guest"]')!;
-        submitBtn.textContent = 'Сохранить';
-        form.classList.remove('hidden');
-        return;
-      }
-
-      if (action === 'delete-guest') {
-        const participantId = btn.dataset['participantId']!;
-        if (!window.confirm('Удалить гостя?')) return;
-        btn.disabled = true;
-        try {
-          await apiFetch(`/api/games/${encodeURIComponent(gameId)}/guests/${encodeURIComponent(participantId)}`, {
-            method: 'DELETE',
-          });
-          toast('👤 Гость удалён');
-          games = await apiFetch<GameDto[]>(`/api/games?group_id=${encodeURIComponent(groupId)}`);
-          renderList();
-        } catch (err) {
-          btn.disabled = false;
-          toast(getErrorMessage(err), true);
-        }
-        return;
-      }
-
-      if (action === 'submit-guest') {
-        const form = document.getElementById(`guest-form-${gameId}`)!;
-        const firstInput = document.getElementById(`guest-first-${gameId}`) as HTMLInputElement;
-        const lastInput  = document.getElementById(`guest-last-${gameId}`)  as HTMLInputElement;
-        const firstName  = firstInput.value.trim();
-        const lastName   = lastInput.value.trim();
-        if (!firstName) {
-          toast('Введите имя гостя', true);
-          return;
-        }
-        const editingId = form.getAttribute('data-editing-id');
-        btn.disabled = true;
-        btn.textContent = '…';
-        try {
-          if (editingId) {
-            await apiFetch(`/api/games/${encodeURIComponent(gameId)}/guests/${encodeURIComponent(editingId)}`, {
-              method: 'PUT',
-              body: JSON.stringify({ first_name: firstName, last_name: lastName || undefined }),
-            });
-            toast('👤 Гость обновлён');
-          } else {
-            await apiFetch(`/api/games/${encodeURIComponent(gameId)}/guests`, {
-              method: 'POST',
-              body: JSON.stringify({ first_name: firstName, last_name: lastName || undefined }),
-            });
-            toast('👤 Гость добавлен');
-          }
-          form.classList.add('hidden');
-          games = await apiFetch<GameDto[]>(`/api/games?group_id=${encodeURIComponent(groupId)}`);
-          renderList();
-        } catch (err) {
-          btn.disabled = false;
-          btn.textContent = editingId ? 'Сохранить' : 'Добавить';
-          toast(getErrorMessage(err), true);
-        }
-        return;
-      }
-
-      btn.disabled = true;
-      btn.textContent = '…';
-
-      try {
-        if (action === 'register') {
-          await apiFetch(`/api/games/${encodeURIComponent(gameId)}/register`, {
-            method: 'POST',
-            body: JSON.stringify({ status: 'confirmed' }),
-          });
-          toast('✅ Вы записаны!');
-        } else if (action === 'maybe') {
-          await apiFetch(`/api/games/${encodeURIComponent(gameId)}/register`, {
-            method: 'POST',
-            body: JSON.stringify({ status: 'maybe' }),
-          });
-          toast('❓ Отмечено "Не точно"');
-        } else if (action === 'cancel') {
-          await apiFetch(`/api/games/${encodeURIComponent(gameId)}/register`, {
-            method: 'DELETE',
-          });
-          toast('❌ Вы отказались от игры');
-        } else if (action === 'edit-game') {
-          nav.goEditGame(parseInt(gameId));
-          return;
-        } else if (action === 'delete-game') {
-          if (!window.confirm('Удалить эту игру?')) {
-            btn.disabled = false;
-            btn.textContent = origText;
-            return;
-          }
-          await apiFetch(`/api/games/${encodeURIComponent(gameId)}`, { method: 'DELETE' });
-          toast('🗑 Игра удалена');
-        }
-
-        // Reload data and re-render
-        games = await apiFetch<GameDto[]>(
-          `/api/games?group_id=${encodeURIComponent(groupId)}`,
-        );
-        renderList();
-      } catch (err) {
-        btn.disabled = false;
-        btn.textContent = origText;
-        toast(getErrorMessage(err), true);
-      }
+    // Wire tab switching
+    document.querySelector('.tabs-bar')?.addEventListener('click', (e) => {
+      const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-tab]');
+      if (!btn) return;
+      const tab = btn.dataset['tab'] as 'schedule' | 'payments';
+      if (tab === activeTab) return;
+      renderPage(tab);
+      if (tab === 'payments') loadTrainingPayments();
     });
+
+    // Wire training payments tab events
+    document.getElementById('tab-payments')?.addEventListener('click', handleTrainingPaymentsClick);
   }
 
+  // ── Load training payments data ────────────────────────────────────────────
+
+  async function loadTrainingPayments(month?: string): Promise<void> {
+    const body = document.getElementById('trainingPaymentsBody');
+    if (!body) return;
+    body.innerHTML = '<div class="payments-loading">Загрузка…</div>';
+    try {
+      const url = month
+        ? `/api/payments/training?group_id=${encodeURIComponent(groupId)}&month=${encodeURIComponent(month)}`
+        : `/api/payments/training?group_id=${encodeURIComponent(groupId)}`;
+      const data = await apiFetch<TrainingPaymentsDto>(url);
+      body.innerHTML = renderTrainingPaymentsTab(data);
+    } catch (err) {
+      body.innerHTML = `<div class="error">❌ ${escapeHtml(getErrorMessage(err))}</div>`;
+    }
+  }
+
+  // ── Training payments tab event handler ────────────────────────────────────
+
+  async function handleTrainingPaymentsClick(e: MouseEvent): Promise<void> {
+    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-action]');
+    if (!btn || btn.disabled) return;
+    const action = btn.dataset['action']!;
+
+    if (action === 'training-prev-month' || action === 'training-next-month') {
+      const month = btn.dataset['month'] ?? '';
+      const [year, mon] = month.split('-').map(Number);
+      const d = new Date(Date.UTC(year, mon - 1 + (action === 'training-next-month' ? 1 : -1), 1));
+      const newMonth = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+      await loadTrainingPayments(newMonth);
+      return;
+    }
+
+    if (action === 'training-confirm-payment') {
+      const form = document.getElementById('training-payment-form')!;
+      const nameEl = document.getElementById('training-payment-form-name')!;
+      const amountInput = document.getElementById('training-payment-amount') as HTMLInputElement;
+      nameEl.textContent = btn.closest('.payment-row')?.querySelector('.payment-name')?.textContent ?? '';
+      amountInput.value = '';
+      form.setAttribute('data-user-id', btn.dataset['userId'] ?? '');
+      form.setAttribute('data-month',   btn.dataset['month']  ?? '');
+      form.classList.remove('hidden');
+      amountInput.focus();
+      return;
+    }
+
+    if (action === 'training-cancel-payment') {
+      document.getElementById('training-payment-form')!.classList.add('hidden');
+      return;
+    }
+
+    if (action === 'training-submit-payment') {
+      const form = document.getElementById('training-payment-form')!;
+      const amountInput = document.getElementById('training-payment-amount') as HTMLInputElement;
+      const amount = parseFloat(amountInput.value);
+      if (isNaN(amount) || amount < 0) {
+        toast('Введите корректную сумму', true);
+        return;
+      }
+      const userId = form.getAttribute('data-user-id');
+      const month  = form.getAttribute('data-month') ?? undefined;
+      btn.disabled = true;
+      btn.textContent = '…';
+      try {
+        await apiFetch('/api/payments/training/upsert', {
+          method: 'POST',
+          body: JSON.stringify({
+            group_id: parseInt(groupId),
+            user_id:  userId ? parseInt(userId) : null,
+            amount,
+            month,
+          }),
+        });
+        form.classList.add('hidden');
+        toast('✅ Оплата сохранена');
+        await loadTrainingPayments(month);
+      } catch (err) {
+        toast(getErrorMessage(err), true);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Сохранить';
+      }
+      return;
+    }
+  }
+
+  // ── Schedule tab event handler ─────────────────────────────────────────────
+
+  async function handleScheduleClick(e: MouseEvent): Promise<void> {
+    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-action]');
+    if (!btn || btn.disabled) return;
+
+    const action = btn.dataset['action']!;
+    const gameId = btn.dataset['gameId']!;
+    const origText = btn.textContent;
+
+    // Toggle participants list — no API call needed
+    if (action === 'toggle-participants') {
+      const panel = document.getElementById(`participants-${gameId}`)!;
+      const nowHidden = panel.classList.toggle('hidden');
+      const count = btn.textContent!.match(/\((\d+)\)/)?.[1] ?? '';
+      btn.textContent = nowHidden ? `👥 Участники (${count})` : `👥 Участники (${count}) ▲`;
+      return;
+    }
+
+    // Toggle game payments panel (only for GAME type cards)
+    if (action === 'toggle-payments') {
+      const container = document.getElementById(`payments-container-${gameId}`)!;
+      const isNowHidden = container.classList.toggle('hidden');
+      if (!isNowHidden) {
+        btn.disabled = true;
+        try {
+          const data = await apiFetch<PaymentsDto>(`/api/payments?game_id=${encodeURIComponent(gameId)}`);
+          container.innerHTML = renderPaymentsPanel(parseInt(gameId), data);
+        } catch (err) {
+          container.innerHTML = `<div class="error">❌ ${escapeHtml(getErrorMessage(err))}</div>`;
+        } finally {
+          btn.disabled = false;
+        }
+      }
+      return;
+    }
+
+    // Open payment amount form (for game cards)
+    if (action === 'confirm-payment') {
+      const form = document.getElementById(`payment-form-${gameId}`)!;
+      const nameEl = document.getElementById(`payment-form-name-${gameId}`)!;
+      const amountInput = document.getElementById(`payment-amount-${gameId}`) as HTMLInputElement;
+      nameEl.textContent = btn.closest('.payment-row')?.querySelector('.payment-name')?.textContent ?? '';
+      amountInput.value = '';
+      form.setAttribute('data-user-id',    btn.dataset['userId']    ?? '');
+      form.setAttribute('data-guest-name', btn.dataset['guestName'] ?? '');
+      form.classList.remove('hidden');
+      amountInput.focus();
+      return;
+    }
+
+    if (action === 'cancel-payment') {
+      document.getElementById(`payment-form-${gameId}`)!.classList.add('hidden');
+      return;
+    }
+
+    if (action === 'submit-payment') {
+      const form = document.getElementById(`payment-form-${gameId}`)!;
+      const amountInput = document.getElementById(`payment-amount-${gameId}`) as HTMLInputElement;
+      const amount = parseFloat(amountInput.value);
+      if (isNaN(amount) || amount < 0) {
+        toast('Введите корректную сумму', true);
+        return;
+      }
+      const userId    = form.getAttribute('data-user-id') || null;
+      const guestName = form.getAttribute('data-guest-name') || null;
+      btn.disabled = true;
+      btn.textContent = '…';
+      try {
+        await apiFetch('/api/payments/upsert', {
+          method: 'POST',
+          body: JSON.stringify({
+            game_id:    parseInt(gameId),
+            user_id:    userId ? parseInt(userId) : null,
+            guest_name: guestName || null,
+            amount,
+          }),
+        });
+        form.classList.add('hidden');
+        toast('✅ Оплата сохранена');
+        const container = document.getElementById(`payments-container-${gameId}`)!;
+        if (!container.classList.contains('hidden')) {
+          const data = await apiFetch<PaymentsDto>(`/api/payments?game_id=${encodeURIComponent(gameId)}`);
+          container.innerHTML = renderPaymentsPanel(parseInt(gameId), data);
+        }
+      } catch (err) {
+        toast(getErrorMessage(err), true);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Сохранить';
+      }
+      return;
+    }
+
+    // Show guest form
+    if (action === 'add-guest') {
+      const form = document.getElementById(`guest-form-${gameId}`)!;
+      const firstInput = document.getElementById(`guest-first-${gameId}`) as HTMLInputElement;
+      const lastInput  = document.getElementById(`guest-last-${gameId}`)  as HTMLInputElement;
+      form.removeAttribute('data-editing-id');
+      firstInput.value = '';
+      lastInput.value  = '';
+      const submitBtn = form.querySelector<HTMLButtonElement>('[data-action="submit-guest"]')!;
+      submitBtn.textContent = 'Добавить';
+      form.classList.toggle('hidden');
+      return;
+    }
+
+    if (action === 'cancel-guest') {
+      document.getElementById(`guest-form-${gameId}`)!.classList.add('hidden');
+      return;
+    }
+
+    if (action === 'edit-guest') {
+      const participantId = btn.dataset['participantId']!;
+      const guestName     = btn.dataset['guestName'] ?? '';
+      const parts         = guestName.split(' ');
+      const firstName     = parts[0] ?? '';
+      const lastName      = parts.slice(1).join(' ');
+      const form = document.getElementById(`guest-form-${gameId}`)!;
+      const firstInput = document.getElementById(`guest-first-${gameId}`) as HTMLInputElement;
+      const lastInput  = document.getElementById(`guest-last-${gameId}`)  as HTMLInputElement;
+      form.setAttribute('data-editing-id', participantId);
+      firstInput.value = firstName;
+      lastInput.value  = lastName;
+      const submitBtn = form.querySelector<HTMLButtonElement>('[data-action="submit-guest"]')!;
+      submitBtn.textContent = 'Сохранить';
+      form.classList.remove('hidden');
+      return;
+    }
+
+    if (action === 'delete-guest') {
+      const participantId = btn.dataset['participantId']!;
+      if (!window.confirm('Удалить гостя?')) return;
+      btn.disabled = true;
+      try {
+        await apiFetch(`/api/games/${encodeURIComponent(gameId)}/guests/${encodeURIComponent(participantId)}`, {
+          method: 'DELETE',
+        });
+        toast('👤 Гость удалён');
+        games = await apiFetch<GameDto[]>(`/api/games?group_id=${encodeURIComponent(groupId)}`);
+        renderPage('schedule');
+      } catch (err) {
+        btn.disabled = false;
+        toast(getErrorMessage(err), true);
+      }
+      return;
+    }
+
+    if (action === 'submit-guest') {
+      const form = document.getElementById(`guest-form-${gameId}`)!;
+      const firstInput = document.getElementById(`guest-first-${gameId}`) as HTMLInputElement;
+      const lastInput  = document.getElementById(`guest-last-${gameId}`)  as HTMLInputElement;
+      const firstName  = firstInput.value.trim();
+      const lastName   = lastInput.value.trim();
+      if (!firstName) {
+        toast('Введите имя гостя', true);
+        return;
+      }
+      const editingId = form.getAttribute('data-editing-id');
+      btn.disabled = true;
+      btn.textContent = '…';
+      try {
+        if (editingId) {
+          await apiFetch(`/api/games/${encodeURIComponent(gameId)}/guests/${encodeURIComponent(editingId)}`, {
+            method: 'PUT',
+            body: JSON.stringify({ first_name: firstName, last_name: lastName || undefined }),
+          });
+          toast('👤 Гость обновлён');
+        } else {
+          await apiFetch(`/api/games/${encodeURIComponent(gameId)}/guests`, {
+            method: 'POST',
+            body: JSON.stringify({ first_name: firstName, last_name: lastName || undefined }),
+          });
+          toast('👤 Гость добавлен');
+        }
+        form.classList.add('hidden');
+        games = await apiFetch<GameDto[]>(`/api/games?group_id=${encodeURIComponent(groupId)}`);
+        renderPage('schedule');
+      } catch (err) {
+        btn.disabled = false;
+        btn.textContent = editingId ? 'Сохранить' : 'Добавить';
+        toast(getErrorMessage(err), true);
+      }
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = '…';
+
+    try {
+      if (action === 'register') {
+        await apiFetch(`/api/games/${encodeURIComponent(gameId)}/register`, {
+          method: 'POST',
+          body: JSON.stringify({ status: 'confirmed' }),
+        });
+        toast('✅ Вы записаны!');
+      } else if (action === 'maybe') {
+        await apiFetch(`/api/games/${encodeURIComponent(gameId)}/register`, {
+          method: 'POST',
+          body: JSON.stringify({ status: 'maybe' }),
+        });
+        toast('❓ Отмечено "Не точно"');
+      } else if (action === 'cancel') {
+        await apiFetch(`/api/games/${encodeURIComponent(gameId)}/register`, {
+          method: 'DELETE',
+        });
+        toast('❌ Вы отказались от игры');
+      } else if (action === 'edit-game') {
+        nav.goEditGame(parseInt(gameId));
+        return;
+      } else if (action === 'delete-game') {
+        if (!window.confirm('Удалить эту игру?')) {
+          btn.disabled = false;
+          btn.textContent = origText;
+          return;
+        }
+        await apiFetch(`/api/games/${encodeURIComponent(gameId)}`, { method: 'DELETE' });
+        toast('🗑 Игра удалена');
+      }
+
+      games = await apiFetch<GameDto[]>(`/api/games?group_id=${encodeURIComponent(groupId)}`);
+      renderPage('schedule');
+    } catch (err) {
+      btn.disabled = false;
+      btn.textContent = origText;
+      toast(getErrorMessage(err), true);
+    }
+  }
+
+  // ── Bootstrap ──────────────────────────────────────────────────────────────
+
   try {
-    games = await apiFetch<GameDto[]>(
-      `/api/games?group_id=${encodeURIComponent(groupId)}`,
-    );
-    renderList();
+    games = await apiFetch<GameDto[]>(`/api/games?group_id=${encodeURIComponent(groupId)}`);
+    renderPage('schedule');
   } catch (err) {
-    show(
-      `<div class="error">❌ Ошибка загрузки: ${escapeHtml(getErrorMessage(err))}</div>`,
-    );
+    show(`<div class="error">❌ Ошибка загрузки: ${escapeHtml(getErrorMessage(err))}</div>`);
   }
 }
