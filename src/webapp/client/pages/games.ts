@@ -74,14 +74,14 @@ function paymentPersonName(p: PaymentPersonDto): string {
   return p.username ? `@${p.username}` : full || '—';
 }
 
-function renderPaymentsPanel(gameId: number, data: PaymentsDto): string {
+function renderPaymentsPanel(gameId: number, data: PaymentsDto, isTraining: boolean): string {
   const gid = escapeHtml(String(gameId));
   const rows = data.people.map((p) => {
     const name = escapeHtml(paymentPersonName(p));
     const amountDisplay = p.payment_amount != null
       ? `<span class="payment-amount">${escapeHtml(String(p.payment_amount))} ₼</span>`
       : `<span class="payment-amount payment-amount--empty">—</span>`;
-    const uid  = p.user_id  != null ? `data-user-id="${p.user_id}"` : '';
+    const uid   = p.user_id  != null ? `data-user-id="${p.user_id}"` : '';
     const gname = p.guest_name ? `data-guest-name="${escapeHtml(p.guest_name)}"` : '';
     return `
       <div class="payment-row">
@@ -90,6 +90,7 @@ function renderPaymentsPanel(gameId: number, data: PaymentsDto): string {
         <button class="btn-icon payment-confirm-btn"
                 data-action="confirm-payment"
                 data-game-id="${gid}"
+                data-month="${escapeHtml(data.month)}"
                 ${uid}
                 ${gname}
                 title="Подтвердить оплату">💳</button>
@@ -97,10 +98,19 @@ function renderPaymentsPanel(gameId: number, data: PaymentsDto): string {
   }).join('');
 
   const total = escapeHtml(String(data.total.toFixed(2)));
+  const monthLabel = isTraining ? `<div class="payments-month-label">📅 ${escapeHtml(data.month)}</div>` : '';
 
   return `
     <div class="payments-panel" id="payments-panel-${gid}">
-      <div class="payments-header">💰 Учёт оплат</div>
+      <div class="payments-panel-header">
+        <span class="payments-header">💰 Учёт оплат</span>
+        ${isTraining ? `
+        <div class="payments-month-nav">
+          <button class="btn-icon" data-action="payments-prev-month" data-game-id="${gid}" data-month="${escapeHtml(data.month)}" title="Пред. месяц">◀</button>
+          ${monthLabel}
+          <button class="btn-icon" data-action="payments-next-month" data-game-id="${gid}" data-month="${escapeHtml(data.month)}" title="След. месяц">▶</button>
+        </div>` : ''}
+      </div>
       ${data.people.length === 0
         ? '<div class="payments-empty">Нет участников для сбора оплаты</div>'
         : rows}
@@ -192,7 +202,7 @@ function renderCard(g: GameDto, myTelegramId: number, isAdmin: boolean): string 
       <div class="game-admin-actions">
         <button class="btn btn-secondary" data-action="edit-game"   data-game-id="${gid}">✏️ Редактировать</button>
         <button class="btn btn-guest"     data-action="add-guest"   data-game-id="${gid}">👤 Добавить гостя</button>
-        <button class="btn btn-money"     data-action="toggle-payments" data-game-id="${gid}">💰 Оплата</button>
+        <button class="btn btn-money"     data-action="toggle-payments" data-game-id="${gid}" data-game-type="${escapeHtml(g.type)}">💰 Оплата</button>
         <button class="btn btn-danger"    data-action="delete-game" data-game-id="${gid}">🗑 Удалить</button>
       </div>
       <div class="guest-form hidden" id="guest-form-${gid}">
@@ -280,16 +290,35 @@ export async function renderGamesList(ctx: GamesCtx, nav: Nav): Promise<void> {
         const container = document.getElementById(`payments-container-${gameId}`)!;
         const isNowHidden = container.classList.toggle('hidden');
         if (!isNowHidden) {
-          // Load/refresh payment data
+          const isTraining = btn.dataset['gameType'] === 'training';
           btn.disabled = true;
           try {
             const data = await apiFetch<PaymentsDto>(`/api/payments?game_id=${encodeURIComponent(gameId)}`);
-            container.innerHTML = renderPaymentsPanel(parseInt(gameId), data);
+            container.innerHTML = renderPaymentsPanel(parseInt(gameId), data, isTraining);
           } catch (err) {
             container.innerHTML = `<div class="error">❌ ${escapeHtml(getErrorMessage(err))}</div>`;
           } finally {
             btn.disabled = false;
           }
+        }
+        return;
+      }
+
+      // Navigate to previous/next month in training payments panel
+      if (action === 'payments-prev-month' || action === 'payments-next-month') {
+        const month = btn.dataset['month'] ?? '';
+        const [year, mon] = month.split('-').map(Number);
+        const d = new Date(Date.UTC(year, mon - 1 + (action === 'payments-next-month' ? 1 : -1), 1));
+        const newMonth = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+        const container = document.getElementById(`payments-container-${gameId}`)!;
+        container.innerHTML = '<div class="payments-loading">Загрузка…</div>';
+        try {
+          const data = await apiFetch<PaymentsDto>(
+            `/api/payments?game_id=${encodeURIComponent(gameId)}&month=${encodeURIComponent(newMonth)}`,
+          );
+          container.innerHTML = renderPaymentsPanel(parseInt(gameId), data, true);
+        } catch (err) {
+          container.innerHTML = `<div class="error">❌ ${escapeHtml(getErrorMessage(err))}</div>`;
         }
         return;
       }
@@ -301,8 +330,9 @@ export async function renderGamesList(ctx: GamesCtx, nav: Nav): Promise<void> {
         const amountInput = document.getElementById(`payment-amount-${gameId}`) as HTMLInputElement;
         nameEl.textContent = btn.closest('.payment-row')?.querySelector('.payment-name')?.textContent ?? '';
         amountInput.value = '';
-        form.setAttribute('data-user-id', btn.dataset['userId'] ?? '');
+        form.setAttribute('data-user-id',    btn.dataset['userId']    ?? '');
         form.setAttribute('data-guest-name', btn.dataset['guestName'] ?? '');
+        form.setAttribute('data-month',      btn.dataset['month']     ?? '');
         form.classList.remove('hidden');
         amountInput.focus();
         return;
@@ -323,6 +353,7 @@ export async function renderGamesList(ctx: GamesCtx, nav: Nav): Promise<void> {
         }
         const userId    = form.getAttribute('data-user-id') || null;
         const guestName = form.getAttribute('data-guest-name') || null;
+        const month     = form.getAttribute('data-month') || undefined;
         btn.disabled = true;
         btn.textContent = '…';
         try {
@@ -333,6 +364,7 @@ export async function renderGamesList(ctx: GamesCtx, nav: Nav): Promise<void> {
               user_id:    userId ? parseInt(userId) : null,
               guest_name: guestName || null,
               amount,
+              month,
             }),
           });
           form.classList.add('hidden');
@@ -340,8 +372,13 @@ export async function renderGamesList(ctx: GamesCtx, nav: Nav): Promise<void> {
           // Refresh payments panel
           const container = document.getElementById(`payments-container-${gameId}`)!;
           if (!container.classList.contains('hidden')) {
-            const data = await apiFetch<PaymentsDto>(`/api/payments?game_id=${encodeURIComponent(gameId)}`);
-            container.innerHTML = renderPaymentsPanel(parseInt(gameId), data);
+            const savedMonth = form.getAttribute('data-month') || undefined;
+            const isTraining = !!savedMonth;
+            const url = savedMonth
+              ? `/api/payments?game_id=${encodeURIComponent(gameId)}&month=${encodeURIComponent(savedMonth)}`
+              : `/api/payments?game_id=${encodeURIComponent(gameId)}`;
+            const data = await apiFetch<PaymentsDto>(url);
+            container.innerHTML = renderPaymentsPanel(parseInt(gameId), data, isTraining);
           }
         } catch (err) {
           toast(getErrorMessage(err), true);

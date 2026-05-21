@@ -55,6 +55,7 @@ export interface PaymentPersonDto {
 export interface PaymentsDto {
   people: PaymentPersonDto[];
   total: number;
+  month: string; // 'YYYY-MM' — always present; for games it's the current month (unused)
 }
 
 /** Shared navigation object passed to every page renderer. */

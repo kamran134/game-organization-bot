@@ -257,6 +257,36 @@ select.input {
   margin-bottom: 8px;
 }
 
+.payments-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  gap: 8px;
+}
+
+.payments-month-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--tg-hint);
+}
+
+.payments-month-label {
+  min-width: 52px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--tg-text);
+}
+
+.payments-loading {
+  font-size: 13px;
+  color: var(--tg-hint);
+  text-align: center;
+  padding: 12px 0;
+}
+
 .payments-empty {
   font-size: 13px;
   color: var(--tg-hint);

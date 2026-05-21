@@ -108,17 +108,22 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_game_participants_game_user
 -- ── payments ─────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS payments (
   id           SERIAL PRIMARY KEY,
-  game_id      INTEGER NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+  group_id     INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+  game_id      INTEGER REFERENCES games(id) ON DELETE CASCADE,   -- set for GAME, null for TRAINING
+  period_month VARCHAR(7),                                        -- set for TRAINING ('YYYY-MM'), null for GAME
   user_id      INTEGER REFERENCES users(id) ON DELETE SET NULL,
   guest_name   VARCHAR,
   amount       DECIMAL(10, 2) NOT NULL,
   confirmed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
   confirmed_at TIMESTAMP NOT NULL DEFAULT NOW(),
   updated_at   TIMESTAMP NOT NULL DEFAULT NOW(),
-  CONSTRAINT uq_payments_game_user
-    UNIQUE (game_id, user_id),
   CONSTRAINT chk_payments_user_or_guest
-    CHECK (user_id IS NOT NULL OR guest_name IS NOT NULL)
+    CHECK (user_id IS NOT NULL OR guest_name IS NOT NULL),
+  CONSTRAINT chk_payments_game_or_period
+    CHECK (
+      (game_id IS NOT NULL AND period_month IS NULL) OR
+      (game_id IS NULL AND period_month IS NOT NULL)
+    )
 );
 
 -- ── Performance indexes ───────────────────────────────────────
@@ -133,3 +138,4 @@ CREATE INDEX IF NOT EXISTS idx_locations_group_id           ON locations(group_i
 CREATE INDEX IF NOT EXISTS idx_sport_locations_location_id  ON sport_locations(location_id);
 CREATE INDEX IF NOT EXISTS idx_payments_game_id             ON payments(game_id);
 CREATE INDEX IF NOT EXISTS idx_payments_user_id             ON payments(user_id);
+CREATE INDEX IF NOT EXISTS idx_payments_group_month         ON payments(group_id, period_month);
