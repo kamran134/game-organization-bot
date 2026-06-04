@@ -69,6 +69,7 @@ export class ServiceContainer {
 
     this.trainingCreationFlow = new TrainingCreationFlow({
       gameService: this.gameService,
+      groupService: this.groupService,
       sportService: this.sportService,
       locationService: this.locationService,
       trainingCreationStates: this.trainingCreationStates,

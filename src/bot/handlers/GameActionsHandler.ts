@@ -77,21 +77,20 @@ export class GameActionsHandler extends ActionHandler {
 
           // Отправляем сообщение в группу о том кто отказался
           const userName = ctx.from!.first_name + (ctx.from!.last_name ? ` ${ctx.from!.last_name}` : '');
-          const userLink = ctx.from!.username ? `@${ctx.from!.username}` : userName;
-          
+
           if (game.group.telegram_chat_id) {
             try {
               const joke = await this.services.jokeService.getDeclineJoke(userName);
               const safeJoke = joke.replace(/</g, '&lt;').replace(/>/g, '&gt;');
               await ctx.telegram.sendMessage(
                 game.group.telegram_chat_id,
-                `❌ ${userLink} отказался от участия\n\n🤖 <i>${safeJoke}</i>`,
+                `❌ ${userName} отказался от участия\n\n🤖 <i>${safeJoke}</i>`,
                 { parse_mode: 'HTML' }
               );
             } catch (sendError) {
               console.error('Error sending decline notification to group:', sendError);
               console.log('Group chat_id:', game.group.telegram_chat_id);
-              console.log('User:', userLink);
+              console.log('User:', userName);
             }
           } else {
             console.error('Game group has no telegram_chat_id:', game.id);
@@ -368,13 +367,13 @@ export class GameActionsHandler extends ActionHandler {
       const displayName = ctx.from!.first_name + (ctx.from!.last_name ? ` ${ctx.from!.last_name}` : '');
       const notifyEmoji = status === ParticipationStatus.CONFIRMED ? '✅' : '❓';
       const notifyStatus = status === ParticipationStatus.CONFIRMED ? 'точно идёт' : 'возможно придёт';
-      const actionLabel = existingParticipant ? 'обновил статус' : 'записался';
+      const actionLabel = existingParticipant ? 'Обновление:' : 'Новая запись:';
 
       if (updatedGame.group?.telegram_chat_id) {
         try {
           await ctx.telegram.sendMessage(
             updatedGame.group.telegram_chat_id,
-            `${notifyEmoji} ${displayName} ${actionLabel} — ${notifyStatus}`
+            `${notifyEmoji} ${actionLabel} ${displayName} — ${notifyStatus}`
           );
         } catch (err) {
           console.error('Error sending join notification to group:', err);

@@ -123,6 +123,15 @@ export function createGamesRouter(db: Database): Router {
               text,
               { parse_mode: 'Markdown', ...keyboard }
             );
+
+            const members = await groupService.getGroupMembers(parseInt(group_id));
+            const mentions = members
+              .filter(m => m.user?.username)
+              .map(m => `@${m.user!.username}`)
+              .join(' ');
+            if (mentions) {
+              await telegram.sendMessage(Number(group.telegram_chat_id), `👆 ${mentions}`);
+            }
           }
         }
       } catch (notifyError) {
@@ -173,15 +182,14 @@ export function createGamesRouter(db: Database): Router {
         if (botToken && updatedGame?.group?.telegram_chat_id) {
           const telegram = new Telegram(botToken);
           const userName = [user.first_name, user.last_name].filter(Boolean).join(' ');
-          const userLink = user.username ? `@${user.username}` : userName;
           const participantsText = GameMessageBuilder.formatParticipantsMessage(updatedGame);
           const emoji = participationStatus === ParticipationStatus.MAYBE ? '❓' : '✅';
           const actionText = participationStatus === ParticipationStatus.MAYBE
-            ? 'отметился "не точно" через веб-приложение'
-            : 'записался на игру через веб-приложение';
+            ? 'Новая запись "не точно" (веб):'
+            : 'Новая запись (веб):';
           await telegram.sendMessage(
             Number(updatedGame.group.telegram_chat_id),
-            `${emoji} ${userLink} ${actionText}\n\n${participantsText}`,
+            `${emoji} ${actionText} ${userName}\n\n${participantsText}`,
             { parse_mode: 'Markdown' }
           );
         }
@@ -224,13 +232,12 @@ export function createGamesRouter(db: Database): Router {
         if (botToken && updatedGame?.group?.telegram_chat_id) {
           const telegram = new Telegram(botToken);
           const userName = [user.first_name, user.last_name].filter(Boolean).join(' ');
-          const userLink = user.username ? `@${user.username}` : userName;
           const participantsText = GameMessageBuilder.formatParticipantsMessage(updatedGame);
           const joke = await jokeService.getDeclineJoke(userName);
           const safeJoke = joke.replace(/</g, '&lt;').replace(/>/g, '&gt;');
           await telegram.sendMessage(
             Number(updatedGame.group.telegram_chat_id),
-            `❌ ${userLink} отказался от участия через веб-приложение\n\n🤖 <i>${safeJoke}</i>\n\n${participantsText}`,
+            `❌ ${userName} отказался от участия через веб-приложение\n\n🤖 <i>${safeJoke}</i>\n\n${participantsText}`,
             { parse_mode: 'HTML' }
           );
         }

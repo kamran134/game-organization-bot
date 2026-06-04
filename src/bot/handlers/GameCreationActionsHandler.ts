@@ -83,6 +83,22 @@ export class GameCreationActionsHandler extends ActionHandler {
           KeyboardBuilder.createGameActionsKeyboard(game.id, 0, isAdmin, 0)
         );
         await ctx.answerCbQuery('✅ Игра создана!');
+
+        try {
+          const group = await this.services.groupService.getGroupById(state.groupId);
+          if (group?.telegram_chat_id) {
+            const members = await this.services.groupService.getGroupMembers(state.groupId);
+            const mentions = members
+              .filter(m => m.user?.username)
+              .map(m => `@${m.user!.username}`)
+              .join(' ');
+            if (mentions) {
+              await ctx.telegram.sendMessage(group.telegram_chat_id, `👆 ${mentions}`);
+            }
+          }
+        } catch (mentionError) {
+          console.error('Error sending mention notification:', mentionError);
+        }
       } catch (error) {
         console.error('Error creating game:', error);
         const errorMessage = `❌ Ошибка создания игры:\n\n${error instanceof Error ? error.message : String(error)}\n\nStack:\n${error instanceof Error ? error.stack : 'N/A'}`;

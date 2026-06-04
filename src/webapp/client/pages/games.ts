@@ -18,8 +18,7 @@ interface GamesCtx {
 
 function participantName(p: ParticipantDto): string {
   if (p.user) {
-    const full = [p.user.first_name, p.user.last_name].filter(Boolean).join(' ');
-    return p.user.username ? `@${p.user.username}` : full || '—';
+    return [p.user.first_name, p.user.last_name].filter(Boolean).join(' ') || '—';
   }
   return p.guest_name || 'Гость';
 }
@@ -70,8 +69,7 @@ function renderParticipantsList(participants: ParticipantDto[] | undefined, game
 
 function paymentPersonName(p: PaymentPersonDto): string {
   if (p.guest_name) return p.guest_name;
-  const full = [p.first_name, p.last_name].filter(Boolean).join(' ');
-  return p.username ? `@${p.username}` : full || '—';
+  return [p.first_name, p.last_name].filter(Boolean).join(' ') || '—';
 }
 
 function renderPaymentsPanel(gameId: number, data: PaymentsDto): string {

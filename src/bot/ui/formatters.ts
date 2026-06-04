@@ -27,8 +27,8 @@ export function formatParticipantName(participant: GameParticipant): string {
   };
 
   const emoji = statusEmoji[participant.participation_status] || '';
-  const name = participant.user 
-    ? (participant.user.username ? `@${participant.user.username}` : participant.user.first_name)
+  const name = participant.user
+    ? [participant.user.first_name, participant.user.last_name].filter(Boolean).join(' ')
     : participant.guest_name || 'Гость';
 
   return `${emoji} ${name}`;
@@ -49,7 +49,7 @@ export function formatParticipantsList(participants: GameParticipant[]): string 
     text += '✅ Точно идут:\n';
     confirmed.forEach((p, idx) => {
       const name = p.user
-        ? (p.user.username ? `@${p.user.username}` : p.user.first_name)
+        ? [p.user.first_name, p.user.last_name].filter(Boolean).join(' ')
         : p.guest_name || 'Гость';
       text += `${idx + 1}. ${name}\n`;
     });
@@ -60,7 +60,7 @@ export function formatParticipantsList(participants: GameParticipant[]): string 
     text += '❓ Возможно придут:\n';
     maybe.forEach((p, idx) => {
       const name = p.user
-        ? (p.user.username ? `@${p.user.username}` : p.user.first_name)
+        ? [p.user.first_name, p.user.last_name].filter(Boolean).join(' ')
         : p.guest_name || 'Гость';
       text += `${idx + 1}. ${name}\n`;
     });

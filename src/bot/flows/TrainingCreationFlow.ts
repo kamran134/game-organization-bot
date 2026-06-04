@@ -1,5 +1,6 @@
 import { Context } from 'telegraf';
 import { GameService } from '../../services/GameService';
+import { GroupService } from '../../services/GroupService';
 import { SportService } from '../../services/SportService';
 import { LocationService } from '../../services/LocationService';
 import { TrainingCreationStateManager, TrainingCreationState } from '../../utils/TrainingCreationState';
@@ -11,6 +12,7 @@ import { GameType } from '../../models/GameType';
 
 export interface TrainingCreationServices {
   gameService: GameService;
+  groupService: GroupService;
   sportService: SportService;
   locationService: LocationService;
   trainingCreationStates: TrainingCreationStateManager;
@@ -370,6 +372,22 @@ export class TrainingCreationFlow {
         message,
         GameMessageBuilder.buildGameActionsKeyboard(training.id, 0, true, 0)
       );
+
+      try {
+        const group = await this.services.groupService.getGroupById(state.groupId);
+        if (group?.telegram_chat_id) {
+          const members = await this.services.groupService.getGroupMembers(state.groupId);
+          const mentions = members
+            .filter(m => m.user?.username)
+            .map(m => `@${m.user!.username}`)
+            .join(' ');
+          if (mentions) {
+            await ctx.telegram.sendMessage(group.telegram_chat_id, `👆 ${mentions}`);
+          }
+        }
+      } catch (mentionError) {
+        console.error('Error sending mention notification:', mentionError);
+      }
     } catch (error) {
       console.error('Error creating training:', error);
       const errorMessage = `❌ Ошибка создания тренировки:\n\n${error instanceof Error ? error.message : String(error)}\n\nStack:\n${error instanceof Error ? error.stack : 'N/A'}`;
