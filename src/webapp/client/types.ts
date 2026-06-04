@@ -61,6 +61,13 @@ export interface PaymentsDto {
 /** Alias – training payments endpoint returns the same shape. */
 export type TrainingPaymentsDto = PaymentsDto;
 
+export interface MemberDto {
+  id: number;
+  first_name?: string;
+  last_name?: string;
+  username?: string;
+}
+
 /** Shared navigation object passed to every page renderer. */
 export interface Nav {
   goHome(): void;
@@ -68,4 +75,5 @@ export interface Nav {
   goCreateForm(type: GameType): void;
   goEditGame(gameId: number): void;
   goCreateLocation(): void;
+  goMembers(): void;
 }

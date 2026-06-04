@@ -52,6 +52,11 @@ export class UserService {
     await userRepo.update(userId, { phone });
   }
 
+  async updateUserName(userId: number, firstName: string, lastName?: string): Promise<void> {
+    const userRepo = this.db.getRepository(User);
+    await userRepo.update(userId, { first_name: firstName, last_name: lastName || undefined });
+  }
+
   async getUserStats(userId: number): Promise<{
     totalGames: number;
     upcomingGames: number;

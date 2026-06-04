@@ -644,6 +644,44 @@ select.input {
   opacity: 1;
 }
 
+/* ── Members list ── */
+.members-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.member-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--tg-secondary);
+  border-radius: var(--radius);
+}
+
+.member-name {
+  font-size: 15px;
+  font-weight: 500;
+  flex: 1;
+}
+
+.member-hint {
+  font-size: 13px;
+  color: var(--tg-hint);
+  flex-shrink: 0;
+}
+
+.member-edit-form {
+  margin-top: 2px;
+  padding: 10px 12px;
+  background: var(--tg-bg);
+  border-radius: calc(var(--radius) - 2px);
+  border: 1px solid rgba(38, 120, 182, 0.35);
+}
+
+.member-edit-form.hidden { display: none; }
+
 /* ── Tablet media query (≥ 600px) ── */
 @media (min-width: 600px) {
   .page { padding: 24px 32px 120px; }
