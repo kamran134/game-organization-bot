@@ -9,3 +9,5 @@ export { MyGroupsCommand } from './MyGroupsCommand';
 export { CreateGroupCommand } from './CreateGroupCommand';
 export { AppCommand } from './AppCommand';
 export { PlayersCommand } from './PlayersCommand';
+export { PaymentsCommand } from './PaymentsCommand';
+export type { PaymentsCommandServices } from './PaymentsCommand';

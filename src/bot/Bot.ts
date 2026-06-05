@@ -13,6 +13,7 @@ import {
   CreateGroupCommand,
   AppCommand,
   PlayersCommand,
+  PaymentsCommand,
 } from './commands';
 import { AddLocationCommand } from './commands/AddLocationCommand';
 import { ListLocationsCommand } from './commands/ListLocationsCommand';
@@ -35,7 +36,7 @@ import { ServiceContainer } from './ServiceContainer';
 export class Bot {
   private bot: Telegraf;
   private container: ServiceContainer;
-  private commands: (CommandHandler | AddLocationCommand | ListLocationsCommand | EditLocationCommand | NewTrainingCommand | TrainingsCommand)[];
+  private commands: (CommandHandler | AddLocationCommand | ListLocationsCommand | EditLocationCommand | NewTrainingCommand | TrainingsCommand | PaymentsCommand)[];
   private handlers: ActionHandler[];
 
   constructor() {
@@ -58,7 +59,7 @@ export class Bot {
     this.setupTextHandlers();
   }
 
-  private initializeCommands(): (CommandHandler | AddLocationCommand | ListLocationsCommand | EditLocationCommand | NewTrainingCommand | TrainingsCommand)[] {
+  private initializeCommands(): (CommandHandler | AddLocationCommand | ListLocationsCommand | EditLocationCommand | NewTrainingCommand | TrainingsCommand | PaymentsCommand)[] {
     const c = this.container;
 
     const services: CommandServices = {
@@ -100,6 +101,10 @@ export class Bot {
       new PlayersCommand(services),
       new MyGroupsCommand(services),
       new CreateGroupCommand(services),
+      new PaymentsCommand({
+        ...services,
+        db: Database.getInstance(),
+      }),
       new AddLocationCommand(locationCommandServices),
       new ListLocationsCommand({
         locationService: c.locationService,
@@ -173,6 +178,14 @@ export class Bot {
       groupService: c.groupService,
       userService: c.userService,
     }).register(this.bot);
+
+    // Callback: show payment summary for selected game
+    this.bot.action(/^show_payments_(\d+)$/, async (ctx) => {
+      await ctx.answerCbQuery();
+      const gameId = parseInt(ctx.match[1]);
+      const paymentsCmd = this.commands.find(cmd => cmd.command === 'payments') as PaymentsCommand;
+      if (paymentsCmd) await paymentsCmd.showGamePaymentsById(ctx, gameId);
+    });
 
     // Callback: step-based game creation (fallback from WebApp mode)
     this.bot.action(/^newgame_steps_(\d+)_(\d+)$/, async (ctx) => {
