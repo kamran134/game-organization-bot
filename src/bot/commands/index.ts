@@ -11,3 +11,5 @@ export { AppCommand } from './AppCommand';
 export { PlayersCommand } from './PlayersCommand';
 export { PaymentsCommand } from './PaymentsCommand';
 export type { PaymentsCommandServices } from './PaymentsCommand';
+export { TrainingPaymentsCommand } from './TrainingPaymentsCommand';
+export type { TrainingPaymentsCommandServices } from './TrainingPaymentsCommand';

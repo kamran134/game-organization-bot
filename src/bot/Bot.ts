@@ -14,6 +14,7 @@ import {
   AppCommand,
   PlayersCommand,
   PaymentsCommand,
+  TrainingPaymentsCommand,
 } from './commands';
 import { AddLocationCommand } from './commands/AddLocationCommand';
 import { ListLocationsCommand } from './commands/ListLocationsCommand';
@@ -36,7 +37,7 @@ import { ServiceContainer } from './ServiceContainer';
 export class Bot {
   private bot: Telegraf;
   private container: ServiceContainer;
-  private commands: (CommandHandler | AddLocationCommand | ListLocationsCommand | EditLocationCommand | NewTrainingCommand | TrainingsCommand | PaymentsCommand)[];
+  private commands: (CommandHandler | AddLocationCommand | ListLocationsCommand | EditLocationCommand | NewTrainingCommand | TrainingsCommand | PaymentsCommand | TrainingPaymentsCommand)[];
   private handlers: ActionHandler[];
 
   constructor() {
@@ -59,7 +60,7 @@ export class Bot {
     this.setupTextHandlers();
   }
 
-  private initializeCommands(): (CommandHandler | AddLocationCommand | ListLocationsCommand | EditLocationCommand | NewTrainingCommand | TrainingsCommand | PaymentsCommand)[] {
+  private initializeCommands(): (CommandHandler | AddLocationCommand | ListLocationsCommand | EditLocationCommand | NewTrainingCommand | TrainingsCommand | PaymentsCommand | TrainingPaymentsCommand)[] {
     const c = this.container;
 
     const services: CommandServices = {
@@ -102,6 +103,10 @@ export class Bot {
       new MyGroupsCommand(services),
       new CreateGroupCommand(services),
       new PaymentsCommand({
+        ...services,
+        db: Database.getInstance(),
+      }),
+      new TrainingPaymentsCommand({
         ...services,
         db: Database.getInstance(),
       }),
