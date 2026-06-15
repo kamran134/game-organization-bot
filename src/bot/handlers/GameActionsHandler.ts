@@ -76,7 +76,7 @@ export class GameActionsHandler extends ActionHandler {
           );
 
           // Отправляем сообщение в группу о том кто отказался
-          const userName = ctx.from!.first_name + (ctx.from!.last_name ? ` ${ctx.from!.last_name}` : '');
+          const userName = user.fullName;
 
           if (game.group.telegram_chat_id) {
             try {
@@ -364,7 +364,7 @@ export class GameActionsHandler extends ActionHandler {
         KeyboardBuilder.createGameActionsKeyboard(gameId, confirmedCount, isAdmin, maybeCount, inGroupJoin, updatedGame.registration_lock_hours).reply_markup
       );
 
-      const displayName = ctx.from!.first_name + (ctx.from!.last_name ? ` ${ctx.from!.last_name}` : '');
+      const displayName = user.fullName;
       const notifyEmoji = status === ParticipationStatus.CONFIRMED ? '✅' : '❓';
       const notifyStatus = status === ParticipationStatus.CONFIRMED ? 'точно идёт' : 'возможно придёт';
       const actionLabel = existingParticipant ? 'Обновление:' : 'Новая запись:';
