@@ -117,5 +117,39 @@ export function createUserRouter(db: Database): Router {
     }
   });
 
+  // DELETE /api/user/:id/member?group_id=X — remove (soft-delete) a member from the group (admin only)
+  router.delete('/:id/member', verifyTelegramInitData, async (req: AuthRequest, res: Response): Promise<void> => {
+    const telegramUser = req.telegramUser;
+    const targetUserId = parseInt(req.params.id);
+    const groupId = parseInt(req.query.group_id as string);
+
+    if (!groupId || !targetUserId) {
+      res.status(400).json({ error: 'group_id and user id are required' });
+      return;
+    }
+
+    try {
+      const requester = await userService.findOrCreateUser({
+        id: telegramUser!.id,
+        username: telegramUser!.username,
+        first_name: telegramUser!.first_name,
+        last_name: telegramUser!.last_name,
+      });
+
+      const isAdmin = await groupService.isUserAdmin(requester.id, groupId);
+      if (!isAdmin) {
+        res.status(403).json({ error: 'Admin only' });
+        return;
+      }
+
+      await groupService.removeMemberFromGroup(targetUserId, groupId);
+
+      res.json({ ok: true });
+    } catch (error) {
+      console.error('Error removing member:', error);
+      res.status(500).json({ error: 'Failed to remove member' });
+    }
+  });
+
   return router;
 }

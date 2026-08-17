@@ -85,16 +85,20 @@ export function createPaymentsRouter(db: Database): Router {
           username: string | null;
           amount: string | null;
         }>>(
-          `SELECT gm.user_id, u.first_name, u.last_name, u.username,
+          `WITH relevant_users AS (
+             SELECT user_id FROM group_members WHERE group_id = $1 AND is_active = true
+             UNION
+             SELECT user_id FROM payments WHERE group_id = $1 AND period_month = $2 AND game_id IS NULL AND user_id IS NOT NULL
+           )
+           SELECT ru.user_id, u.first_name, u.last_name, u.username,
                   p.amount
-           FROM group_members gm
-           JOIN users u ON u.id = gm.user_id
+           FROM relevant_users ru
+           JOIN users u ON u.id = ru.user_id
            LEFT JOIN payments p
              ON p.group_id     = $1
             AND p.period_month = $2
-            AND p.user_id      = gm.user_id
+            AND p.user_id      = ru.user_id
             AND p.game_id IS NULL
-           WHERE gm.group_id = $1 AND gm.is_active = true
            ORDER BY u.first_name, u.last_name`,
           [game.group_id, monthParam],
         );
@@ -310,16 +314,20 @@ export function createPaymentsRouter(db: Database): Router {
         username: string | null;
         amount: string | null;
       }>>(
-        `SELECT gm.user_id, u.first_name, u.last_name, u.username,
+        `WITH relevant_users AS (
+           SELECT user_id FROM group_members WHERE group_id = $1 AND is_active = true
+           UNION
+           SELECT user_id FROM payments WHERE group_id = $1 AND period_month = $2 AND game_id IS NULL AND user_id IS NOT NULL
+         )
+         SELECT ru.user_id, u.first_name, u.last_name, u.username,
                 p.amount
-         FROM group_members gm
-         JOIN users u ON u.id = gm.user_id
+         FROM relevant_users ru
+         JOIN users u ON u.id = ru.user_id
          LEFT JOIN payments p
            ON p.group_id     = $1
           AND p.period_month = $2
-          AND p.user_id      = gm.user_id
+          AND p.user_id      = ru.user_id
           AND p.game_id IS NULL
-         WHERE gm.group_id = $1 AND gm.is_active = true
          ORDER BY u.first_name, u.last_name`,
         [groupId, monthParam],
       );

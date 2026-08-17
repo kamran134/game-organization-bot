@@ -34,6 +34,11 @@ function renderMembersList(members: MemberDto[], groupId: string): string {
           data-first-name="${firstName}"
           data-last-name="${lastName}"
           title="Редактировать имя">✏️</button>
+        <button class="btn-icon"
+          data-action="remove-member"
+          data-user-id="${uid}"
+          data-group-id="${escapeHtml(groupId)}"
+          title="Удалить из группы">🗑️</button>
       </div>
       <div class="member-edit-form hidden" id="member-form-${uid}">
         <div class="guest-form-inner">
@@ -97,6 +102,28 @@ export async function renderMembers(ctx: MembersCtx, nav: Nav): Promise<void> {
 
       if (action === 'cancel-member') {
         document.getElementById(`member-form-${userId}`)!.classList.add('hidden');
+        return;
+      }
+
+      if (action === 'remove-member') {
+        const m = members.find(x => x.id === parseInt(userId));
+        const name = m ? memberDisplayName(m) : 'участника';
+        if (!window.confirm(`Удалить ${name} из группы?`)) return;
+
+        btn.disabled = true;
+
+        try {
+          await apiFetch(`/api/user/${encodeURIComponent(userId)}/member?group_id=${encodeURIComponent(groupId)}`, {
+            method: 'DELETE',
+          });
+
+          members = members.filter(x => x.id !== parseInt(userId));
+          toast('✅ Участник удалён из группы');
+          render();
+        } catch (err) {
+          btn.disabled = false;
+          toast(getErrorMessage(err), true);
+        }
         return;
       }
 
