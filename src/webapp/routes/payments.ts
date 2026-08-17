@@ -94,7 +94,7 @@ export function createPaymentsRouter(db: Database): Router {
             AND p.period_month = $2
             AND p.user_id      = gm.user_id
             AND p.game_id IS NULL
-           WHERE gm.group_id = $1
+           WHERE gm.group_id = $1 AND gm.is_active = true
            ORDER BY u.first_name, u.last_name`,
           [game.group_id, monthParam],
         );
@@ -319,7 +319,7 @@ export function createPaymentsRouter(db: Database): Router {
           AND p.period_month = $2
           AND p.user_id      = gm.user_id
           AND p.game_id IS NULL
-         WHERE gm.group_id = $1
+         WHERE gm.group_id = $1 AND gm.is_active = true
          ORDER BY u.first_name, u.last_name`,
         [groupId, monthParam],
       );

@@ -42,10 +42,11 @@ export class GroupActionsHandler extends ActionHandler {
       ]);
       keyboard.push([Markup.button.callback('« Назад', 'my_groups')]);
 
+      const activeMemberCount = group.members?.filter((m) => m.is_active).length || 0;
       await ctx.editMessageText(
         `📁 ${group.name}\n` +
         `${group.description || ''}\n` +
-        `👥 Участников: ${group.members?.length || 0}` +
+        `👥 Участников: ${activeMemberCount}` +
         gamesText,
         Markup.inlineKeyboard(keyboard)
       );

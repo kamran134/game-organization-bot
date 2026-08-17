@@ -73,6 +73,62 @@ describe('GroupService.isUserAdmin', () => {
 });
 
 // ---------------------------------------------------------------------------
+// removeMemberFromGroup
+// ---------------------------------------------------------------------------
+describe('GroupService.removeMemberFromGroup', () => {
+  test('soft-deletes by setting is_active to false, does not delete the row', async () => {
+    let updateArgs: any = null;
+    const { service, memberRepo } = makeService({
+      update: async (where: any, set: any) => { updateArgs = { where, set }; },
+    });
+    (memberRepo as any).delete = () => { throw new Error('delete() should not be called'); };
+
+    await service.removeMemberFromGroup(1, 10);
+
+    assert.deepEqual(updateArgs.where, { user_id: 1, group_id: 10 });
+    assert.deepEqual(updateArgs.set, { is_active: false });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// addMemberToGroup
+// ---------------------------------------------------------------------------
+describe('GroupService.addMemberToGroup', () => {
+  test('throws when an active membership already exists', async () => {
+    const existing = { id: 1, user_id: 1, group_id: 10, is_active: true };
+    const { service } = makeService({ findOne: async () => existing });
+
+    await assert.rejects(() => service.addMemberToGroup(1, 10), /already a member/);
+  });
+
+  test('reactivates an inactive membership instead of throwing', async () => {
+    const existing = { id: 1, user_id: 1, group_id: 10, is_active: false };
+    let saved: any = null;
+    const { service } = makeService({
+      findOne: async () => existing,
+      save: async (x: any) => { saved = x; return x; },
+    });
+
+    await service.addMemberToGroup(1, 10);
+
+    assert.equal(saved.is_active, true);
+  });
+
+  test('creates a new membership when none exists', async () => {
+    let created: any = null;
+    const { service } = makeService({
+      findOne: async () => null,
+      create: (data: any) => { created = data; return data; },
+    });
+
+    await service.addMemberToGroup(1, 10);
+
+    assert.equal(created.user_id, 1);
+    assert.equal(created.group_id, 10);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // syncChatMembers
 // ---------------------------------------------------------------------------
 describe('GroupService.syncChatMembers', () => {

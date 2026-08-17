@@ -46,11 +46,14 @@ export class GroupService {
   async getUserGroups(userId: number): Promise<Group[]> {
     const memberRepo = this.db.getRepository(GroupMember);
     const memberships = await memberRepo.find({
-      where: { user_id: userId },
+      where: { user_id: userId, is_active: true },
       relations: ['group', 'group.members'],
     });
 
-    return memberships.map((m) => m.group);
+    return memberships.map((m) => ({
+      ...m.group,
+      members: m.group.members?.filter((gm) => gm.is_active) ?? [],
+    }));
   }
 
   async addMemberToGroup(userId: number, groupId: number, role: GroupRole = GroupRole.MEMBER): Promise<void> {
@@ -61,7 +64,13 @@ export class GroupService {
     });
 
     if (existing) {
-      throw new Error('User is already a member of this group');
+      if (existing.is_active) {
+        throw new Error('User is already a member of this group');
+      }
+      // Пользователь ранее покинул/был удалён из группы — реактивируем запись
+      existing.is_active = true;
+      await memberRepo.save(existing);
+      return;
     }
 
     const member = memberRepo.create({
@@ -76,21 +85,22 @@ export class GroupService {
   async isUserMember(userId: number, groupId: number): Promise<boolean> {
     const memberRepo = this.db.getRepository(GroupMember);
     const member = await memberRepo.findOne({
-      where: { user_id: userId, group_id: groupId },
+      where: { user_id: userId, group_id: groupId, is_active: true },
     });
 
     return !!member;
   }
 
+  /** Помечает участника неактивным (не удаляет запись — нужна для истории/бухгалтерии). */
   async removeMemberFromGroup(userId: number, groupId: number): Promise<void> {
     const memberRepo = this.db.getRepository(GroupMember);
-    await memberRepo.delete({ user_id: userId, group_id: groupId });
+    await memberRepo.update({ user_id: userId, group_id: groupId }, { is_active: false });
   }
 
   async isUserAdmin(userId: number, groupId: number): Promise<boolean> {
     const memberRepo = this.db.getRepository(GroupMember);
     const member = await memberRepo.findOne({
-      where: { user_id: userId, group_id: groupId },
+      where: { user_id: userId, group_id: groupId, is_active: true },
     });
 
     return member?.role === GroupRole.ADMIN;
@@ -107,7 +117,7 @@ export class GroupService {
   async getGroupMembers(groupId: number): Promise<GroupMember[]> {
     const memberRepo = this.db.getRepository(GroupMember);
     return memberRepo.find({
-      where: { group_id: groupId },
+      where: { group_id: groupId, is_active: true },
       relations: ['user'],
       order: { role: 'ASC', joined_at: 'ASC' },
     });

@@ -288,7 +288,11 @@ export class Bot {
   async start() {
     console.log('🔄 Launching bot...');
     try {
-      await this.bot.launch();
+      await this.bot.launch({
+        // 'chat_member' не входит в дефолтный набор апдейтов Telegram — нужен явно,
+        // чтобы отслеживать выход/удаление обычных участников из группы.
+        allowedUpdates: ['message', 'callback_query', 'my_chat_member', 'chat_member'],
+      });
       console.log('✅ Bot launched and listening for updates');
     } catch (error) {
       console.error('❌ Error launching bot:', error);

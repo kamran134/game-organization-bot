@@ -29,6 +29,9 @@ export class GroupMember {
   @Column({ type: 'varchar', default: GroupRole.MEMBER })
   role!: GroupRole;
 
+  @Column({ default: true })
+  is_active!: boolean;
+
   @CreateDateColumn()
   joined_at!: Date;
 
