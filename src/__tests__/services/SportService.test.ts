@@ -32,10 +32,11 @@ describe('SportService.initializeDefaultSports', () => {
 
     await service.initializeDefaultSports();
 
-    // Should have created all 6 default sports
-    assert.equal(created.length, 6);
+    // Should have created all 7 default sports
+    assert.equal(created.length, 7);
     assert.ok(created.includes('Футбол'));
     assert.ok(created.includes('Волейбол'));
+    assert.ok(created.includes('Настольные игры'));
   });
 
   test('skips sports that already exist', async () => {
@@ -66,7 +67,7 @@ describe('SportService.initializeDefaultSports', () => {
 
     await service.initializeDefaultSports();
 
-    assert.equal(created.length, 4); // 6 total - 2 existing
+    assert.equal(created.length, 5); // 7 total - 2 existing
     assert.ok(!created.includes('Футбол'));
     assert.ok(!created.includes('Волейбол'));
   });

@@ -37,6 +37,7 @@ export class SportService {
       { name: 'Баскетбол', emoji: '🏀' },
       { name: 'Бадминтон', emoji: '🏸' },
       { name: 'Теннис', emoji: '🎾' },
+      { name: 'Настольные игры', emoji: '🎲' },
       { name: 'Другое', emoji: '🎮' },
     ];
 
