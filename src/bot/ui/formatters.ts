@@ -1,4 +1,7 @@
 import { GameParticipant, ParticipationStatus } from '../../models/GameParticipant';
+import { User } from '../../models/User';
+import { GroupMember } from '../../models/GroupMember';
+import { escapeHtml } from '../../utils/helpers';
 
 // Single source of truth for date formatting lives in helpers.ts
 export { formatDate } from '../../utils/helpers';
@@ -100,4 +103,34 @@ export function formatParticipantsCount(
 ): string {
   // const total = confirmedCount + maybeCount;
   return `${confirmedCount}/${max} (ещё ${maybeCount} под вопросом)`;
+}
+
+/**
+ * Упоминание пользователя для рассылки в группу.
+ *
+ * Если у человека есть @username — пингуем им. Если нет (или он ещё не подтянулся)
+ * — инлайн-меншен `tg://user?id=`, который работает по telegram_id и не требует
+ * username вовсе. За счёт этого в пинг попадают ВСЕ участники, а не только те,
+ * у кого username заполнен.
+ *
+ * Требует parse_mode: 'HTML' у сообщения.
+ */
+export function formatMention(user: Pick<User, 'telegram_id' | 'username' | 'first_name' | 'last_name'>): string {
+  if (user.username) {
+    return `@${user.username}`;
+  }
+
+  const name = [user.first_name, user.last_name].filter(Boolean).join(' ') || 'Игрок';
+  return `<a href="tg://user?id=${user.telegram_id}">${escapeHtml(name)}</a>`;
+}
+
+/**
+ * Строка упоминаний всех участников группы для уведомления о новой игре/тренировке.
+ * Возвращает пустую строку, если упоминать некого.
+ */
+export function formatMembersMentions(members: GroupMember[]): string {
+  return members
+    .filter((m) => m.user)
+    .map((m) => formatMention(m.user))
+    .join(' ');
 }

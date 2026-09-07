@@ -24,3 +24,14 @@ export function escapeMarkdownV1(text: string): string {
 export function escapeMarkdown(text: string): string {
   return text.replace(/[_*[\]()~`>#+=|{}.!-]/g, '\\$&');
 }
+
+/**
+ * Экранирование для parse_mode: 'HTML' в Telegram.
+ * Telegram требует экранировать только эти три символа.
+ */
+export function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}

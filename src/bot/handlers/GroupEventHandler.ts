@@ -1,6 +1,6 @@
 import { Telegraf, Context } from 'telegraf';
 import type { Chat } from 'telegraf/types';
-import { UserService } from '../../services/UserService';
+import { UserService, TelegramUser } from '../../services/UserService';
 import { GroupService } from '../../services/GroupService';
 
 export interface GroupEventServices {
@@ -44,22 +44,29 @@ export class GroupEventHandler {
 
   private async handleChatMemberStatusChange(
     chat: Chat,
-    newChatMember: { user: { id: number }; status: string }
+    newChatMember: { user: TelegramUser; status: string }
   ) {
     const group = await this.services.groupService.getGroupByChatId(chat.id);
     if (!group) return;
 
-    const user = await this.services.userService.getUserByTelegramId(newChatMember.user.id);
-    if (!user) return;
-
     if (newChatMember.status === 'left' || newChatMember.status === 'kicked') {
+      const user = await this.services.userService.getUserByTelegramId(newChatMember.user.id);
+      if (!user) return;
+
       await this.services.groupService.removeMemberFromGroup(user.id, group.id);
       console.log(`Member ${user.id} deactivated in group ${group.name} (status: ${newChatMember.status})`);
-    } else if (
+      return;
+    }
+
+    if (
       newChatMember.status === 'member' ||
       newChatMember.status === 'administrator' ||
       newChatMember.status === 'creator'
     ) {
+      // findOrCreateUser заодно подтягивает актуальный username: вступление в чат —
+      // единственный момент, когда мы видим данные человека, ни разу не написавшего боту.
+      const user = await this.services.userService.findOrCreateUser(newChatMember.user);
+
       try {
         await this.services.groupService.addMemberToGroup(user.id, group.id);
       } catch {

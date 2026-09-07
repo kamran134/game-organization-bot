@@ -9,6 +9,7 @@ import { GameMessageBuilder } from '../ui/GameMessageBuilder';
 import { GameCreationValidator } from './GameCreationValidator';
 // import { formatDate } from '../../utils/helpers';
 import { GameType } from '../../models/GameType';
+import { formatMembersMentions } from '../ui/formatters';
 
 export interface TrainingCreationServices {
   gameService: GameService;
@@ -377,12 +378,9 @@ export class TrainingCreationFlow {
         const group = await this.services.groupService.getGroupById(state.groupId);
         if (group?.telegram_chat_id) {
           const members = await this.services.groupService.getGroupMembers(state.groupId);
-          const mentions = members
-            .filter(m => m.user?.username)
-            .map(m => `@${m.user!.username}`)
-            .join(' ');
+          const mentions = formatMembersMentions(members);
           if (mentions) {
-            await ctx.telegram.sendMessage(group.telegram_chat_id, `👆 ${mentions}`);
+            await ctx.telegram.sendMessage(group.telegram_chat_id, `👆 ${mentions}`, { parse_mode: 'HTML' });
           }
         }
       } catch (mentionError) {

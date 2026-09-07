@@ -12,7 +12,7 @@ export class User {
   telegram_id!: number;
 
   @Column({ nullable: true })
-  username?: string;
+  username?: string | null;
 
   @Column({ nullable: true })
   first_name?: string;

@@ -7,7 +7,10 @@ import {
   formatParticipantName,
   formatParticipantsList,
   formatParticipantsCount,
+  formatMention,
+  formatMembersMentions,
 } from '../../bot/ui/formatters';
+import { GroupMember } from '../../models/GroupMember';
 
 function makeParticipant(
   status: ParticipationStatus,
@@ -71,9 +74,10 @@ describe('formatParticipantName', () => {
     assert.ok(formatParticipantName(p).startsWith('👤'));
   });
 
-  test('prefers @username over first_name', () => {
+  test('prefers our first_name over @username', () => {
     const p = makeParticipant(ParticipationStatus.CONFIRMED, { username: 'ivanpetrov', first_name: 'Ivan' });
-    assert.match(formatParticipantName(p), /@ivanpetrov/);
+    assert.match(formatParticipantName(p), /Ivan/);
+    assert.doesNotMatch(formatParticipantName(p), /@ivanpetrov/);
   });
 
   test('uses first_name when no username', () => {
@@ -148,5 +152,62 @@ describe('formatParticipantsCount', () => {
   test('works with zero maybeCount', () => {
     const result = formatParticipantsCount(5, 0, 2, 8);
     assert.match(result, /5\/8/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// formatMention / formatMembersMentions
+// ---------------------------------------------------------------------------
+function makeUser(opts: { telegram_id?: number; username?: string | null; first_name?: string; last_name?: string }): User {
+  const u = new User();
+  u.telegram_id = opts.telegram_id ?? 777;
+  u.username = opts.username ?? null;
+  u.first_name = opts.first_name;
+  u.last_name = opts.last_name;
+  return u;
+}
+
+function makeMember(user: User | undefined): GroupMember {
+  const m = new GroupMember();
+  if (user) m.user = user;
+  return m;
+}
+
+describe('formatMention', () => {
+  test('uses @username when present', () => {
+    assert.equal(formatMention(makeUser({ username: 'ivan', first_name: 'Ivan' })), '@ivan');
+  });
+
+  test('falls back to an inline tg:// mention when username is missing', () => {
+    const out = formatMention(makeUser({ telegram_id: 123, first_name: 'Ivan', last_name: 'Petrov' }));
+    assert.equal(out, '<a href="tg://user?id=123">Ivan Petrov</a>');
+  });
+
+  test('falls back to a placeholder name when nothing is known', () => {
+    const out = formatMention(makeUser({ telegram_id: 5 }));
+    assert.equal(out, '<a href="tg://user?id=5">Игрок</a>');
+  });
+
+  test('escapes HTML in the display name', () => {
+    const out = formatMention(makeUser({ telegram_id: 5, first_name: '<b>Иван</b>' }));
+    assert.match(out, /&lt;b&gt;Иван&lt;\/b&gt;/);
+  });
+});
+
+describe('formatMembersMentions', () => {
+  test('mentions every member, with and without a username', () => {
+    const out = formatMembersMentions([
+      makeMember(makeUser({ telegram_id: 1, username: 'ivan' })),
+      makeMember(makeUser({ telegram_id: 2, first_name: 'Petr' })),
+    ]);
+    assert.equal(out, '@ivan <a href="tg://user?id=2">Petr</a>');
+  });
+
+  test('skips members without a loaded user relation', () => {
+    assert.equal(formatMembersMentions([makeMember(undefined)]), '');
+  });
+
+  test('returns an empty string for an empty list', () => {
+    assert.equal(formatMembersMentions([]), '');
   });
 });

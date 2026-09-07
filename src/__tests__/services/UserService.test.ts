@@ -24,7 +24,7 @@ function makeService(userRepoOverrides: Partial<Record<string, any>> = {}) {
 // findOrCreateUser
 // ---------------------------------------------------------------------------
 describe('UserService.findOrCreateUser', () => {
-  test('returns existing user without calling save', async () => {
+  test('returns existing user without calling save when username is unchanged', async () => {
     const existing = { id: 5, telegram_id: 100, username: 'alice' };
     let saveCalled = false;
     const { service } = makeService({
@@ -32,10 +32,53 @@ describe('UserService.findOrCreateUser', () => {
       save: async (x: any) => { saveCalled = true; return x; },
     });
 
-    const result = await service.findOrCreateUser({ id: 100 });
+    const result = await service.findOrCreateUser({ id: 100, username: 'alice' });
 
     assert.equal(result, existing);
     assert.equal(saveCalled, false);
+  });
+
+  test('backfills a username that appeared after registration', async () => {
+    const existing: any = { id: 5, telegram_id: 100, username: null };
+    let saved: any = null;
+    const { service } = makeService({
+      findOne: async () => existing,
+      save: async (x: any) => { saved = x; return x; },
+    });
+
+    const result = await service.findOrCreateUser({ id: 100, username: 'alice' });
+
+    assert.equal(saved, existing);
+    assert.equal(result.username, 'alice');
+  });
+
+  test('updates a username that changed in Telegram', async () => {
+    const existing: any = { id: 5, telegram_id: 100, username: 'alice' };
+    const { service } = makeService({ findOne: async () => existing });
+
+    const result = await service.findOrCreateUser({ id: 100, username: 'alice_new' });
+
+    assert.equal(result.username, 'alice_new');
+  });
+
+  test('clears a username that was removed in Telegram', async () => {
+    const existing: any = { id: 5, telegram_id: 100, username: 'alice' };
+    const { service } = makeService({ findOne: async () => existing });
+
+    const result = await service.findOrCreateUser({ id: 100 });
+
+    assert.equal(result.username, null);
+  });
+
+  test('never overwrites manually edited names', async () => {
+    const existing: any = { id: 5, telegram_id: 100, username: null, first_name: 'Иван', last_name: 'Петров' };
+    const { service } = makeService({ findOne: async () => existing });
+
+    const result = await service.findOrCreateUser({ id: 100, username: 'alice', first_name: 'Al', last_name: 'Ice' });
+
+    assert.equal(result.first_name, 'Иван');
+    assert.equal(result.last_name, 'Петров');
+    assert.equal(result.username, 'alice');
   });
 
   test('creates new user when not found', async () => {

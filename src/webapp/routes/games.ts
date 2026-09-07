@@ -12,6 +12,7 @@ import { Telegram } from 'telegraf';
 import { GameMessageBuilder } from '../../bot/ui/GameMessageBuilder';
 import { KeyboardBuilder } from '../../bot/ui/KeyboardBuilder';
 import { JokeService } from '../../services/JokeService';
+import { formatMembersMentions } from '../../bot/ui/formatters';
 
 export function createGamesRouter(db: Database): Router {
   const router = Router();
@@ -125,12 +126,9 @@ export function createGamesRouter(db: Database): Router {
             );
 
             const members = await groupService.getGroupMembers(parseInt(group_id));
-            const mentions = members
-              .filter(m => m.user?.username)
-              .map(m => `@${m.user!.username}`)
-              .join(' ');
+            const mentions = formatMembersMentions(members);
             if (mentions) {
-              await telegram.sendMessage(Number(group.telegram_chat_id), `👆 ${mentions}`);
+              await telegram.sendMessage(Number(group.telegram_chat_id), `👆 ${mentions}`, { parse_mode: 'HTML' });
             }
           }
         }

@@ -2,6 +2,7 @@ import { Telegraf } from 'telegraf';
 import { ActionHandler, ActionServices } from './base/ActionHandler';
 import { KeyboardBuilder } from '../ui/KeyboardBuilder';
 import { GameMessageBuilder } from '../ui/GameMessageBuilder';
+import { formatMembersMentions } from '../ui/formatters';
 
 export class GameCreationActionsHandler extends ActionHandler {
   constructor(services: ActionServices) {
@@ -88,12 +89,9 @@ export class GameCreationActionsHandler extends ActionHandler {
           const group = await this.services.groupService.getGroupById(state.groupId);
           if (group?.telegram_chat_id) {
             const members = await this.services.groupService.getGroupMembers(state.groupId);
-            const mentions = members
-              .filter(m => m.user?.username)
-              .map(m => `@${m.user!.username}`)
-              .join(' ');
+            const mentions = formatMembersMentions(members);
             if (mentions) {
-              await ctx.telegram.sendMessage(group.telegram_chat_id, `👆 ${mentions}`);
+              await ctx.telegram.sendMessage(group.telegram_chat_id, `👆 ${mentions}`, { parse_mode: 'HTML' });
             }
           }
         } catch (mentionError) {

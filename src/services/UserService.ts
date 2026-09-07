@@ -18,23 +18,45 @@ export class UserService {
 
   async findOrCreateUser(telegramUser: TelegramUser): Promise<User> {
     const userRepo = this.db.getRepository(User);
-    
-    let user = await userRepo.findOne({
+
+    const user = await userRepo.findOne({
       where: { telegram_id: telegramUser.id },
     });
 
     if (!user) {
-      user = userRepo.create({
+      const created = userRepo.create({
         telegram_id: telegramUser.id,
         username: telegramUser.username,
         first_name: telegramUser.first_name,
         last_name: telegramUser.last_name,
       });
-      await userRepo.save(user);
-      console.log(`New user registered: ${user.mention}`);
+      await userRepo.save(created);
+      console.log(`New user registered: ${created.mention}`);
+      return created;
     }
 
+    await this.syncUsername(user, telegramUser.username);
     return user;
+  }
+
+  /**
+   * Telegram — единственный владелец username: его могут завести, сменить или
+   * снять в любой момент, поэтому при каждом контакте с ботом приводим его к актуальному.
+   *
+   * first_name/last_name намеренно НЕ синхронизируются: их правит админ через веб-апп
+   * (см. updateUserName), автосинк затирал бы ручные правки.
+   */
+  async syncUsername(user: User, incomingUsername?: string): Promise<void> {
+    const incoming = incomingUsername ?? null;
+    const current = user.username ?? null;
+
+    if (incoming === current) return;
+
+    const userRepo = this.db.getRepository(User);
+    user.username = incoming;
+    await userRepo.save(user);
+
+    console.log(`Username synced for user ${user.id}: ${current ?? '—'} → ${incoming ?? '—'}`);
   }
 
   async getUserById(userId: number): Promise<User | null> {
