@@ -11,7 +11,9 @@ export class User {
   @Column({ type: 'bigint', unique: true })
   telegram_id!: number;
 
-  @Column({ nullable: true })
+  // type указан явно: для union-типа string | null TS эмитит design:type = Object,
+  // из которого TypeORM не может вывести тип колонки и падает на старте.
+  @Column({ type: 'varchar', nullable: true })
   username?: string | null;
 
   @Column({ nullable: true })
