@@ -8,6 +8,10 @@ import { Sport } from '../models/Sport';
 import { Location } from '../models/Location';
 import { SportLocation } from '../models/SportLocation';
 
+/** Single source of truth for the entity list — used both by the runtime DataSource
+ *  and by the entity-metadata test, so the test can never validate a different set. */
+export const ENTITIES = [User, Group, GroupMember, Game, GameParticipant, Sport, Location, SportLocation];
+
 /** Base connection config read from environment variables.
  *  Shared by Database and standalone CLI scripts (e.g. runMigrations.ts). */
 export function getDbConnectionConfig() {
@@ -36,7 +40,7 @@ export class Database {
 
     this.dataSource = new DataSource({
       ...conn,
-      entities: [User, Group, GroupMember, Game, GameParticipant, Sport, Location, SportLocation],
+      entities: ENTITIES,
       synchronize: process.env.NODE_ENV === 'development', // Auto-sync schema in dev
       logging: process.env.NODE_ENV === 'development',
     });

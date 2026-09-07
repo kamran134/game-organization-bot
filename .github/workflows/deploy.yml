@@ -99,14 +99,13 @@ jobs:
             export WEBAPP_URL=${{ secrets.WEBAPP_URL }}
             export GROQ_API_KEY=${{ secrets.GROQ_API_KEY }}
             
-            # Останавливаем старые контейнеры
-            docker compose -f docker-compose.prod.yml down
-            
-            # Подтягиваем новый образ
+            # Тянем новый образ, пока старый контейнер ещё обслуживает трафик
             docker compose -f docker-compose.prod.yml pull
             
-            # Запускаем новые контейнеры
-            docker compose -f docker-compose.prod.yml up -d
+            # Пересоздаём только то, что изменилось: bot поднимется на новом образе,
+            # db останется работать. Никакого down — он гасил и базу тоже и давал
+            # несколько минут простоя на каждом деплое.
+            docker compose -f docker-compose.prod.yml up -d --remove-orphans
             
             # Ждём запуска контейнера базы данных
             sleep 5
@@ -133,19 +132,39 @@ jobs:
           script: |
             cd ${{ secrets.DEPLOY_PATH }}
             
-            # Ждём 10 секунд для запуска
-            sleep 10
+            cid=$(docker compose -f docker-compose.prod.yml ps -q bot)
             
-            # Проверяем логи
-            docker compose -f docker-compose.prod.yml logs --tail=50 bot
-            
-            # Проверяем что контейнер запущен
-            if [ $(docker compose -f docker-compose.prod.yml ps -q bot | wc -l) -eq 0 ]; then
-              echo "❌ Bot container is not running!"
+            if [ -z "$cid" ]; then
+              echo "❌ Bot container does not exist!"
+              docker compose -f docker-compose.prod.yml logs --tail=100 bot
               exit 1
             fi
             
-            echo "✅ Deployment successful!"
+            # Ждём именно healthy, а не "контейнер существует": при крашлупе
+            # restart: unless-stopped бесконечно поднимает падающий контейнер,
+            # и проверка на существование считала бы такой деплой успешным.
+            for i in $(seq 1 30); do
+              status=$(docker inspect --format '{{.State.Health.Status}}' "$cid" 2>/dev/null || echo missing)
+              restarts=$(docker inspect --format '{{.RestartCount}}' "$cid" 2>/dev/null || echo 0)
+            
+              if [ "$status" = "healthy" ]; then
+                echo "✅ Deployment successful (healthy after $((i * 5))s, $restarts restarts)"
+                exit 0
+              fi
+            
+              if [ "$restarts" -gt 3 ]; then
+                echo "❌ Bot container is crash-looping ($restarts restarts)"
+                docker compose -f docker-compose.prod.yml logs --tail=100 bot
+                exit 1
+              fi
+            
+              echo "⏳ health=$status restarts=$restarts ($((i * 5))s)"
+              sleep 5
+            done
+            
+            echo "❌ Bot did not become healthy in 150s"
+            docker compose -f docker-compose.prod.yml logs --tail=100 bot
+            exit 1
 
   notify:
     name: Notify on Failure
