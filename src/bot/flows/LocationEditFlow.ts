@@ -181,7 +181,7 @@ export class LocationEditFlow {
     const currentSportIds = location.sportLocations?.map(sl => sl.sport_id) || [];
 
     // Получаем все виды спорта
-    const allSports = await this.services.sportService.getAllSports();
+    const allSports = await this.services.sportService.getSportsForGroup(state.groupId);
 
     // Формируем кнопки с галочками для выбранных
     const buttons = allSports.map(sport => {
@@ -227,7 +227,7 @@ export class LocationEditFlow {
     }
 
     // Обновляем клавиатуру
-    const allSports = await this.services.sportService.getAllSports();
+    const allSports = await this.services.sportService.getSportsForGroup(state.groupId);
     const buttons = allSports.map(sport => {
       const isSelected = state.data.sportIds!.includes(sport.id);
       const prefix = isSelected ? '✅ ' : '';
@@ -271,7 +271,7 @@ export class LocationEditFlow {
         sport_ids: state.data.sportIds
       });
 
-      const allSports = await this.services.sportService.getAllSports();
+      const allSports = await this.services.sportService.getSportsForGroup(state.groupId);
       const selectedSports = allSports
         .filter(s => state.data.sportIds!.includes(s.id))
         .map(s => `${s.emoji} ${s.name}`)

@@ -30,7 +30,7 @@ export async function renderEditGame(ctx: EditCtx, nav: Nav): Promise<void> {
   try {
     const [game, sports, locations] = await Promise.all([
       apiFetch<GameDto>(`/api/games/${gameId}`),
-      apiFetch<SportDto[]>('/api/sports'),
+      apiFetch<SportDto[]>(`/api/sports?group_id=${encodeURIComponent(groupId)}`),
       apiFetch<LocationDto[]>(`/api/locations?group_id=${encodeURIComponent(groupId)}`),
     ]);
 

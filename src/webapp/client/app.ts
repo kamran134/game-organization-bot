@@ -20,6 +20,7 @@ import { renderCreateForm } from './pages/create.js';
 import { renderEditGame } from './pages/edit.js';
 import { renderCreateLocation } from './pages/createLocation.js';
 import { renderMembers } from './pages/members.js';
+import { renderSports } from './pages/sports.js';
 import type { GameType, Nav, UserRoleDto } from './types.js';
 
 // ─── Telegram SDK ─────────────────────────────────────────────────────────────
@@ -84,6 +85,9 @@ const nav: Nav = {
   },
   goMembers() {
     renderMembers({ tg, groupId }, nav);
+  },
+  goSports() {
+    renderSports({ tg, groupId }, nav);
   },
 };
 

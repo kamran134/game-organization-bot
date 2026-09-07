@@ -4,6 +4,9 @@ export interface SportDto {
   id: number;
   name: string;
   emoji: string;
+  /** true for a base sport (available to every group, not editable by a group admin). */
+  is_base?: boolean;
+  group_id?: number | null;
 }
 
 export interface LocationDto {
@@ -76,4 +79,5 @@ export interface Nav {
   goEditGame(gameId: number): void;
   goCreateLocation(): void;
   goMembers(): void;
+  goSports(): void;
 }

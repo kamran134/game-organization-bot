@@ -62,7 +62,7 @@ export class NewTrainingCommand extends CommandHandler {
   }
 
   async startStepFlow(ctx: Context, groupId: number, userId: number): Promise<void> {
-    const sports = await this.services.sportService.getAllSports();
+    const sports = await this.services.sportService.getSportsForGroup(groupId);
 
     if (sports.length === 0) {
       await ctx.reply('❌ В системе нет доступных видов спорта.');

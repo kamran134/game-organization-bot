@@ -27,7 +27,7 @@ export async function renderCreateLocation(ctx: CreateLocationCtx, nav: Nav): Pr
   hideMainButton(tg);
 
   try {
-    const sports = await apiFetch<SportDto[]>('/api/sports');
+    const sports = await apiFetch<SportDto[]>(`/api/sports?group_id=${encodeURIComponent(groupId)}`);
 
     const sportCheckboxes = sports
       .map(

@@ -2,6 +2,7 @@ import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateCol
 import { User } from './User';
 import { GroupMember } from './GroupMember';
 import { Game } from './Game';
+import { Sport } from './Sport';
 
 @Entity('groups')
 export class Group {
@@ -41,4 +42,7 @@ export class Group {
 
   @OneToMany(() => Game, (game) => game.group)
   games!: Game[];
+
+  @OneToMany(() => Sport, (sport) => sport.group)
+  sports!: Sport[];
 }

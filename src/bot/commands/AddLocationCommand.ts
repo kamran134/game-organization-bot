@@ -79,7 +79,7 @@ export class AddLocationCommand {
       data: {},
     });
 
-    const sports = await this.services.sportService.getAllSports();
+    const sports = await this.services.sportService.getSportsForGroup(group.id);
     await ctx.reply(
       '📍 Создание новой локации\n\n' +
       '🏃 Сначала выберите вид спорта:',

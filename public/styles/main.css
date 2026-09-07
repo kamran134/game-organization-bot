@@ -682,6 +682,44 @@ select.input {
 
 .member-edit-form.hidden { display: none; }
 
+/* ── Sports (activity types) list ── */
+.sports-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sport-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--tg-secondary);
+  border-radius: var(--radius);
+}
+
+.sport-name {
+  font-size: 15px;
+  font-weight: 500;
+  flex: 1;
+}
+
+.sport-badge {
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 4px;
+  padding: 1px 5px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  flex-shrink: 0;
+  background: rgba(127, 127, 127, 0.18);
+  color: var(--tg-hint);
+}
+
+.add-sport-form {
+  margin-top: 16px;
+}
+
 /* ── Tablet media query (≥ 600px) ── */
 @media (min-width: 600px) {
   .page { padding: 24px 32px 120px; }

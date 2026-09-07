@@ -26,7 +26,7 @@ export class NewGameCommand extends CommandHandler {
   }
 
   async startStepFlow(ctx: Context, groupId: number, userId: number): Promise<void> {
-    const sports = await this.services.sportService.getAllSports();
+    const sports = await this.services.sportService.getSportsForGroup(groupId);
 
     await ctx.reply(
       '🎮 Создание новой игры\n\n' +

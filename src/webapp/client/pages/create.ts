@@ -29,7 +29,7 @@ export async function renderCreateForm(ctx: CreateCtx, nav: Nav): Promise<void> 
 
   try {
     const [sports, locations] = await Promise.all([
-      apiFetch<SportDto[]>('/api/sports'),
+      apiFetch<SportDto[]>(`/api/sports?group_id=${encodeURIComponent(groupId)}`),
       groupId
         ? apiFetch<LocationDto[]>(
             `/api/locations?group_id=${encodeURIComponent(groupId)}`,
