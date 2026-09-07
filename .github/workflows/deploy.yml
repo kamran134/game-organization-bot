@@ -102,19 +102,20 @@ jobs:
             # Тянем новый образ, пока старый контейнер ещё обслуживает трафик
             docker compose -f docker-compose.prod.yml pull
             
+            # Миграции гоняем ДО подъёма нового кода: одноразовый контейнер из
+            # нового образа (db поднимется сам через depends_on), старый бот в это
+            # время продолжает обслуживать трафик. Если мигрировать после up -d,
+            # новый код успевает стартовать на ещё не мигрированной схеме.
+            echo "🔄 Running database migrations..."
+            if ! docker compose -f docker-compose.prod.yml run --rm -T bot npm run migration:run; then
+              echo "❌ Migrations failed — aborting deploy, old container left serving"
+              exit 1
+            fi
+            
             # Пересоздаём только то, что изменилось: bot поднимется на новом образе,
             # db останется работать. Никакого down — он гасил и базу тоже и давал
             # несколько минут простоя на каждом деплое.
             docker compose -f docker-compose.prod.yml up -d --remove-orphans
-            
-            # Ждём запуска контейнера базы данных
-            sleep 5
-            
-            # Запускаем миграции внутри контейнера бота
-            echo "🔄 Running database migrations..."
-            docker compose -f docker-compose.prod.yml exec -T bot npm run migration:run || {
-              echo "❌ Migrations failed, but continuing with deployment"
-            }
             
             # Удаляем неиспользуемые образы
             docker image prune -af
