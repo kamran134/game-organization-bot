@@ -1,9 +1,12 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, OneToMany, JoinColumn, Index } from 'typeorm';
 import { Game } from './Game';
 import { SportLocation } from './SportLocation';
 import { Group } from './Group';
 
 @Entity('sports')
+// Base sports are unique by name; group sports are unique by name within the group.
+@Index('ux_sports_base_name', ['name'], { unique: true, where: 'group_id IS NULL' })
+@Index('ux_sports_group_name', ['group_id', 'name'], { unique: true, where: 'group_id IS NOT NULL' })
 export class Sport {
   @PrimaryGeneratedColumn()
   id!: number;

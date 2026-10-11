@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, OneToMany, JoinColumn, Index } from 'typeorm';
 import { Group } from './Group';
 import { User } from './User';
 import { GameParticipant } from './GameParticipant';
@@ -13,6 +13,7 @@ export enum GameStatus {
 }
 
 @Entity('games')
+@Index('idx_games_group_date', ['group_id', 'game_date'])
 export class Game {
   @PrimaryGeneratedColumn()
   id!: number;
@@ -38,7 +39,7 @@ export class Game {
   @JoinColumn({ name: 'sport_id' })
   sport!: Sport;
 
-  @Column({ type: 'timestamp' })
+  @Column({ type: 'timestamptz' })
   game_date!: Date;
 
   // Новое поле для связи с таблицей locations

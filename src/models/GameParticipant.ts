@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn, Index } from 'typeorm';
 import { Game } from './Game';
 import { User } from './User';
 
@@ -9,8 +9,10 @@ export enum ParticipationStatus {
 }
 
 @Entity('game_participants')
-// Note: unique constraint on (game_id, user_id) is enforced as a partial index in DB
-// (only when user_id IS NOT NULL), allowing multiple guests per game.
+// Partial unique: one row per real user per game, any number of guests (user_id NULL).
+// Declared here so dev `synchronize` keeps it in sync with the migrations.
+@Index('idx_game_participants_unique_user', ['game_id', 'user_id'], { unique: true, where: 'user_id IS NOT NULL' })
+@Index('idx_game_participants_game_id', ['game_id'])
 export class GameParticipant {
   @PrimaryGeneratedColumn()
   id!: number;
@@ -18,7 +20,7 @@ export class GameParticipant {
   @Column()
   game_id!: number;
 
-  @ManyToOne(() => Game, (game) => game.participants)
+  @ManyToOne(() => Game, (game) => game.participants, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'game_id' })
   game!: Game;
 

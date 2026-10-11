@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, ManyToOne, JoinColumn, Index } from 'typeorm';
 import { User } from './User';
 import { Group } from './Group';
 
@@ -8,6 +8,8 @@ export enum GroupRole {
 }
 
 @Entity('group_members')
+@Index('uq_group_members_user_group', ['user_id', 'group_id'], { unique: true })
+@Index('idx_group_members_group_id', ['group_id'])
 export class GroupMember {
   @PrimaryGeneratedColumn()
   id!: number;

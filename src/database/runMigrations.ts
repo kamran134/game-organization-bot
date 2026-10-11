@@ -10,6 +10,7 @@ import { FixPaymentsTableSchema1748100000000 } from './migrations/1748100000000-
 import { AddGroupMemberIsActive1755000000000 } from './migrations/1755000000000-AddGroupMemberIsActive';
 import { AddGroupScopedSports1756000000000 } from './migrations/1756000000000-AddGroupScopedSports';
 import { UniqueGuestPayments1757000000000 } from './migrations/1757000000000-UniqueGuestPayments';
+import { HardenSchema1758000000000 } from './migrations/1758000000000-HardenSchema';
 import { getDbConnectionConfig } from './Database';
 
 dotenv.config({ path: path.resolve(process.cwd(), process.env.NODE_ENV === 'production' ? '.env.prod' : '.env.dev') });
@@ -17,7 +18,7 @@ dotenv.config({ path: path.resolve(process.cwd(), process.env.NODE_ENV === 'prod
 const AppDataSource = new DataSource({
   ...getDbConnectionConfig(),
   entities: [],
-  migrations: [AddGameTypeColumn1707649200000, MakeUserIdNullable1738000000000, AddRegistrationLockHours1745500000000, AddPaymentsTable1748000000000, FixPaymentsTableSchema1748100000000, AddGroupMemberIsActive1755000000000, AddGroupScopedSports1756000000000, UniqueGuestPayments1757000000000],
+  migrations: [AddGameTypeColumn1707649200000, MakeUserIdNullable1738000000000, AddRegistrationLockHours1745500000000, AddPaymentsTable1748000000000, FixPaymentsTableSchema1748100000000, AddGroupMemberIsActive1755000000000, AddGroupScopedSports1756000000000, UniqueGuestPayments1757000000000, HardenSchema1758000000000],
   synchronize: false,
   logging: true,
   migrationsRun: false,

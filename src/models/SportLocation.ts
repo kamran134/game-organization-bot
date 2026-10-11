@@ -1,8 +1,9 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, CreateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, CreateDateColumn, Index } from 'typeorm';
 import { Sport } from './Sport';
 import { Location } from './Location';
 
 @Entity('sport_locations')
+@Index('uq_sport_locations_sport_location', ['sport_id', 'location_id'], { unique: true })
 export class SportLocation {
   @PrimaryGeneratedColumn()
   id!: number;
