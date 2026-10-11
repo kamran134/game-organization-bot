@@ -246,24 +246,19 @@ export function createPaymentsRouter(db: Database): Router {
             [game.group_id, parsedGameId, parsedUserId, parsedAmount, admin.id],
           );
         } else {
-          // Guest: try insert, then update if already exists
-          const inserted = await db.dataSource.query(
+          // Guest: upsert by (game_id, guest_name), see uq_payments_game_guest
+          await db.dataSource.query(
             `INSERT INTO payments
                (group_id, game_id, period_month, guest_name, amount, confirmed_by, confirmed_at, updated_at)
              VALUES ($1, $2, NULL, $3, $4, $5, NOW(), NOW())
-             ON CONFLICT DO NOTHING`,
+             ON CONFLICT (game_id, guest_name)
+               WHERE game_id IS NOT NULL AND user_id IS NULL
+             DO UPDATE SET
+               amount       = EXCLUDED.amount,
+               confirmed_by = EXCLUDED.confirmed_by,
+               updated_at   = NOW()`,
             [game.group_id, parsedGameId, String(guest_name), parsedAmount, admin.id],
           );
-          if (Array.isArray(inserted) && inserted[1] === 0) {
-            await db.dataSource.query(
-              `UPDATE payments
-                  SET amount       = $3,
-                      confirmed_by = $4,
-                      updated_at   = NOW()
-                WHERE game_id = $1 AND guest_name = $2`,
-              [parsedGameId, String(guest_name), parsedAmount, admin.id],
-            );
-          }
         }
       }
 
