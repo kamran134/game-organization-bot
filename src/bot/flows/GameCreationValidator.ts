@@ -51,11 +51,15 @@ export class GameCreationValidator {
     return { success: true };
   }
 
-  static validateMaxParticipants(text: string): { success: boolean; value?: number; error?: string } {
+  static validateMaxParticipants(
+    text: string,
+    ceiling: number = 100,
+    floor: number = 2
+  ): { success: boolean; value?: number; error?: string } {
     const max = parseInt(text);
 
-    if (isNaN(max) || max < 2 || max > 100) {
-      return { success: false, error: '❌ Укажите число от 2 до 100:' };
+    if (isNaN(max) || max < floor || max > ceiling) {
+      return { success: false, error: `❌ Укажите число от ${floor} до ${ceiling}:` };
     }
 
     return { success: true, value: max };
@@ -63,12 +67,13 @@ export class GameCreationValidator {
 
   static validateMinParticipants(
     text: string,
-    max: number
+    max: number,
+    floor: number = 2
   ): { success: boolean; value?: number; error?: string } {
     const min = parseInt(text);
 
-    if (isNaN(min) || min < 2 || min > max) {
-      return { success: false, error: `❌ Укажите число от 2 до ${max}:` };
+    if (isNaN(min) || min < floor || min > max) {
+      return { success: false, error: `❌ Укажите число от ${floor} до ${max}:` };
     }
 
     return { success: true, value: min };

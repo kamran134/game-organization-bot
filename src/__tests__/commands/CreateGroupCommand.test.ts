@@ -20,7 +20,6 @@ function makeServices(overrides: Partial<{
     } as any,
     gameService: {} as any,
     sportService: {} as any,
-    gameCreationStates: {} as any,
   };
 }
 

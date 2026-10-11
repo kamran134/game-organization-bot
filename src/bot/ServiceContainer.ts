@@ -8,12 +8,10 @@ import { JokeService } from '../services/JokeService';
 import { PaymentService } from '../services/PaymentService';
 import { NotificationService } from '../services/NotificationService';
 import { Telegram } from 'telegraf';
-import { GameCreationStateManager } from '../utils/GameCreationState';
-import { TrainingCreationStateManager } from '../utils/TrainingCreationState';
+import { CreationStateManager } from '../utils/CreationState';
 import { LocationCreationStateManager } from '../utils/LocationCreationState';
 import { LocationEditStateManager } from '../utils/LocationEditState';
-import { GameCreationFlow, GameCreationServices } from './flows';
-import { TrainingCreationFlow } from './flows/TrainingCreationFlow';
+import { CreationFlow } from './flows/CreationFlow';
 import { LocationManagementFlow } from './flows/LocationManagementFlow';
 import { LocationEditFlow } from './flows/LocationEditFlow';
 import { GroupEventHandler, GroupEventServices } from './handlers';
@@ -34,14 +32,12 @@ export class ServiceContainer {
   readonly notificationService: NotificationService;
 
   // State managers
-  readonly gameCreationStates: GameCreationStateManager;
-  readonly trainingCreationStates: TrainingCreationStateManager;
+  readonly creationStates: CreationStateManager;
   readonly locationCreationStates: LocationCreationStateManager;
   readonly locationEditStates: LocationEditStateManager;
 
   // Flows
-  readonly gameCreationFlow: GameCreationFlow;
-  readonly trainingCreationFlow: TrainingCreationFlow;
+  readonly creationFlow: CreationFlow;
   readonly locationManagementFlow: LocationManagementFlow;
   readonly locationEditFlow: LocationEditFlow;
 
@@ -60,27 +56,19 @@ export class ServiceContainer {
     this.notificationService = new NotificationService(telegram, this.groupService, this.jokeService);
 
     // ── State managers ────────────────────────────────────────────────────────
-    this.gameCreationStates = new GameCreationStateManager();
-    this.trainingCreationStates = new TrainingCreationStateManager();
+    this.creationStates = new CreationStateManager();
     this.locationCreationStates = new LocationCreationStateManager();
     this.locationEditStates = new LocationEditStateManager();
 
     // ── Flows ─────────────────────────────────────────────────────────────────
-    const gameFlowServices: GameCreationServices = {
-      gameService: this.gameService,
-      sportService: this.sportService,
-      locationService: this.locationService,
-      gameCreationStates: this.gameCreationStates,
-    };
-    this.gameCreationFlow = new GameCreationFlow(gameFlowServices);
-
-    this.trainingCreationFlow = new TrainingCreationFlow({
+    this.creationFlow = new CreationFlow({
       gameService: this.gameService,
       groupService: this.groupService,
+      userService: this.userService,
       sportService: this.sportService,
       locationService: this.locationService,
-      trainingCreationStates: this.trainingCreationStates,
       notificationService: this.notificationService,
+      creationStates: this.creationStates,
     });
 
     this.locationManagementFlow = new LocationManagementFlow({

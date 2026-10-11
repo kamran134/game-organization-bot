@@ -1,2 +1,2 @@
-export { GameCreationFlow, GameCreationServices } from './GameCreationFlow';
+export { CreationFlow, CreationServices } from './CreationFlow';
 export { GameCreationValidator } from './GameCreationValidator';

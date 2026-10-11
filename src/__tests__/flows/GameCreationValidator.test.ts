@@ -218,3 +218,20 @@ describe('GameCreationValidator.validateNumber', () => {
     assert.equal(GameCreationValidator.validateNumber('x', 1, 10).success, false);
   });
 });
+
+describe('GameCreationValidator participant limits with custom bounds', () => {
+  test('validateMinParticipants honours a lower floor', () => {
+    assert.equal(GameCreationValidator.validateMinParticipants('1', 10).success, false);
+    const r = GameCreationValidator.validateMinParticipants('1', 10, 1);
+    assert.deepEqual([r.success, r.value], [true, 1]);
+    assert.equal(GameCreationValidator.validateMinParticipants('0', 10, 1).error, '❌ Укажите число от 1 до 10:');
+  });
+
+  test('validateMaxParticipants honours a custom ceiling and floor', () => {
+    assert.equal(GameCreationValidator.validateMaxParticipants('500').success, false);
+    const r = GameCreationValidator.validateMaxParticipants('500', 1000, 1);
+    assert.deepEqual([r.success, r.value], [true, 500]);
+    assert.equal(GameCreationValidator.validateMaxParticipants('1', 1000, 1).success, true);
+    assert.equal(GameCreationValidator.validateMaxParticipants('1001', 1000, 1).error, '❌ Укажите число от 1 до 1000:');
+  });
+});

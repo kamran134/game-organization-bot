@@ -1,22 +1,11 @@
 import { Context } from 'telegraf';
 import { CommandHandler } from './base/CommandHandler';
-import { CommandServices } from './base/CommandHandler';
-import { LocationService } from '../../services/LocationService';
-import { TrainingCreationStateManager } from '../../utils/TrainingCreationState';
-import { StateManager } from '../../utils/StateManager';
-import { KeyboardBuilder } from '../ui/KeyboardBuilder';
-
-export interface NewTrainingCommandServices extends CommandServices {
-  locationService: LocationService;
-  trainingCreationStates: TrainingCreationStateManager;
-}
+import { NewGameCommandServices } from './NewGameCommand';
+import { GameType } from '../../models/GameType';
 
 export class NewTrainingCommand extends CommandHandler {
-  protected trainingStates: TrainingCreationStateManager;
-
-  constructor(services: NewTrainingCommandServices) {
+  constructor(protected services: NewGameCommandServices) {
     super(services);
-    this.trainingStates = services.trainingCreationStates;
   }
 
   get command(): string {
@@ -56,31 +45,6 @@ export class NewTrainingCommand extends CommandHandler {
       return;
     }
 
-    await this.startStepFlow(ctx, group.id, user.id);
-  }
-
-  async startStepFlow(ctx: Context, groupId: number, userId: number): Promise<void> {
-    const sports = await this.services.sportService.getSportsForGroup(groupId);
-
-    if (sports.length === 0) {
-      await ctx.reply('❌ В системе нет доступных видов спорта.');
-      return;
-    }
-
-    // One wizard per user: a stale game/location state must not keep eating text input
-    StateManager.clearUser(ctx.from!.id);
-    this.trainingStates.set(ctx.from!.id, {
-      step: 'sport',
-      groupId,
-      userId,
-      data: {},
-    });
-
-    const keyboard = KeyboardBuilder.createSportSelectionKeyboard(sports);
-    await ctx.reply(
-      '🏋️ Создание тренировки\n\n' +
-        'Выберите вид спорта:',
-      keyboard
-    );
+    await this.services.creationFlow.start(ctx, GameType.TRAINING, group.id, user.id);
   }
 }

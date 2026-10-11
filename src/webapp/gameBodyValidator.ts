@@ -1,6 +1,6 @@
 import { ValidationError } from '../utils/errors';
 
-/** 999 is the "unlimited" sentinel used for trainings (see TrainingCreationFlow). */
+/** 999 is the "unlimited" sentinel used for trainings (see UNLIMITED_PARTICIPANTS in creationConfig). */
 export const MAX_PARTICIPANTS_LIMIT = 999;
 const MAX_NOTES_LENGTH = 1000;
 // games.cost is DECIMAL(10, 2)

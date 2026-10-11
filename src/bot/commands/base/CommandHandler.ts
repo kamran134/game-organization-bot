@@ -3,7 +3,6 @@ import { UserService } from '../../../services/UserService';
 import { GroupService } from '../../../services/GroupService';
 import { GameService } from '../../../services/GameService';
 import { SportService } from '../../../services/SportService';
-import { GameCreationStateManager } from '../../../utils/GameCreationState';
 
 /**
  * Контейнер зависимостей для команд
@@ -13,7 +12,6 @@ export interface CommandServices {
   groupService: GroupService;
   gameService: GameService;
   sportService: SportService;
-  gameCreationStates: GameCreationStateManager;
 }
 
 /**

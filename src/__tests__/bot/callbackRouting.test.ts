@@ -3,9 +3,8 @@ import assert from 'node:assert/strict';
 import type { Telegraf } from 'telegraf';
 import { GameActionsHandler } from '../../bot/handlers/GameActionsHandler';
 import { GroupActionsHandler } from '../../bot/handlers/GroupActionsHandler';
-import { GameCreationActionsHandler } from '../../bot/handlers/GameCreationActionsHandler';
+import { CreationHandler } from '../../bot/handlers/CreationHandler';
 import { GamesFilterHandler } from '../../bot/handlers/GamesFilterHandler';
-import { TrainingCreationHandler } from '../../bot/handlers/TrainingCreationHandler';
 import { LocationCreationHandler } from '../../bot/handlers/LocationCreationHandler';
 import { LocationEditHandler } from '../../bot/handlers/LocationEditHandler';
 
@@ -33,10 +32,9 @@ function collectPatterns(): ActionPattern[] {
   // GameActionsHandler builds a (non-connecting) Database singleton, which needs credentials in env
   new GameActionsHandler(stub).register(fakeBot);
   new GroupActionsHandler(stub).register(fakeBot);
-  new GameCreationActionsHandler(stub).register(fakeBot);
+  new CreationHandler({} as never).register(fakeBot);
   new LocationCreationHandler({} as never).register(fakeBot);
   new LocationEditHandler({} as never).register(fakeBot);
-  new TrainingCreationHandler({} as never).register(fakeBot);
   new GamesFilterHandler({} as never).register(fakeBot);
   return collected;
 }
@@ -91,6 +89,13 @@ describe('callback routing', () => {
     ['cancel_remove_member_5', '^cancel_remove_member_(#)$'],
     ['delete_game_3', '^delete_game_(#)$'],
     ['confirm_delete_game_3', '^confirm_delete_game_(#)$'],
+    ['sport_5', '^sport_(#)$'],
+    ['location_5', '^location_(#)$'],
+    ['location_custom', 'location_custom'],
+    ['confirm_game_5', '^confirm_(game|training)_(#)$'],
+    ['confirm_training_5', '^confirm_(game|training)_(#)$'],
+    ['cancel_game_5', '^cancel_(game|training)_(#)$'],
+    ['cancel_training_5', '^cancel_(game|training)_(#)$'],
   ];
 
   for (const [callbackData, expectedSource] of routes) {

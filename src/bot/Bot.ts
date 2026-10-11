@@ -19,18 +19,18 @@ import {
 import { AddLocationCommand } from './commands/AddLocationCommand';
 import { ListLocationsCommand } from './commands/ListLocationsCommand';
 import { EditLocationCommand } from './commands/EditLocationCommand';
-import { NewTrainingCommand, NewTrainingCommandServices } from './commands/NewTrainingCommand';
+import { NewTrainingCommand } from './commands/NewTrainingCommand';
+import { NewGameCommandServices } from './commands/NewGameCommand';
 import { TrainingsCommand } from './commands/TrainingsCommand';
 import {
   ActionHandler,
   ActionServices,
   GameActionsHandler,
   GroupActionsHandler,
-  GameCreationActionsHandler,
 } from './handlers';
 import { LocationCreationHandler } from './handlers/LocationCreationHandler';
 import { LocationEditHandler } from './handlers/LocationEditHandler';
-import { TrainingCreationHandler } from './handlers/TrainingCreationHandler';
+import { CreationHandler } from './handlers/CreationHandler';
 import { GamesFilterHandler } from './handlers/GamesFilterHandler';
 import { ServiceContainer } from './ServiceContainer';
 import { isWizardInput } from './utils/wizardInput';
@@ -69,25 +69,15 @@ export class Bot {
       groupService: c.groupService,
       gameService: c.gameService,
       sportService: c.sportService,
-      gameCreationStates: c.gameCreationStates,
     };
 
-    const trainingCommandServices: NewTrainingCommandServices = {
-      userService: c.userService,
-      groupService: c.groupService,
-      gameService: c.gameService,
-      sportService: c.sportService,
-      gameCreationStates: c.gameCreationStates,
-      locationService: c.locationService,
-      trainingCreationStates: c.trainingCreationStates,
-    };
+    const creationCommandServices: NewGameCommandServices = { ...services, creationFlow: c.creationFlow };
 
     const locationCommandServices = {
       userService: c.userService,
       groupService: c.groupService,
       sportService: c.sportService,
       locationCreationStates: c.locationCreationStates,
-      gameCreationStates: c.gameCreationStates,
     };
 
     return [
@@ -95,9 +85,9 @@ export class Bot {
       new HelpCommand(services),
       new WikiCommand(services),
       new RegisterCommand(services),
-      new NewGameCommand(services),
+      new NewGameCommand(creationCommandServices),
       new AppCommand(services),
-      new NewTrainingCommand(trainingCommandServices),
+      new NewTrainingCommand(creationCommandServices),
       new GamesCommand(services),
       new TrainingsCommand(services),
       new PlayersCommand(services),
@@ -143,7 +133,6 @@ export class Bot {
       sportService: c.sportService,
       locationService: c.locationService,
       notificationService: c.notificationService,
-      gameCreationStates: c.gameCreationStates,
       locationEditStates: c.locationEditStates,
       locationEditFlow: c.locationEditFlow,
     };
@@ -151,7 +140,6 @@ export class Bot {
     return [
       new GameActionsHandler(services),
       new GroupActionsHandler(services),
-      new GameCreationActionsHandler(services),
     ];
   }
 
@@ -172,11 +160,9 @@ export class Bot {
       locationEditFlow: c.locationEditFlow,
     }).register(this.bot);
 
-    new TrainingCreationHandler({
-      sportService: c.sportService,
-      locationService: c.locationService,
-      trainingCreationStates: c.trainingCreationStates,
-      trainingCreationFlow: c.trainingCreationFlow,
+    new CreationHandler({
+      creationStates: c.creationStates,
+      creationFlow: c.creationFlow,
     }).register(this.bot);
 
     new GamesFilterHandler({
@@ -237,13 +223,8 @@ export class Bot {
       // In groups the bot sees every message; wizards only take replies to the bot's own prompts
       const wizardInput = isWizardInput(ctx);
 
-      if (wizardInput && c.trainingCreationStates.has(userId)) {
-        await c.trainingCreationFlow.handleTextInput(ctx, userId, text);
-        return;
-      }
-
-      if (wizardInput && c.gameCreationStates.has(userId)) {
-        await c.gameCreationFlow.handleTextInput(ctx, userId, text);
+      if (wizardInput && c.creationStates.has(userId)) {
+        await c.creationFlow.handleTextInput(ctx, userId, text);
         return;
       }
 

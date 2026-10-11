@@ -2,7 +2,6 @@ import { Context } from 'telegraf';
 import { UserService } from '../../services/UserService';
 import { GroupService } from '../../services/GroupService';
 import { LocationCreationStateManager } from '../../utils/LocationCreationState';
-import { GameCreationStateManager } from '../../utils/GameCreationState';
 import { SportService } from '../../services/SportService';
 import { StateManager } from '../../utils/StateManager';
 import { KeyboardBuilder } from '../ui/KeyboardBuilder';
@@ -12,7 +11,6 @@ interface AddLocationCommandServices {
   groupService: GroupService;
   sportService: SportService;
   locationCreationStates: LocationCreationStateManager;
-  gameCreationStates: GameCreationStateManager;
 }
 
 export class AddLocationCommand {

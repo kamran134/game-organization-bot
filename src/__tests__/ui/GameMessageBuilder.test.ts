@@ -39,6 +39,13 @@ describe('GameMessageBuilder.formatGameCard', () => {
     assert.match(result, /Футбол/);
   });
 
+  test('shows "Безлимит" instead of 999 as the participant limit', () => {
+    const unlimited = GameMessageBuilder.formatGameCard(makeGame({ max_participants: 999 }));
+    assert.match(unlimited, /Участники: 0\/Безлимит/);
+    assert.doesNotMatch(unlimited, /999/);
+    assert.match(GameMessageBuilder.formatGameCard(makeGame({ max_participants: 12 })), /Участники: 0\/12/);
+  });
+
   test('includes location name', () => {
     const result = GameMessageBuilder.formatGameCard(makeGame());
     assert.match(result, /Стадион/);

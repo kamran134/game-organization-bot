@@ -1,5 +1,5 @@
 import { Game } from '../../models/Game';
-import { GameCreationState } from '../../utils/GameCreationState';
+import { CreationState } from '../../utils/CreationState';
 import { formatDate, formatParticipantsList } from './formatters';
 import { escapeMarkdownV1, escapeMarkdownUrl } from '../../utils/helpers';
 import { KeyboardBuilder } from './KeyboardBuilder';
@@ -29,7 +29,8 @@ export class GameMessageBuilder {
       text += `🗺 [Открыть на карте](${escapeMarkdownUrl(game.location.map_url)})\n`;
     }
     
-    text += `👥 Участники: ${confirmedCount}/${game.max_participants}`;
+    const maxDisplay = game.max_participants === 999 ? 'Безлимит' : game.max_participants;
+    text += `👥 Участники: ${confirmedCount}/${maxDisplay}`;
     
     if (maybeCount > 0) {
       text += ` (ещё ${maybeCount} под вопросом)`;
@@ -67,7 +68,7 @@ export class GameMessageBuilder {
   /**
    * Подтверждение создания игры
    */
-  static formatGameConfirmation(state: GameCreationState): string {
+  static formatGameConfirmation(state: CreationState): string {
     const sportName = state.data.sportName || '⚽ Игра';
 
     let text = `🎮 Подтверждение создания игры\n\n`;

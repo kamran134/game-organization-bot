@@ -1,9 +1,17 @@
 import { Context } from 'telegraf';
-import { CommandHandler } from './base/CommandHandler';
-import { StateManager } from '../../utils/StateManager';
-import { KeyboardBuilder } from '../ui/KeyboardBuilder';
+import { CommandHandler, CommandServices } from './base/CommandHandler';
+import { CreationFlow } from '../flows/CreationFlow';
+import { GameType } from '../../models/GameType';
+
+export interface NewGameCommandServices extends CommandServices {
+  creationFlow: CreationFlow;
+}
 
 export class NewGameCommand extends CommandHandler {
+  constructor(protected services: NewGameCommandServices) {
+    super(services);
+  }
+
   get command(): string {
     return 'newgame';
   }
@@ -23,26 +31,6 @@ export class NewGameCommand extends CommandHandler {
     const user = await this.services.userService.getUserByTelegramId(ctx.from!.id);
     if (!user) return;
 
-    await this.startStepFlow(ctx, group.id, user.id);
-  }
-
-  async startStepFlow(ctx: Context, groupId: number, userId: number): Promise<void> {
-    const sports = await this.services.sportService.getSportsForGroup(groupId);
-
-    // One wizard per user: a stale training/location state must not keep eating text input
-    StateManager.clearUser(ctx.from!.id);
-
-    await ctx.reply(
-      '🎮 Создание новой игры\n\n' +
-      'Выберите вид спорта:',
-      KeyboardBuilder.createSportSelectionKeyboard(sports)
-    );
-
-    this.services.gameCreationStates.set(ctx.from!.id, {
-      step: 'sport',
-      groupId,
-      userId,
-      data: {},
-    });
+    await this.services.creationFlow.start(ctx, GameType.GAME, group.id, user.id);
   }
 }
