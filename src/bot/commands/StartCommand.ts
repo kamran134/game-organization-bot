@@ -31,7 +31,6 @@ export class StartCommand extends CommandHandler {
       `/games - Список игр\n\n` +
       `Команды в личке:\n` +
       `/mygroups - Мои группы\n` +
-      `/mygames - Мои игры\n` +
       `/help - Помощь`
     );
   }

@@ -4,6 +4,7 @@ import { LocationEditStateManager } from '../../utils/LocationEditState';
 import { LocationEditFlow } from '../flows/LocationEditFlow';
 import { LocationService } from '../../services/LocationService';
 import { SportService } from '../../services/SportService';
+import { isWizardInput } from '../utils/wizardInput';
 
 interface LocationEditHandlerServices {
   locationService: LocationService;
@@ -100,7 +101,8 @@ export class LocationEditHandler extends BotHandler {
       const userId = ctx.from!.id;
       const state = this.services.locationEditStates.get(userId);
 
-      if (!state) {
+      // In groups only replies to the bot count as wizard input
+      if (!state || !isWizardInput(ctx)) {
         return next();
       }
 

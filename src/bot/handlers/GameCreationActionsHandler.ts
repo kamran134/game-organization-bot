@@ -51,16 +51,26 @@ export class GameCreationActionsHandler extends ActionHandler {
     });
 
     // Confirm game creation
-    bot.action(/^confirm_game_(\d+)$/, async (ctx, next) => {
+    bot.action(/^confirm_game_(\d+)$/, async (ctx) => {
       const userId = parseInt(ctx.match[1]);
-      const state = this.services.gameCreationStates.get(userId);
 
-      if (!state) {
-        return next();
+      if (ctx.from!.id !== userId) {
+        await ctx.answerCbQuery('❌ Это не ваша игра');
+        return;
       }
 
+      const state = this.services.gameCreationStates.get(userId);
+      if (!state) {
+        await ctx.answerCbQuery('❌ Сессия создания истекла');
+        return;
+      }
+
+      // Drop the state before any await so a double tap cannot create the game twice
+      this.services.gameCreationStates.delete(userId);
+
+      let game;
       try {
-        const game = await this.services.gameService.createGame({
+        game = await this.services.gameService.createGame({
           group_id: state.groupId,
           creator_id: state.userId,
           sport_id: state.data.sportId!,
@@ -71,42 +81,41 @@ export class GameCreationActionsHandler extends ActionHandler {
           cost: state.data.cost,
           notes: state.data.notes,
         });
-
-        this.services.gameCreationStates.delete(userId);
-
-        // Проверяем isAdmin (создатель скорее всего админ)
-        const user = await this.services.userService.getUserByTelegramId(userId);
-        const isAdmin = user ? await this.services.groupService.isUserAdmin(user.id, state.groupId) : false;
-
-        const createdMessage = GameMessageBuilder.formatGameCreatedMessage(game);
-        await ctx.editMessageText(
-          createdMessage + '\n\nУчастники могут записаться прямо здесь:',
-          KeyboardBuilder.createGameActionsKeyboard(game.id, 0, isAdmin, 0)
-        );
-        await ctx.answerCbQuery('✅ Игра создана!');
-
-        try {
-          const group = await this.services.groupService.getGroupById(state.groupId);
-          if (group?.telegram_chat_id) {
-            const members = await this.services.groupService.getGroupMembers(state.groupId);
-            const mentions = formatMembersMentions(members);
-            if (mentions) {
-              await ctx.telegram.sendMessage(group.telegram_chat_id, `👆 ${mentions}`, { parse_mode: 'HTML' });
-            }
-          }
-        } catch (mentionError) {
-          console.error('Error sending mention notification:', mentionError);
-        }
       } catch (error) {
         console.error('Error creating game:', error);
-        const errorMessage = `❌ Ошибка создания игры:\n\n${error instanceof Error ? error.message : String(error)}\n\nStack:\n${error instanceof Error ? error.stack : 'N/A'}`;
+        // Nothing was created, so let the user press "Создать" again
+        this.services.gameCreationStates.set(userId, state);
         await ctx.answerCbQuery('❌ Ошибка создания игры');
-        try {
-          await ctx.telegram.sendMessage(ctx.from!.id, errorMessage);
-        } catch (dmError) {
-          console.error('Failed to send error DM:', dmError);
+        await ctx.reply('❌ Не удалось создать игру. Попробуйте ещё раз.');
+        return;
+      }
+
+      await ctx.answerCbQuery('✅ Игра создана!');
+
+      // Проверяем isAdmin (создатель скорее всего админ)
+      const user = await this.services.userService.getUserByTelegramId(userId);
+      const isAdmin = user ? await this.services.groupService.isUserAdmin(user.id, state.groupId) : false;
+
+      const createdMessage = GameMessageBuilder.formatGameCreatedMessage(game);
+      await ctx.editMessageText(
+        createdMessage + '\n\nУчастники могут записаться прямо здесь:',
+        {
+          parse_mode: 'Markdown',
+          ...KeyboardBuilder.createGameActionsKeyboard(game.id, 0, isAdmin, 0),
         }
-        this.services.gameCreationStates.delete(userId);
+      );
+
+      try {
+        const group = await this.services.groupService.getGroupById(state.groupId);
+        if (group?.telegram_chat_id) {
+          const members = await this.services.groupService.getGroupMembers(state.groupId);
+          const mentions = formatMembersMentions(members);
+          if (mentions) {
+            await ctx.telegram.sendMessage(group.telegram_chat_id, `👆 ${mentions}`, { parse_mode: 'HTML' });
+          }
+        }
+      } catch (mentionError) {
+        console.error('Error sending mention notification:', mentionError);
       }
     });
 
@@ -157,18 +166,24 @@ export class GameCreationActionsHandler extends ActionHandler {
     });
 
     // Cancel game creation
-    bot.action(/^cancel_game_(\d+)$/, async (ctx, next) => {
+    bot.action(/^cancel_game_(\d+)$/, async (ctx) => {
       const userId = parseInt(ctx.match[1]);
-      const state = this.services.gameCreationStates.get(userId);
-      
-      if (!state) {
-        return next();
+
+      if (ctx.from!.id !== userId) {
+        await ctx.answerCbQuery('❌ Это не ваша игра');
+        return;
       }
-      
+
+      const state = this.services.gameCreationStates.get(userId);
+      if (!state) {
+        await ctx.answerCbQuery('❌ Сессия создания истекла');
+        return;
+      }
+
       this.services.gameCreationStates.delete(userId);
 
-      await ctx.editMessageText('❌ Создание игры отменено.');
       await ctx.answerCbQuery('Отменено');
+      await ctx.editMessageText('❌ Создание игры отменено.');
     });
   }
 }

@@ -45,14 +45,15 @@ export class TrainingCreationHandler extends BotHandler {
 
       await ctx.editMessageText(
         `✅ Вид спорта: ${sport.emoji} ${sport.name}\n\n` +
-        `� БЫСТРЫЙ СПОСОБ (одной строкой через /):\n` +
+        `🚀 БЫСТРЫЙ СПОСОБ (одной строкой через /):\n` +
         `📝 дата время / мин / макс ("-" = безлимит) / стоимость ("-" = бесплатно) / заметки / локация\n\n` +
         `Пример:\n` +
         `10.02 18:00 / 3 / - / - / Кроссфит / Зал\n` +
         `Или короче: 10.02 18:00 / 5 / 15 / 0 / - / Спортзал\n\n` +
         `━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
         `📋 ПОШАГОВЫЙ СПОСОБ:\n` +
-        `📅 Введите дату и время тренировки\n\n` +
+        `📅 Введите дату и время тренировки\n` +
+        `⚠️ Ответьте (reply) на это сообщение!\n\n` +
         `Формат: ДД.ММ ЧЧ:ММ\n` +
         `Примеры: 15.02 18:00 или 15.02.2026 18:00`
       );
@@ -101,7 +102,8 @@ export class TrainingCreationHandler extends BotHandler {
           this.services.trainingCreationStates.set(userId, state);
           await ctx.editMessageText(
             `✅ Место: ${location.name}\n\n` +
-            `👥 Введите минимальное количество участников:\n\n` +
+            `👥 Введите минимальное количество участников:\n` +
+            `⚠️ Ответьте (reply) на это сообщение!\n\n` +
             `Например: 5`
           );
         }
@@ -120,7 +122,8 @@ export class TrainingCreationHandler extends BotHandler {
 
       if (state) {
         await ctx.editMessageText(
-          `📍 Введите место проведения тренировки:\n\n` +
+          `📍 Введите место проведения тренировки:\n` +
+          `⚠️ Ответьте (reply) на это сообщение!\n\n` +
           `Например: "Стадион Центральный" или "ул. Ленина, 15"`
         );
         await ctx.answerCbQuery();
@@ -160,8 +163,8 @@ export class TrainingCreationHandler extends BotHandler {
         return;
       }
 
-      await this.services.trainingCreationFlow.cancelTraining(ctx, userId);
       await ctx.answerCbQuery();
+      await this.services.trainingCreationFlow.cancelTraining(ctx, userId);
     });
   }
 }

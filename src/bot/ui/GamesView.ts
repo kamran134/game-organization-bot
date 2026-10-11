@@ -3,6 +3,7 @@ import { GameType } from '../../models/GameType';
 import { KeyboardBuilder } from './KeyboardBuilder';
 import { GameMessageBuilder } from './GameMessageBuilder';
 import { ParticipationStatus } from '../../models/GameParticipant';
+import { isMessageNotModified } from '../utils/telegramErrors';
 
 export type GamesFilter = 'all' | 'games' | 'trainings';
 
@@ -43,6 +44,15 @@ export class GamesView {
     return { emoji: '📋', title: 'Предстоящие игры и тренировки' };
   }
 
+  /** Edits the message in place; re-tapping the active filter yields an identical message, which is not an error. */
+  private static async edit(ctx: Context, text: string, extra: any): Promise<void> {
+    try {
+      await (ctx as any).editMessageText(text, extra);
+    } catch (error) {
+      if (!isMessageNotModified(error)) throw error;
+    }
+  }
+
   static async show(
     ctx: Context,
     services: GamesViewServices,
@@ -58,7 +68,7 @@ export class GamesView {
       const text = GamesView.getEmptyMessage(filter);
       const keyboard = Markup.inlineKeyboard([filterButtons]);
       if (mode === 'edit') {
-        await (ctx as any).editMessageText(text, keyboard);
+        await GamesView.edit(ctx, text, keyboard);
       } else {
         await ctx.reply(text, keyboard);
       }
@@ -82,7 +92,7 @@ export class GamesView {
         },
       };
       if (mode === 'edit') {
-        await (ctx as any).editMessageText(text, options);
+        await GamesView.edit(ctx, text, options);
       } else {
         await ctx.reply(text, options);
       }
@@ -136,7 +146,7 @@ export class GamesView {
     };
 
     if (mode === 'edit') {
-      await (ctx as any).editMessageText(message, msgOptions);
+      await GamesView.edit(ctx, message, msgOptions);
     } else {
       await ctx.reply(message, msgOptions);
     }

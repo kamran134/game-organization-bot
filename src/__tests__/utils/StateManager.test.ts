@@ -120,3 +120,34 @@ describe('StateManager — TTL expiry', () => {
     assert.equal(sm.has(1), false);
   });
 });
+
+describe('StateManager — clearUser', () => {
+  test('removes the user from every manager, leaving other users alone', () => {
+    const a = new StateManager<string>();
+    const b = new StateManager<number>();
+    a.set(1, 'wizard-a');
+    b.set(1, 7);
+    a.set(2, 'other-user');
+
+    StateManager.clearUser(1);
+
+    assert.equal(a.has(1), false);
+    assert.equal(b.has(1), false);
+    assert.equal(a.get(2), 'other-user');
+  });
+
+  test('does not throw for a user without any state', () => {
+    assert.doesNotThrow(() => StateManager.clearUser(987654));
+  });
+
+  test('cancels the pending TTL timers', (t) => {
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    const sm = new StateManager<string>();
+    sm.set(5, 'x');
+    StateManager.clearUser(5);
+    sm.set(5, 'fresh');
+    // The stale timer must not wipe the fresh state ahead of its own TTL
+    t.mock.timers.tick(30 * 60 * 1000 - 1);
+    assert.equal(sm.get(5), 'fresh');
+  });
+});

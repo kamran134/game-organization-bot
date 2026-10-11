@@ -6,6 +6,18 @@ const STATE_TTL_MS = 30 * 60 * 1000;
  * All four creation/edit state managers extend this class.
  */
 export class StateManager<T> {
+  /** Every live instance, so a user's pending wizards can be dropped across all managers at once. */
+  private static readonly instances: Set<StateManager<unknown>> = new Set();
+
+  /** Drops the user's pending state in every manager: one wizard per user at a time. */
+  static clearUser(userId: number): void {
+    for (const manager of StateManager.instances) manager.delete(userId);
+  }
+
+  constructor() {
+    StateManager.instances.add(this as StateManager<unknown>);
+  }
+
   private states: Map<number, T> = new Map();
   private timers: Map<number, ReturnType<typeof setTimeout>> = new Map();
 

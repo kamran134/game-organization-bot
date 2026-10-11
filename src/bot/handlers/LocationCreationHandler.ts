@@ -2,6 +2,7 @@ import { Context } from 'telegraf';
 import { BotHandler } from './base/BotHandler';
 import { LocationManagementFlow } from '../flows/LocationManagementFlow';
 import { LocationCreationStateManager } from '../../utils/LocationCreationState';
+import { isWizardInput } from '../utils/wizardInput';
 
 interface LocationHandlerServices {
   locationManagementFlow: LocationManagementFlow;
@@ -87,7 +88,8 @@ export class LocationCreationHandler extends BotHandler {
       const userId = ctx.from!.id;
       const state = this.services.locationCreationStates.get(userId);
 
-      if (!state) {
+      // In groups only replies to the bot count as wizard input
+      if (!state || !isWizardInput(ctx)) {
         return next();
       }
 

@@ -136,15 +136,6 @@ export class KeyboardBuilder {
   }
 
   /**
-   * Клавиатура для возврата к списку игр
-   */
-  static createBackToGamesKeyboard() {
-    return Markup.inlineKeyboard([
-      [Markup.button.callback('« Назад к играм', 'back_to_games')]
-    ]);
-  }
-
-  /**
    * Клавиатура управления локациями (для админов)
    */
   static createLocationManagementKeyboard(locations: Location[], groupId: number) {

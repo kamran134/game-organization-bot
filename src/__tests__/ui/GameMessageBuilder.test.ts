@@ -205,3 +205,39 @@ describe('GameMessageBuilder.buildTrainingCard', () => {
     assert.match(GameMessageBuilder.buildTrainingCard(g), /15/);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Markdown escaping of user-controlled names (cards are sent with parse_mode: 'Markdown')
+// ---------------------------------------------------------------------------
+const BS = String.fromCharCode(92);
+
+describe('GameMessageBuilder — Markdown escaping', () => {
+  const sport = { emoji: '⚽', name: 'Mini_football*' } as any;
+  const location = { name: 'Arena_1 *VIP*', map_url: 'https://maps.example.com/a(b)' } as any;
+
+  test('formatGameCard escapes sport and location names', () => {
+    const result = GameMessageBuilder.formatGameCard(makeGame({ sport, location }));
+    assert.ok(result.includes(`Mini${BS}_football${BS}*`));
+    assert.ok(result.includes(`Arena${BS}_1 ${BS}*VIP${BS}*`));
+  });
+
+  test('formatGameCard escapes a free-text location', () => {
+    const result = GameMessageBuilder.formatGameCard(makeGame({ location: undefined, location_text: 'Gym_2' }));
+    assert.ok(result.includes(`Gym${BS}_2`));
+  });
+
+  test('a ")" in map_url cannot terminate the Markdown link early', () => {
+    const result = GameMessageBuilder.formatGameCard(makeGame({ sport, location }));
+    assert.ok(result.includes('(https://maps.example.com/a(b%29)'));
+  });
+
+  test('buildTrainingCard escapes sport, location and notes', () => {
+    const result = GameMessageBuilder.buildTrainingCard(
+      makeGame({ type: GameType.TRAINING, sport, location, notes: 'bring_water' })
+    );
+    assert.ok(result.includes(`Mini${BS}_football${BS}*`));
+    assert.ok(result.includes(`Arena${BS}_1 ${BS}*VIP${BS}*`));
+    assert.ok(result.includes(`bring${BS}_water`));
+    assert.ok(result.includes('(https://maps.example.com/a(b%29)'));
+  });
+});

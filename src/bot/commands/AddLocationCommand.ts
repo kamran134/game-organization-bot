@@ -4,6 +4,7 @@ import { GroupService } from '../../services/GroupService';
 import { LocationCreationStateManager } from '../../utils/LocationCreationState';
 import { GameCreationStateManager } from '../../utils/GameCreationState';
 import { SportService } from '../../services/SportService';
+import { StateManager } from '../../utils/StateManager';
 import { KeyboardBuilder } from '../ui/KeyboardBuilder';
 
 interface AddLocationCommandServices {
@@ -68,8 +69,8 @@ export class AddLocationCommand {
       return;
     }
 
-    // Очищаем возможное состояние создания игры
-    this.services.gameCreationStates.delete(userId);
+    // One wizard per user: drop any other pending creation/edit state
+    StateManager.clearUser(userId);
     
     // Начинаем процесс создания локации
     this.services.locationCreationStates.set(userId, {

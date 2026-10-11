@@ -1,5 +1,6 @@
 import { Context } from 'telegraf';
 import { CommandHandler } from './base/CommandHandler';
+import { StateManager } from '../../utils/StateManager';
 import { KeyboardBuilder } from '../ui/KeyboardBuilder';
 
 export class NewGameCommand extends CommandHandler {
@@ -9,7 +10,7 @@ export class NewGameCommand extends CommandHandler {
 
   async execute(ctx: Context): Promise<void> {
     // Работает только в группах
-    if (!this.isGroupOnly(ctx)) return;
+    if (!(await this.isGroupOnly(ctx))) return;
 
     const chatId = ctx.chat!.id;
     const group = await this.services.groupService.getGroupByChatId(chatId);
@@ -27,6 +28,9 @@ export class NewGameCommand extends CommandHandler {
 
   async startStepFlow(ctx: Context, groupId: number, userId: number): Promise<void> {
     const sports = await this.services.sportService.getSportsForGroup(groupId);
+
+    // One wizard per user: a stale training/location state must not keep eating text input
+    StateManager.clearUser(ctx.from!.id);
 
     await ctx.reply(
       '🎮 Создание новой игры\n\n' +

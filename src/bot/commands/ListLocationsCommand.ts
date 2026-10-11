@@ -3,6 +3,7 @@ import { LocationService } from '../../services/LocationService';
 import { GroupService } from '../../services/GroupService';
 import { UserService } from '../../services/UserService';
 import { KeyboardBuilder } from '../ui/KeyboardBuilder';
+import { escapeMarkdownV1, escapeMarkdownUrl } from '../../utils/helpers';
 
 interface ListLocationsCommandServices {
   locationService: LocationService;
@@ -75,14 +76,14 @@ export class ListLocationsCommand {
     });
 
     // Формируем сообщение
-    let message = `📍 Локации группы "${group.name}"\n\n`;
+    let message = `📍 Локации группы "${escapeMarkdownV1(group.name)}"\n\n`;
 
     for (const [sportName, sportLocations] of locationsBySport) {
-      message += `${sportName}:\n`;
+      message += `${escapeMarkdownV1(sportName)}:\n`;
       sportLocations.forEach(location => {
-        message += `  • ${location.name}`;
+        message += `  • ${escapeMarkdownV1(location.name)}`;
         if (location.map_url) {
-          message += ` - [карта](${location.map_url})`;
+          message += ` - [карта](${escapeMarkdownUrl(location.map_url)})`;
         }
         message += '\n';
       });

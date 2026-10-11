@@ -6,6 +6,8 @@ import { KeyboardBuilder } from '../ui/KeyboardBuilder';
 import { GameMessageBuilder } from '../ui/GameMessageBuilder';
 import { Game } from '../../models/Game';
 import { Database } from '../../database/Database';
+import { escapeHtml } from '../../utils/helpers';
+import { isMessageNotModified } from '../utils/telegramErrors';
 
 export class GameActionsHandler extends ActionHandler {
   private db: Database;
@@ -17,17 +19,17 @@ export class GameActionsHandler extends ActionHandler {
 
   register(bot: Telegraf): void {
     // Join game (confirmed)
-    bot.action(/join_confirmed_(\d+)/, async (ctx) => {
+    bot.action(/^join_confirmed_(\d+)$/, async (ctx) => {
       await this.handleJoinGame(ctx, parseInt(ctx.match[1]), ParticipationStatus.CONFIRMED);
     });
 
     // Join game (maybe)
-    bot.action(/join_maybe_(\d+)/, async (ctx) => {
+    bot.action(/^join_maybe_(\d+)$/, async (ctx) => {
       await this.handleJoinGame(ctx, parseInt(ctx.match[1]), ParticipationStatus.MAYBE);
     });
     
     // Show participants list
-    bot.action(/show_participants_(\d+)/, async (ctx) => {
+    bot.action(/^show_participants_(\d+)$/, async (ctx) => {
       const gameId = parseInt(ctx.match[1]);
       const game = await this.services.gameService.getGameById(gameId);
       
@@ -41,7 +43,7 @@ export class GameActionsHandler extends ActionHandler {
     });
     
     // Leave game (отказ от участия)
-    bot.action(/leave_game_(\d+)/, async (ctx) => {
+    bot.action(/^leave_game_(\d+)$/, async (ctx) => {
       const gameId = parseInt(ctx.match[1]);
       const user = await this.services.userService.getUserByTelegramId(ctx.from!.id);
 
@@ -51,7 +53,12 @@ export class GameActionsHandler extends ActionHandler {
       }
 
       const gameForLock = await this.services.gameService.getGameById(gameId);
-      if (gameForLock?.isRegistrationLocked()) {
+      if (!gameForLock) {
+        await ctx.answerCbQuery('❌ Игра не найдена');
+        return;
+      }
+
+      if (gameForLock.isRegistrationLocked()) {
         await ctx.answerCbQuery(
           '🔒 Запись закрыта. Для экстренных ситуаций обратитесь к организатору.',
           { show_alert: true }
@@ -82,10 +89,10 @@ export class GameActionsHandler extends ActionHandler {
           if (game.group.telegram_chat_id) {
             try {
               const joke = await this.services.jokeService.getDeclineJoke(userName);
-              const safeJoke = joke.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+              const safeJoke = escapeHtml(joke);
               await ctx.telegram.sendMessage(
                 game.group.telegram_chat_id,
-                `❌ ${userName} отказался от участия\n\n🤖 <i>${safeJoke}</i>`,
+                `❌ ${escapeHtml(userName)} отказался от участия\n\n🤖 <i>${safeJoke}</i>`,
                 { parse_mode: 'HTML' }
               );
             } catch (sendError) {
@@ -139,7 +146,7 @@ export class GameActionsHandler extends ActionHandler {
     });
 
     // View game details
-    bot.action(/view_game_(\d+)/, async (ctx) => {
+    bot.action(/^view_game_(\d+)$/, async (ctx) => {
       const gameId = parseInt(ctx.match[1]);
       const game = await this.services.gameService.getGameById(gameId);
       
@@ -190,6 +197,7 @@ export class GameActionsHandler extends ActionHandler {
     // Confirm delete game
     bot.action(/^confirm_delete_game_(\d+)$/, async (ctx) => {
       const gameId = parseInt(ctx.match[1]);
+      await ctx.answerCbQuery();
       const game = await this.services.gameService.getGameById(gameId);
       
       if (!game) {
@@ -218,18 +226,16 @@ export class GameActionsHandler extends ActionHandler {
             minute: '2-digit' 
           })}`
         );
-        await ctx.answerCbQuery();
       } catch (error) {
         console.error('Error deleting game:', error);
         await ctx.editMessageText('❌ Ошибка при удалении игры');
-        await ctx.answerCbQuery();
       }
     });
 
     // Cancel delete game
     bot.action(/^cancel_delete_game_(\d+)$/, async (ctx) => {
-      await ctx.editMessageText('❌ Удаление игры отменено');
       await ctx.answerCbQuery();
+      await ctx.editMessageText('❌ Удаление игры отменено');
     });
 
     // Open registration lock settings (admin only)
@@ -271,6 +277,7 @@ export class GameActionsHandler extends ActionHandler {
     bot.action(/^confirm_lock_(\d+)_(\d+)$/, async (ctx) => {
       const gameId = parseInt(ctx.match[1]);
       const hours = parseInt(ctx.match[2]);
+      await ctx.answerCbQuery();
       const game = await this.services.gameService.getGameById(gameId);
       if (!game) { await ctx.editMessageText('❌ Игра не найдена'); return; }
       if (!await this.checkAdmin(ctx, game.group_id)) {
@@ -286,12 +293,12 @@ export class GameActionsHandler extends ActionHandler {
       await ctx.editMessageText(
         `✅ Заморозка установлена\n\nЗапись будет закрыта за ${hours}ч до игры\n📅 ${timeStr}`
       );
-      await ctx.answerCbQuery('✅ Заморозка установлена');
     });
 
     // Disable lock
     bot.action(/^disable_lock_(\d+)$/, async (ctx) => {
       const gameId = parseInt(ctx.match[1]);
+      await ctx.answerCbQuery();
       const game = await this.services.gameService.getGameById(gameId);
       if (!game) { await ctx.editMessageText('❌ Игра не найдена'); return; }
       if (!await this.checkAdmin(ctx, game.group_id)) {
@@ -301,7 +308,6 @@ export class GameActionsHandler extends ActionHandler {
 
       await this.services.gameService.setRegistrationLock(gameId, null);
       await ctx.editMessageText('✅ Заморозка отключена');
-      await ctx.answerCbQuery('✅ Заморозка отключена');
     });
   }
 
@@ -396,10 +402,8 @@ export class GameActionsHandler extends ActionHandler {
   ): Promise<void> {
     try {
       await ctx.editMessageReplyMarkup(markup);
-    } catch (error: any) {
-      if (!String(error?.description ?? error?.message).includes('message is not modified')) {
-        throw error;
-      }
+    } catch (error) {
+      if (!isMessageNotModified(error)) throw error;
     }
   }
 
@@ -423,9 +427,9 @@ export class GameActionsHandler extends ActionHandler {
     }
     
     const inGroup = ctx.chat?.type !== 'private';
-    await ctx.reply(
-      message,
-      KeyboardBuilder.createGameActionsKeyboard(game.id, confirmedCount, isAdmin, maybeCount, inGroup, game.registration_lock_hours)
-    );
+    await ctx.reply(message, {
+      parse_mode: 'Markdown',
+      ...KeyboardBuilder.createGameActionsKeyboard(game.id, confirmedCount, isAdmin, maybeCount, inGroup, game.registration_lock_hours),
+    });
   }
 }

@@ -2,7 +2,7 @@ import { Game } from '../../models/Game';
 import { GameType } from '../../models/GameType';
 import { GameCreationState } from '../../utils/GameCreationState';
 import { formatDate, formatParticipantsList } from './formatters';
-import { escapeMarkdownV1 } from '../../utils/helpers';
+import { escapeMarkdownV1, escapeMarkdownUrl } from '../../utils/helpers';
 import { Markup } from 'telegraf';
 import { KeyboardBuilder } from './KeyboardBuilder';
 
@@ -21,14 +21,14 @@ export class GameMessageBuilder {
     const maybeCount     = game.participants?.filter(p => p.participation_status === 'maybe').length || 0;
     const guestCount     = game.participants?.filter(p => p.participation_status === 'guest').length || 0;
 
-    let text = `${sportEmoji} ${sportName}\n\n`;
+    let text = `${sportEmoji} ${escapeMarkdownV1(sportName)}\n\n`;
     text += `📅 Дата: ${formatDate(game.game_date)}\n`;
     
     const locationName = game.location?.name || game.location_text || 'Не указано';
-    text += `📍 Место: ${locationName}\n`;
+    text += `📍 Место: ${escapeMarkdownV1(locationName)}\n`;
     
     if (game.location?.map_url) {
-      text += `🗺 [Открыть на карте](${game.location.map_url})\n`;
+      text += `🗺 [Открыть на карте](${escapeMarkdownUrl(game.location.map_url)})\n`;
     }
     
     text += `👥 Участники: ${confirmedCount}/${game.max_participants}`;
@@ -197,14 +197,14 @@ export class GameMessageBuilder {
     const confirmedCount = training.participants?.filter(p => p.participation_status === 'confirmed').length || 0;
     const maybeCount = training.participants?.filter(p => p.participation_status === 'maybe').length || 0;
 
-    let text = `🏋️ ${sportName}\n\n`;
+    let text = `🏋️ ${escapeMarkdownV1(sportName)}\n\n`;
     text += `📅 Дата: ${formatDate(training.game_date)}\n`;
     
     const locationName = training.location?.name || training.location_text || 'Не указано';
-    text += `📍 Место: ${locationName}\n`;
+    text += `📍 Место: ${escapeMarkdownV1(locationName)}\n`;
     
     if (training.location?.map_url) {
-      text += `🗺 [Открыть на карте](${training.location.map_url})\n`;
+      text += `🗺 [Открыть на карте](${escapeMarkdownUrl(training.location.map_url)})\n`;
     }
     
     const maxDisplay = training.max_participants === 999 ? 'Безлимит' : training.max_participants;
@@ -223,7 +223,7 @@ export class GameMessageBuilder {
       text += `💰 Стоимость: ${training.cost} ${CURRENCY}\n`;
     }
     if (training.notes) {
-      text += `\n📝 Заметки: ${training.notes}`;
+      text += `\n📝 Заметки: ${escapeMarkdownV1(training.notes)}`;
     }
 
     if (training.registration_lock_hours) {

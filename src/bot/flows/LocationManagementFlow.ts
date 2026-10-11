@@ -42,7 +42,8 @@ export class LocationManagementFlow {
     // Запрашиваем ссылку на карту
     await ctx.reply(
       `✅ Название: ${name}\n\n` +
-      '🗺 Теперь отправьте ссылку на карту (Google Maps, Яндекс.Карты) или "-" чтобы пропустить:',
+      '🗺 Теперь отправьте ссылку на карту (Google Maps, Яндекс.Карты) или "-" чтобы пропустить:\n' +
+      '⚠️ Ответьте (reply) на это сообщение!',
       Markup.inlineKeyboard([
         [Markup.button.callback('❌ Отменить', 'cancel_location')]
       ])
@@ -154,7 +155,8 @@ export class LocationManagementFlow {
     state.step = 'name';
     await ctx.editMessageText(
       `✅ Вид спорта: ${state.data.sportName}\n\n` +
-      '📍 Отправьте название новой локации:',
+      '📍 Отправьте название новой локации:\n' +
+      '⚠️ Ответьте (reply) на это сообщение!',
       Markup.inlineKeyboard([
         [Markup.button.callback('❌ Отменить', 'cancel_location')]
       ])

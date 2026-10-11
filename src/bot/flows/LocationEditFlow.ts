@@ -56,7 +56,8 @@ export class LocationEditFlow {
     state.step = 'name';
 
     await ctx.editMessageText(
-      `✏️ Введите новое название локации:\n\n` +
+      `✏️ Введите новое название локации:\n` +
+      `⚠️ Ответьте (reply) на это сообщение!\n\n` +
       `Текущее: ${state.data.locationName}`,
       Markup.inlineKeyboard([
         [Markup.button.callback('❌ Отменить', 'cancel_edit_location')]
@@ -111,7 +112,8 @@ export class LocationEditFlow {
     const currentUrl = location?.map_url || 'Не указана';
 
     await ctx.editMessageText(
-      `🗺 Введите новую ссылку на карту или "-" для удаления:\n\n` +
+      `🗺 Введите новую ссылку на карту или "-" для удаления:\n` +
+      `⚠️ Ответьте (reply) на это сообщение!\n\n` +
       `Текущая: ${currentUrl}\n\n` +
       `Примеры:\n` +
       `https://maps.google.com/?q=40.4093,49.8671\n` +

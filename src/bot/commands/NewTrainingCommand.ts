@@ -6,6 +6,7 @@ import { CommandServices } from './base/CommandHandler';
 // import { GroupService } from '../../services/GroupService';
 import { LocationService } from '../../services/LocationService';
 import { TrainingCreationStateManager } from '../../utils/TrainingCreationState';
+import { StateManager } from '../../utils/StateManager';
 import { KeyboardBuilder } from '../ui/KeyboardBuilder';
 
 export interface NewTrainingCommandServices extends CommandServices {
@@ -69,6 +70,8 @@ export class NewTrainingCommand extends CommandHandler {
       return;
     }
 
+    // One wizard per user: a stale game/location state must not keep eating text input
+    StateManager.clearUser(ctx.from!.id);
     this.trainingStates.set(ctx.from!.id, {
       step: 'sport',
       groupId,
@@ -78,7 +81,7 @@ export class NewTrainingCommand extends CommandHandler {
 
     const keyboard = KeyboardBuilder.createSportSelectionKeyboard(sports);
     await ctx.reply(
-      '🏋️ **Создание тренировки**\n\n' +
+      '🏋️ Создание тренировки\n\n' +
         'Выберите вид спорта:',
       keyboard
     );

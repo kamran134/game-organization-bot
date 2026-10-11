@@ -35,9 +35,9 @@ export abstract class CommandHandler {
   /**
    * Проверка: команда работает только в группах
    */
-  protected isGroupOnly(ctx: Context): boolean {
+  protected async isGroupOnly(ctx: Context): Promise<boolean> {
     if (ctx.chat?.type === 'private') {
-      ctx.reply('❌ Эта команда работает только в группах.');
+      await ctx.reply('❌ Эта команда работает только в группах.');
       return false;
     }
     return true;
@@ -46,9 +46,9 @@ export abstract class CommandHandler {
   /**
    * Проверка: команда работает только в личке
    */
-  protected isPrivateOnly(ctx: Context): boolean {
+  protected async isPrivateOnly(ctx: Context): Promise<boolean> {
     if (ctx.chat?.type !== 'private') {
-      ctx.reply('❌ Эта команда работает только в личных сообщениях.');
+      await ctx.reply('❌ Эта команда работает только в личных сообщениях.');
       return false;
     }
     return true;

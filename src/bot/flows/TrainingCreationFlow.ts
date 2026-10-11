@@ -116,7 +116,8 @@ export class TrainingCreationFlow {
       if (locations.length === 0) {
         await ctx.reply(
           '⚠️ Локаций для этого вида спорта в группе пока нет.\n' +
-            '📍 Введите место проведения текстом:\n\n' +
+            '📍 Введите место проведения текстом:\n' +
+            '⚠️ Ответьте (reply) на это сообщение!\n\n' +
             'Например: "Зал CrossFit" или "Школа №5"'
         );
         return;
@@ -179,7 +180,8 @@ export class TrainingCreationFlow {
       await ctx.reply('📍 Выберите место проведения:', keyboard);
     } else {
       await ctx.reply(
-        '📍 Введите место проведения тренировки:\n\n' +
+        '📍 Введите место проведения тренировки:\n' +
+          '⚠️ Ответьте (reply) на это сообщение!\n\n' +
           'Например: "Стадион Центральный" или "ул. Ленина, 15"\n\n' +
           'Администраторы могут добавить постоянную локацию командой /addlocation'
       );
@@ -201,7 +203,8 @@ export class TrainingCreationFlow {
     state.step = 'min_participants';
 
     await ctx.reply(
-      '👥 Введите минимальное количество участников:\n\n' +
+      '👥 Введите минимальное количество участников:\n' +
+        '⚠️ Ответьте (reply) на это сообщение!\n\n' +
         'Например: 5\n' +
         '(если наберётся меньше, тренировка может быть отменена)'
     );
@@ -222,7 +225,8 @@ export class TrainingCreationFlow {
     state.step = 'max_participants';
 
     await ctx.reply(
-      '👥 Введите максимальное количество участников или "-" для безлимита:\n\n' +
+      '👥 Введите максимальное количество участников или "-" для безлимита:\n' +
+        '⚠️ Ответьте (reply) на это сообщение!\n\n' +
         'Например: 20 или -'
     );
   }
@@ -255,7 +259,8 @@ export class TrainingCreationFlow {
     state.step = 'cost';
 
     await ctx.reply(
-      '💰 Введите стоимость участия или "-" для бесплатной тренировки:\n\n' +
+      '💰 Введите стоимость участия или "-" для бесплатной тренировки:\n' +
+        '⚠️ Ответьте (reply) на это сообщение!\n\n' +
         'Например: 500 или 0 или -'
     );
   }
@@ -279,7 +284,8 @@ export class TrainingCreationFlow {
     state.step = 'notes';
 
     await ctx.reply(
-      '📝 Добавьте заметки к тренировке или "-" для пропуска:\n\n' +
+      '📝 Добавьте заметки к тренировке или "-" для пропуска:\n' +
+        '⚠️ Ответьте (reply) на это сообщение!\n\n' +
         'Например: "Приходите за 10 минут, с собой воду"'
     );
   }
@@ -327,14 +333,19 @@ export class TrainingCreationFlow {
     const state = this.services.trainingCreationStates.get(userId);
 
     if (!state || state.step !== 'confirm') {
+      await ctx.answerCbQuery('❌ Сессия создания истекла');
       await ctx.reply('❌ Ошибка создания тренировки. Попробуйте /newtraining снова.');
       return;
     }
 
+    // Drop the state before any await so a double tap cannot create the training twice
+    this.services.trainingCreationStates.delete(userId);
+
+    let training;
     try {
       // Определить location_id
       let locationId: number;
-      
+
       if (state.data.locationId) {
         // Локация уже выбрана из списка
         locationId = state.data.locationId;
@@ -348,8 +359,8 @@ export class TrainingCreationFlow {
         locationId = location.id;
       }
 
-      // Данные для создания
-      const gameData = {
+      // Создать тренировку (type = TRAINING)
+      training = await this.services.gameService.createGame({
         group_id: state.groupId,
         creator_id: state.userId,
         sport_id: state.data.sportId!,
@@ -360,41 +371,36 @@ export class TrainingCreationFlow {
         cost: state.data.cost,
         notes: state.data.notes,
         type: GameType.TRAINING,
-      };
-
-      // Создать тренировку (type = TRAINING)
-      const training = await this.services.gameService.createGame(gameData);
-
-      this.services.trainingCreationStates.delete(userId);
-
-      const message = GameMessageBuilder.buildTrainingCard(training);
-      await ctx.editMessageText('✅ Тренировка создана!');
-      await ctx.reply(
-        message,
-        GameMessageBuilder.buildGameActionsKeyboard(training.id, 0, true, 0)
-      );
-
-      try {
-        const group = await this.services.groupService.getGroupById(state.groupId);
-        if (group?.telegram_chat_id) {
-          const members = await this.services.groupService.getGroupMembers(state.groupId);
-          const mentions = formatMembersMentions(members);
-          if (mentions) {
-            await ctx.telegram.sendMessage(group.telegram_chat_id, `👆 ${mentions}`, { parse_mode: 'HTML' });
-          }
-        }
-      } catch (mentionError) {
-        console.error('Error sending mention notification:', mentionError);
-      }
+      });
     } catch (error) {
       console.error('Error creating training:', error);
-      const errorMessage = `❌ Ошибка создания тренировки:\n\n${error instanceof Error ? error.message : String(error)}\n\nStack:\n${error instanceof Error ? error.stack : 'N/A'}`;
-      await ctx.reply('❌ Ошибка при создании тренировки. Детали отправлены в личку.');
-      try {
-        await ctx.telegram.sendMessage(ctx.from!.id, errorMessage);
-      } catch (dmError) {
-        console.error('Failed to send error DM:', dmError);
+      // Nothing was created, so let the user press "Создать" again
+      this.services.trainingCreationStates.set(userId, state);
+      await ctx.answerCbQuery('❌ Ошибка создания тренировки');
+      await ctx.reply('❌ Не удалось создать тренировку. Попробуйте ещё раз.');
+      return;
+    }
+
+    await ctx.answerCbQuery('✅ Тренировка создана!');
+
+    const message = GameMessageBuilder.buildTrainingCard(training);
+    await ctx.editMessageText('✅ Тренировка создана!');
+    await ctx.reply(message, {
+      parse_mode: 'Markdown',
+      ...GameMessageBuilder.buildGameActionsKeyboard(training.id, 0, true, 0),
+    });
+
+    try {
+      const group = await this.services.groupService.getGroupById(state.groupId);
+      if (group?.telegram_chat_id) {
+        const members = await this.services.groupService.getGroupMembers(state.groupId);
+        const mentions = formatMembersMentions(members);
+        if (mentions) {
+          await ctx.telegram.sendMessage(group.telegram_chat_id, `👆 ${mentions}`, { parse_mode: 'HTML' });
+        }
       }
+    } catch (mentionError) {
+      console.error('Error sending mention notification:', mentionError);
     }
   }
 

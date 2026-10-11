@@ -33,6 +33,7 @@ import { LocationEditHandler } from './handlers/LocationEditHandler';
 import { TrainingCreationHandler } from './handlers/TrainingCreationHandler';
 import { GamesFilterHandler } from './handlers/GamesFilterHandler';
 import { ServiceContainer } from './ServiceContainer';
+import { isWizardInput } from './utils/wizardInput';
 
 export class Bot {
   private bot: Telegraf;
@@ -191,24 +192,6 @@ export class Bot {
       const paymentsCmd = this.commands.find(cmd => cmd.command === 'payments') as PaymentsCommand;
       if (paymentsCmd) await paymentsCmd.showGamePaymentsById(ctx, gameId);
     });
-
-    // Callback: step-based game creation (fallback from WebApp mode)
-    this.bot.action(/^newgame_steps_(\d+)_(\d+)$/, async (ctx) => {
-      await ctx.answerCbQuery();
-      const groupId = parseInt(ctx.match[1]);
-      const userId = parseInt(ctx.match[2]);
-      const newGameCmd = this.commands.find(cmd => cmd.command === 'newgame') as NewGameCommand;
-      if (newGameCmd) await newGameCmd.startStepFlow(ctx, groupId, userId);
-    });
-
-    // Callback: step-based training creation (fallback from WebApp mode)
-    this.bot.action(/^newtraining_steps_(\d+)_(\d+)$/, async (ctx) => {
-      await ctx.answerCbQuery();
-      const groupId = parseInt(ctx.match[1]);
-      const userId = parseInt(ctx.match[2]);
-      const trainingCmd = this.commands.find(cmd => cmd.command === 'newtraining') as NewTrainingCommand;
-      if (trainingCmd) await trainingCmd.startStepFlow(ctx, groupId, userId);
-    });
   }
 
   private setupMiddleware() {
@@ -232,6 +215,11 @@ export class Bot {
         chat: ctx.chat,
         from: ctx.from,
       });
+
+      // A crashed callback handler must not leave the button spinner hanging
+      if (ctx.callbackQuery) {
+        ctx.answerCbQuery('❌ Произошла ошибка').catch(() => undefined);
+      }
     });
   }
 
@@ -246,18 +234,21 @@ export class Bot {
 
       if (text.startsWith('/')) return;
 
-      if (c.trainingCreationStates.has(userId)) {
+      // In groups the bot sees every message; wizards only take replies to the bot's own prompts
+      const wizardInput = isWizardInput(ctx);
+
+      if (wizardInput && c.trainingCreationStates.has(userId)) {
         await c.trainingCreationFlow.handleTextInput(ctx, userId, text);
         return;
       }
 
-      if (c.gameCreationStates.has(userId)) {
+      if (wizardInput && c.gameCreationStates.has(userId)) {
         await c.gameCreationFlow.handleTextInput(ctx, userId, text);
         return;
       }
 
       const createGroupCmd = this.commands.find(cmd => cmd.command === 'creategroup') as CreateGroupCommand;
-      if (createGroupCmd?.hasPendingState(userId)) {
+      if (wizardInput && createGroupCmd?.hasPendingState(userId)) {
         await createGroupCmd.handleTextInput(ctx, userId, text);
         return;
       }
@@ -276,7 +267,7 @@ export class Bot {
           replyText.includes('Введите место') ||
           replyText.includes('Введите название места') ||
           replyText.includes('Создание новой игры') ||
-          replyText.includes('Создание новой тренировки') ||
+          replyText.includes('Создание тренировки') ||
           replyText.includes('Ответьте (reply) на это сообщение');
         if (isCreationMessage) {
           await ctx.reply('⚠️ Сессия создания истекла (бот был перезапущен).\n\nНачните заново:\n/newgame — создать игру\n/newtraining — создать тренировку');

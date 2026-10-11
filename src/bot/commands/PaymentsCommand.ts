@@ -22,7 +22,7 @@ export class PaymentsCommand extends CommandHandler {
   }
 
   async execute(ctx: Context): Promise<void> {
-    if (!this.isGroupOnly(ctx)) return;
+    if (!(await this.isGroupOnly(ctx))) return;
 
     const chatId = ctx.chat!.id;
     const group = await this.services.groupService.getGroupByChatId(chatId);

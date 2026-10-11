@@ -13,6 +13,7 @@ import { GameMessageBuilder } from '../../bot/ui/GameMessageBuilder';
 import { KeyboardBuilder } from '../../bot/ui/KeyboardBuilder';
 import { JokeService } from '../../services/JokeService';
 import { formatMembersMentions } from '../../bot/ui/formatters';
+import { escapeHtml, escapeMarkdownV1 } from '../../utils/helpers';
 
 export function createGamesRouter(db: Database): Router {
   const router = Router();
@@ -187,7 +188,7 @@ export function createGamesRouter(db: Database): Router {
             : 'Новая запись (веб):';
           await telegram.sendMessage(
             Number(updatedGame.group.telegram_chat_id),
-            `${emoji} ${actionText} ${userName}\n\n${participantsText}`,
+            `${emoji} ${actionText} ${escapeMarkdownV1(userName)}\n\n${escapeMarkdownV1(participantsText)}`,
             { parse_mode: 'Markdown' }
           );
         }
@@ -235,7 +236,7 @@ export function createGamesRouter(db: Database): Router {
           const safeJoke = joke.replace(/</g, '&lt;').replace(/>/g, '&gt;');
           await telegram.sendMessage(
             Number(updatedGame.group.telegram_chat_id),
-            `❌ ${userName} отказался от участия через веб-приложение\n\n🤖 <i>${safeJoke}</i>\n\n${participantsText}`,
+            `❌ ${escapeHtml(userName)} отказался от участия через веб-приложение\n\n🤖 <i>${safeJoke}</i>\n\n${escapeHtml(participantsText)}`,
             { parse_mode: 'HTML' }
           );
         }

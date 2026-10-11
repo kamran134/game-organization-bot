@@ -1,16 +1,28 @@
-import { Markup, Telegraf } from 'telegraf';
+import { Context, Markup, Telegraf } from 'telegraf';
+import { ExtraEditMessageText } from 'telegraf/typings/telegram-types';
 import { ActionHandler, ActionServices } from './base/ActionHandler';
 import { KeyboardBuilder } from '../ui/KeyboardBuilder';
 import { GamesView } from '../ui/GamesView';
+import { StateManager } from '../../utils/StateManager';
+import { isMessageNotModified } from '../utils/telegramErrors';
 
 export class GroupActionsHandler extends ActionHandler {
   constructor(services: ActionServices) {
     super(services);
   }
 
+  /** Edits the callback message; an edit that changes nothing is not an error. */
+  private async safeEdit(ctx: Context, text: string, extra?: ExtraEditMessageText): Promise<void> {
+    try {
+      await ctx.editMessageText(text, extra);
+    } catch (error) {
+      if (!isMessageNotModified(error)) throw error;
+    }
+  }
+
   register(bot: Telegraf): void {
     // Group menu
-    bot.action(/group_(\d+)/, async (ctx) => {
+    bot.action(/^group_(\d+)$/, async (ctx) => {
       const groupId = parseInt(ctx.match[1]);
       const group = await this.services.groupService.getGroupById(groupId);
       
@@ -33,7 +45,6 @@ export class GroupActionsHandler extends ActionHandler {
       ];
 
       if (isAdmin) {
-        keyboard.push([Markup.button.callback('➕ Создать игру', `create_game_${groupId}`)]);
         keyboard.push([Markup.button.callback('⚙️ Управление', `manage_${groupId}`)]);
       }
 
@@ -43,14 +54,14 @@ export class GroupActionsHandler extends ActionHandler {
       keyboard.push([Markup.button.callback('« Назад', 'my_groups')]);
 
       const activeMemberCount = group.members?.filter((m) => m.is_active).length || 0;
-      await ctx.editMessageText(
+      await ctx.answerCbQuery();
+      await this.safeEdit(ctx,
         `📁 ${group.name}\n` +
         `${group.description || ''}\n` +
         `👥 Участников: ${activeMemberCount}` +
         gamesText,
         Markup.inlineKeyboard(keyboard)
       );
-      await ctx.answerCbQuery();
     });
 
     // Show games list for a group (works from DM via /mygroups)
@@ -63,7 +74,10 @@ export class GroupActionsHandler extends ActionHandler {
     // Back to my groups
     bot.action('my_groups', async (ctx) => {
       const user = await this.services.userService.getUserByTelegramId(ctx.from!.id);
-      if (!user) return;
+      if (!user) {
+        await ctx.answerCbQuery('Ошибка: пользователь не найден');
+        return;
+      }
 
       const groups = await this.services.groupService.getUserGroups(user.id);
       const keyboard = groups.map((group) => [
@@ -73,15 +87,15 @@ export class GroupActionsHandler extends ActionHandler {
         ),
       ]);
 
-      await ctx.editMessageText(
+      await ctx.answerCbQuery();
+      await this.safeEdit(ctx,
         `👥 Ваши группы (${groups.length}):\n\nВыберите группу:`,
         Markup.inlineKeyboard(keyboard)
       );
-      await ctx.answerCbQuery();
     });
 
     // Show group members
-    bot.action(/members_(\d+)/, async (ctx) => {
+    bot.action(/^members_(\d+)$/, async (ctx) => {
       const groupId = parseInt(ctx.match[1]);
       const members = await this.services.groupService.getGroupMembers(groupId);
 
@@ -105,17 +119,17 @@ export class GroupActionsHandler extends ActionHandler {
         });
       }
 
-      await ctx.editMessageText(
+      await ctx.answerCbQuery();
+      await this.safeEdit(ctx,
         text,
         Markup.inlineKeyboard([
           [Markup.button.callback('« Назад к группе', `group_${groupId}`)],
         ])
       );
-      await ctx.answerCbQuery();
     });
 
     // Leave group
-    bot.action(/leave_group_(\d+)/, async (ctx) => {
+    bot.action(/^leave_group_(\d+)$/, async (ctx) => {
       const groupId = parseInt(ctx.match[1]);
       const user = await this.services.userService.getUserByTelegramId(ctx.from!.id);
       
@@ -132,55 +146,15 @@ export class GroupActionsHandler extends ActionHandler {
 
       await this.services.groupService.removeMemberFromGroup(user.id, groupId);
       
-      await ctx.editMessageText(
+      await ctx.answerCbQuery('Вы вышли из группы');
+      await this.safeEdit(ctx,
         `Вы покинули группу "${group.name}" 👋\n\n` +
         `Используйте /mygroups чтобы увидеть оставшиеся группы`
       );
-      await ctx.answerCbQuery('Вы вышли из группы');
-    });
-
-    // Remove member (admin only)
-    bot.action(/remove_member_(\d+)_(\d+)/, async (ctx) => {
-      const groupId = parseInt(ctx.match[1]);
-      const memberUserId = parseInt(ctx.match[2]);
-
-      if (!await this.checkAdmin(ctx, groupId)) {
-        await ctx.answerCbQuery('⛔ Только администраторы могут удалять участников');
-        return;
-      }
-
-      await this.services.groupService.removeMemberFromGroup(memberUserId, groupId);
-      
-      // Refresh members list
-      const members = await this.services.groupService.getGroupMembers(groupId);
-      let text = '👥 Участники группы:\n\n';
-      
-      const admins = members.filter((m) => m.isAdmin());
-      const regularMembers = members.filter((m) => !m.isAdmin());
-
-      if (admins.length > 0) {
-        text += '👑 Администраторы:\n';
-        admins.forEach((m) => {
-          text += `• ${m.user.mention}\n`;
-        });
-        text += '\n';
-      }
-
-      if (regularMembers.length > 0) {
-        text += '👤 Участники:\n';
-        regularMembers.forEach((m) => {
-          text += `• ${m.user.mention} - `;
-          text += Markup.button.callback('❌', `remove_member_${groupId}_${m.user.id}`).text;
-          text += '\n';
-        });
-      }
-
-      await ctx.editMessageText(text);
-      await ctx.answerCbQuery('Участник удален из группы');
     });
 
     // Manage group (admin menu)
-    bot.action(/manage_(\d+)/, async (ctx) => {
+    bot.action(/^manage_(\d+)$/, async (ctx) => {
       const groupId = parseInt(ctx.match[1]);
 
       if (!await this.checkAdmin(ctx, groupId)) {
@@ -189,9 +163,13 @@ export class GroupActionsHandler extends ActionHandler {
       }
 
       const group = await this.services.groupService.getGroupById(groupId);
-      if (!group) return;
+      if (!group) {
+        await ctx.answerCbQuery('Группа не найдена');
+        return;
+      }
 
-      await ctx.editMessageText(
+      await ctx.answerCbQuery();
+      await this.safeEdit(ctx,
         `⚙️ Управление группой "${group.name}"\n\n` +
         `Выберите действие:`,
         Markup.inlineKeyboard([
@@ -199,11 +177,10 @@ export class GroupActionsHandler extends ActionHandler {
           [Markup.button.callback('« Назад к группе', `group_${groupId}`)],
         ])
       );
-      await ctx.answerCbQuery();
     });
 
     // Manage members
-    bot.action(/manage_members_(\d+)/, async (ctx) => {
+    bot.action(/^manage_members_(\d+)$/, async (ctx) => {
       const groupId = parseInt(ctx.match[1]);
       const members = await this.services.groupService.getGroupMembers(groupId);
 
@@ -236,8 +213,8 @@ export class GroupActionsHandler extends ActionHandler {
 
       keyboard.push([Markup.button.callback('« Назад', `manage_${groupId}`)]);
 
-      await ctx.editMessageText(text, Markup.inlineKeyboard(keyboard));
       await ctx.answerCbQuery();
+      await this.safeEdit(ctx, text, Markup.inlineKeyboard(keyboard));
     });
 
     // Manage locations
@@ -251,22 +228,21 @@ export class GroupActionsHandler extends ActionHandler {
 
       const locations = await this.services.locationService.getByGroup(groupId);
       
+      await ctx.answerCbQuery();
       if (locations.length === 0) {
-        await ctx.editMessageText(
+        await this.safeEdit(ctx,
           '📍 В группе пока нет локаций.\n\n' +
           'Добавьте локацию командой /addlocation',
           Markup.inlineKeyboard([[Markup.button.callback('« Назад', `group_${groupId}`)]])
         );
-        await ctx.answerCbQuery();
         return;
       }
 
-      await ctx.editMessageText(
+      await this.safeEdit(ctx,
         '📍 Управление локациями\n\n' +
         'Нажмите 🗑 для удаления локации:',
         KeyboardBuilder.createLocationManagementKeyboard(locations, groupId)
       );
-      await ctx.answerCbQuery();
     });
 
     // View location details
@@ -287,7 +263,8 @@ export class GroupActionsHandler extends ActionHandler {
       // Формируем список видов спорта
       const sports = location.sportLocations?.map(sl => `${sl.sport.emoji} ${sl.sport.name}`).join(', ') || 'Не указаны';
 
-      await ctx.editMessageText(
+      await ctx.answerCbQuery();
+      await this.safeEdit(ctx,
         `📍 Локация: ${location.name}\n\n` +
         `🏃 Виды спорта: ${sports}\n` +
         (location.map_url ? `🗺 Карта: ${location.map_url}\n` : `🗺 Карта: не указана\n`) +
@@ -297,7 +274,6 @@ export class GroupActionsHandler extends ActionHandler {
           [Markup.button.callback('« Назад к списку', `manage_locations_${location.group_id}`)]
         ])
       );
-      await ctx.answerCbQuery();
     });
 
     // Start editing location (from view)
@@ -331,11 +307,12 @@ export class GroupActionsHandler extends ActionHandler {
         }
       };
 
+      StateManager.clearUser(ctx.from!.id);
       this.services.locationEditStates.set(ctx.from!.id, state);
       
       // Показываем меню редактирования
-      await this.services.locationEditFlow.showEditMenu(ctx, state);
       await ctx.answerCbQuery();
+      await this.services.locationEditFlow.showEditMenu(ctx, state);
     });
 
     // Delete location (confirmation request)
@@ -372,39 +349,36 @@ export class GroupActionsHandler extends ActionHandler {
     // Confirm delete location
     bot.action(/^confirm_delete_location_(\d+)_(\d+)$/, async (ctx) => {
       const locationId = parseInt(ctx.match[1]);
-      const groupId = parseInt(ctx.match[2]);
+      await ctx.answerCbQuery();
       const location = await this.services.locationService.getById(locationId);
       
       if (!location) {
-        await ctx.editMessageText('❌ Локация не найдена');
+        await this.safeEdit(ctx, '❌ Локация не найдена');
         return;
       }
 
       if (!await this.checkAdmin(ctx, location.group_id)) {
-        await ctx.editMessageText('❌ Только администраторы могут удалять локации');
+        await this.safeEdit(ctx, '❌ Только администраторы могут удалять локации');
         return;
       }
 
       try {
         await this.services.locationService.delete(locationId);
 
-        await ctx.editMessageText(
+        await this.safeEdit(ctx,
           `✅ Локация успешно удалена\n\n` +
           `📍 ${location.name}`
         );
-        await ctx.answerCbQuery();
       } catch (error) {
         console.error('Error deleting location:', error);
-        await ctx.editMessageText('❌ Ошибка при удалении локации. Возможно, она используется в запланированных играх.');
-        await ctx.answerCbQuery();
+        await this.safeEdit(ctx, '❌ Ошибка при удалении локации. Возможно, она используется в запланированных играх.');
       }
     });
 
     // Cancel delete location
     bot.action(/^cancel_delete_location_(\d+)$/, async (ctx) => {
-      const groupId = parseInt(ctx.match[1]);
-      await ctx.editMessageText('❌ Удаление локации отменено');
       await ctx.answerCbQuery();
+      await this.safeEdit(ctx, '❌ Удаление локации отменено');
     });
 
     // Remove member (confirmation request)
@@ -438,45 +412,44 @@ export class GroupActionsHandler extends ActionHandler {
     bot.action(/^confirm_remove_member_(\d+)_(\d+)$/, async (ctx) => {
       const groupId = parseInt(ctx.match[1]);
       const userId = parseInt(ctx.match[2]);
+      await ctx.answerCbQuery();
       
       // Проверяем права
       const currentUser = await this.services.userService.getUserByTelegramId(ctx.from!.id);
       if (!currentUser) {
-        await ctx.editMessageText('❌ Ошибка');
+        await this.safeEdit(ctx, '❌ Ошибка');
         return;
       }
 
       const isAdmin = await this.services.groupService.isUserAdmin(currentUser.id, groupId);
       if (!isAdmin) {
-        await ctx.editMessageText('❌ Только администраторы могут удалять участников');
+        await this.safeEdit(ctx, '❌ Только администраторы могут удалять участников');
         return;
       }
 
       const userToRemove = await this.services.userService.getUserById(userId);
       if (!userToRemove) {
-        await ctx.editMessageText('❌ Пользователь не найден');
+        await this.safeEdit(ctx, '❌ Пользователь не найден');
         return;
       }
 
       try {
         await this.services.groupService.removeMemberFromGroup(userId, groupId);
 
-        await ctx.editMessageText(
+        await this.safeEdit(ctx,
           `✅ Участник успешно удалён из группы\n\n` +
           `👤 ${userToRemove.mention}`
         );
-        await ctx.answerCbQuery();
       } catch (error) {
         console.error('Error removing member:', error);
-        await ctx.editMessageText('❌ Ошибка при удалении участника');
-        await ctx.answerCbQuery();
+        await this.safeEdit(ctx, '❌ Ошибка при удалении участника');
       }
     });
 
     // Cancel remove member
     bot.action(/^cancel_remove_member_(\d+)$/, async (ctx) => {
-      await ctx.editMessageText('❌ Удаление участника отменено');
       await ctx.answerCbQuery();
+      await this.safeEdit(ctx, '❌ Удаление участника отменено');
     });
   }
 }
