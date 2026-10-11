@@ -16,9 +16,16 @@ import { GroupAccessChecker } from '../access';
 import { serializeGame } from '../serializers';
 import { parseGameBody } from '../gameBodyValidator';
 import { NotificationService } from '../../services/NotificationService';
+import { GameLifecycleService } from '../../services/GameLifecycleService';
+import { rejectionForStatus } from '../../utils/gameStatusGuard';
 import { ValidationError } from '../../utils/errors';
 
-export function createGamesRouter(db: Database, notifications: NotificationService, canAccessGroup: GroupAccessChecker): Router {
+export function createGamesRouter(
+  db: Database,
+  notifications: NotificationService,
+  lifecycle: GameLifecycleService,
+  canAccessGroup: GroupAccessChecker,
+): Router {
   const router = Router();
   const gameService = new GameService(db);
   const userService = new UserService(db);
@@ -37,12 +44,17 @@ export function createGamesRouter(db: Database, notifications: NotificationServi
     return game;
   }
 
-  /** Admin check for routes that only need the game's group, not the whole game; sends the error response and returns false otherwise. */
-  async function requireGameAdmin(gameId: number, user: User, res: Response): Promise<boolean> {
-    const groupId = await gameService.getGameGroupId(gameId);
-    if (groupId === null) { res.status(404).json({ error: 'Game not found' }); return false; }
-    const isAdmin = await groupService.isUserAdmin(user.id, groupId);
+  /**
+   * Admin check for routes that edit a still-planned game without needing the whole game: 404 / 403,
+   * and 409 for cancelled or completed games. Sends the error response and returns false otherwise.
+   */
+  async function requireEditableGameAdmin(gameId: number, user: User, res: Response): Promise<boolean> {
+    const info = await gameService.getGameGroupAndStatus(gameId);
+    if (!info) { res.status(404).json({ error: 'Game not found' }); return false; }
+    const isAdmin = await groupService.isUserAdmin(user.id, info.group_id);
     if (!isAdmin) { res.status(403).json({ error: 'Admin only' }); return false; }
+    const rejection = rejectionForStatus(info.status);
+    if (rejection) { res.status(409).json({ error: rejection.webError }); return false; }
     return true;
   }
 
@@ -182,6 +194,11 @@ export function createGamesRouter(db: Database, notifications: NotificationServi
         res.status(403).json({ error: 'Forbidden' });
         return;
       }
+      const rejection = rejectionForStatus(game.status);
+      if (rejection) {
+        res.status(409).json({ error: rejection.webError });
+        return;
+      }
       if (game.isRegistrationLocked()) {
         res.status(403).json({ error: 'Registration locked' });
         return;
@@ -235,6 +252,11 @@ export function createGamesRouter(db: Database, notifications: NotificationServi
     try {
       const game = await gameService.getGameById(gameId);
       if (!game) { res.status(404).json({ error: 'Game not found' }); return; }
+      const rejection = rejectionForStatus(game.status);
+      if (rejection) {
+        res.status(409).json({ error: rejection.webError });
+        return;
+      }
       if (game.isRegistrationLocked()) {
         res.status(403).json({ error: 'Registration locked' });
         return;
@@ -269,6 +291,11 @@ export function createGamesRouter(db: Database, notifications: NotificationServi
     try {
       const game = await loadGameForAdmin(gameId, currentUser(req), res);
       if (!game) return;
+      const rejection = rejectionForStatus(game.status);
+      if (rejection) {
+        res.status(409).json({ error: rejection.webError });
+        return;
+      }
 
       const body = parseGameBody(req.body, 'update');
 
@@ -308,6 +335,24 @@ export function createGamesRouter(db: Database, notifications: NotificationServi
     }
   });
 
+  // POST /api/games/:id/cancel — cancel a planned game (admin only)
+  router.post('/:id/cancel', async (req: AuthRequest, res: Response): Promise<void> => {
+    const gameId = parseInt(req.params.id);
+    if (!gameId) { res.status(400).json({ error: 'Invalid game id' }); return; }
+    try {
+      if (!(await loadGameForAdmin(gameId, currentUser(req), res))) return;
+
+      if (!(await lifecycle.cancel(gameId, 'manual'))) {
+        res.status(409).json({ error: 'Game not active' });
+        return;
+      }
+      res.json({ message: 'Cancelled successfully' });
+    } catch (error) {
+      console.error('Error cancelling game:', error);
+      res.status(500).json({ error: 'Failed to cancel game' });
+    }
+  });
+
   // DELETE /api/games/:id — delete game (admin only)
   router.delete('/:id', async (req: AuthRequest, res: Response): Promise<void> => {
     const gameId = parseInt(req.params.id);
@@ -335,7 +380,7 @@ export function createGamesRouter(db: Database, notifications: NotificationServi
     const gameId = parseInt(req.params.id);
     if (!gameId) { res.status(400).json({ error: 'Invalid game id' }); return; }
     try {
-      if (!(await requireGameAdmin(gameId, currentUser(req), res))) return;
+      if (!(await requireEditableGameAdmin(gameId, currentUser(req), res))) return;
 
       const { first_name, last_name } = req.body as { first_name?: string; last_name?: string };
       if (!first_name?.trim()) {
@@ -357,7 +402,7 @@ export function createGamesRouter(db: Database, notifications: NotificationServi
     const participantId = parseInt(req.params.participantId);
     if (!gameId || !participantId) { res.status(400).json({ error: 'Invalid ids' }); return; }
     try {
-      if (!(await requireGameAdmin(gameId, currentUser(req), res))) return;
+      if (!(await requireEditableGameAdmin(gameId, currentUser(req), res))) return;
 
       const { first_name, last_name } = req.body as { first_name?: string; last_name?: string };
       if (!first_name?.trim()) {
@@ -379,7 +424,7 @@ export function createGamesRouter(db: Database, notifications: NotificationServi
     const participantId = parseInt(req.params.participantId);
     if (!gameId || !participantId) { res.status(400).json({ error: 'Invalid ids' }); return; }
     try {
-      if (!(await requireGameAdmin(gameId, currentUser(req), res))) return;
+      if (!(await requireEditableGameAdmin(gameId, currentUser(req), res))) return;
 
       await gameService.removeGuest(participantId, gameId);
       res.json({ message: 'Guest removed' });

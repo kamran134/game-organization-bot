@@ -68,6 +68,16 @@ export class GameService {
     return game ? game.group_id : null;
   }
 
+  /** Cheap lookup for guards that need the owning group and the lifecycle status. */
+  async getGameGroupAndStatus(gameId: number): Promise<{ group_id: number; status: GameStatus } | null> {
+    const gameRepo = this.db.getRepository(Game);
+    const game = await gameRepo.findOne({
+      where: { id: gameId },
+      select: { id: true, group_id: true, status: true },
+    });
+    return game ? { group_id: game.group_id, status: game.status } : null;
+  }
+
   async getUpcomingGroupGames(groupId: number): Promise<Game[]> {
     const gameRepo = this.db.getRepository(Game);
     const games = await gameRepo.find({
@@ -177,16 +187,6 @@ export class GameService {
     if (!game) return;
     game.registration_lock_hours = hours ?? undefined;
     await gameRepo.save(game);
-  }
-
-  async cancelGame(gameId: number): Promise<void> {
-    const gameRepo = this.db.getRepository(Game);
-    await gameRepo.update(gameId, { status: GameStatus.CANCELLED });
-  }
-
-  async completeGame(gameId: number): Promise<void> {
-    const gameRepo = this.db.getRepository(Game);
-    await gameRepo.update(gameId, { status: GameStatus.COMPLETED });
   }
 
   async addGuest(gameId: number, firstName: string, lastName?: string): Promise<GameParticipant> {

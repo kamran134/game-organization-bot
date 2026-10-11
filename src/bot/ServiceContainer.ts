@@ -7,6 +7,7 @@ import { LocationService } from '../services/LocationService';
 import { JokeService } from '../services/JokeService';
 import { PaymentService } from '../services/PaymentService';
 import { NotificationService } from '../services/NotificationService';
+import { GameLifecycleService } from '../services/GameLifecycleService';
 import { Telegram } from 'telegraf';
 import { CreationStateManager } from '../utils/CreationState';
 import { LocationCreationStateManager } from '../utils/LocationCreationState';
@@ -30,6 +31,7 @@ export class ServiceContainer {
   readonly jokeService: JokeService;
   readonly paymentService: PaymentService;
   readonly notificationService: NotificationService;
+  readonly gameLifecycleService: GameLifecycleService;
 
   // State managers
   readonly creationStates: CreationStateManager;
@@ -54,6 +56,7 @@ export class ServiceContainer {
     this.jokeService = new JokeService();
     this.paymentService = new PaymentService(db);
     this.notificationService = new NotificationService(telegram, this.groupService, this.jokeService);
+    this.gameLifecycleService = new GameLifecycleService(db, this.notificationService);
 
     // ── State managers ────────────────────────────────────────────────────────
     this.creationStates = new CreationStateManager();

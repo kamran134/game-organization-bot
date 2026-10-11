@@ -223,6 +223,7 @@ function renderCard(g: GameDto, myTelegramId: number, isAdmin: boolean): string 
       ${isAdmin ? `
       <div class="game-admin-actions">
         <button class="btn btn-secondary" data-action="edit-game"   data-game-id="${gid}">✏️ Редактировать</button>
+        <button class="btn btn-danger"    data-action="cancel-game" data-game-id="${gid}">🚫 Отменить</button>
         <button class="btn btn-guest"     data-action="add-guest"   data-game-id="${gid}">👤 Добавить гостя</button>
         ${g.type !== 'training' ? `<button class="btn btn-money" data-action="toggle-payments" data-game-id="${gid}">💰 Оплата</button>` : ''}
         <button class="btn btn-danger"    data-action="delete-game" data-game-id="${gid}">🗑 Удалить</button>
@@ -637,6 +638,14 @@ export async function renderGamesList(ctx: GamesCtx, nav: Nav): Promise<void> {
       } else if (action === 'edit-game') {
         nav.goEditGame(parseInt(gameId));
         return;
+      } else if (action === 'cancel-game') {
+        if (!window.confirm('Отменить эту игру? В группу уйдёт уведомление.')) {
+          btn.disabled = false;
+          btn.textContent = origText;
+          return;
+        }
+        await apiFetch(`/api/games/${encodeURIComponent(gameId)}/cancel`, { method: 'POST' });
+        toast('🚫 Игра отменена');
       } else if (action === 'delete-game') {
         if (!window.confirm('Удалить эту игру?')) {
           btn.disabled = false;

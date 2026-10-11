@@ -177,7 +177,7 @@ export class CreationFlow {
 
     await ctx.editMessageText(`${config.buildCreated(created)}\n\nУчастники могут записаться прямо здесь:`, {
       parse_mode: 'Markdown',
-      ...KeyboardBuilder.createGameActionsKeyboard(game.id, 0, isAdmin, 0, inGroup),
+      ...KeyboardBuilder.createGameActionsKeyboard(game.id, 0, isAdmin, 0, inGroup, undefined, created),
     });
 
     await this.services.notificationService.mentionMembers(state.groupId);

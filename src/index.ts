@@ -4,6 +4,7 @@ import { Bot } from './bot/Bot';
 import { Database } from './database/Database';
 import { SportService } from './services/SportService';
 import { startWebAppServer } from './webapp/server';
+import { startGameLifecycleJob } from './services/GameLifecycleJob';
 
 /** Docker sends SIGKILL 10s after SIGTERM; finish well before that. */
 const SHUTDOWN_TIMEOUT_MS = 8000;
@@ -50,6 +51,9 @@ async function main() {
       process.exit(1);
     });
 
+    // Auto-cancel games short of players and auto-complete finished ones
+    const stopLifecycleJob = startGameLifecycleJob(bot.gameLifecycleService);
+
     let shuttingDown = false;
     const shutdown = async (signal: string): Promise<void> => {
       if (shuttingDown) return;
@@ -62,6 +66,7 @@ async function main() {
       }, SHUTDOWN_TIMEOUT_MS).unref();
 
       try {
+        stopLifecycleJob();
         bot.stop(signal);
         await new Promise<void>((resolve) => {
           httpServer.close(() => resolve());

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { NotificationService } from '../../services/NotificationService';
 import { ParticipationStatus } from '../../models/GameParticipant';
 import { Game } from '../../models/Game';
+import { GameType } from '../../models/GameType';
 import { User } from '../../models/User';
 
 interface SentMessage {
@@ -188,5 +189,78 @@ describe('NotificationService game cards', () => {
     await service.notifyGameDeleted(game);
 
     assert.match(sent[0].text, /^🗑 Игра удалена администратором\n\n⚽ A&amp;B\n📅 /);
+  });
+});
+
+describe('NotificationService.notifyCancelled', () => {
+  function cancelledGame(overrides: Record<string, unknown> = {}): Game {
+    return {
+      ...makeGame('-1001'),
+      type: GameType.GAME,
+      min_participants: 6,
+      location: { name: 'Арена <1>' },
+      participants: [
+        { participation_status: 'confirmed', user: { telegram_id: 11, username: 'tom' } },
+        { participation_status: 'maybe', user: { telegram_id: 12, first_name: 'Ann', last_name: '<&>' } },
+        { participation_status: 'guest', guest_name: 'Bob <b>' },
+        { participation_status: 'guest', guest_name: 'Eve' },
+      ],
+      ...overrides,
+    } as unknown as Game;
+  }
+
+  test('manual cancel: short header, game line, mentions and escaped guests without links', async () => {
+    const { service, sent } = makeFakes();
+
+    await service.notifyCancelled(cancelledGame(), 'manual');
+
+    assert.equal(sent.length, 1);
+    assert.equal(sent[0].chatId, -1001);
+    assert.equal(sent[0].extra?.parse_mode, 'HTML');
+    const text = sent[0].text;
+    assert.ok(text.startsWith('🚫 Игра отменена\n\n⚽ Футбол\n📅 '));
+    assert.ok(!text.includes('минимальное'));
+    assert.ok(text.includes('\n📍 Арена &lt;1&gt;'));
+    assert.ok(text.includes('@tom'));
+    assert.ok(text.includes('<a href="tg://user?id=12">Ann &lt;&amp;&gt;</a>'));
+    assert.ok(text.includes('Bob &lt;b&gt;, Eve'));
+    assert.ok(!text.includes('<a href="tg://user?id=undefined"'));
+    assert.equal((text.match(/<a /g) ?? []).length, 1);
+  });
+
+  test('auto cancel states the reason with certain/min counts (confirmed + guests)', async () => {
+    const { service, sent } = makeFakes();
+
+    await service.notifyCancelled(cancelledGame(), 'min_not_reached');
+
+    assert.ok(sent[0].text.startsWith(
+      '🚫 Игра отменена: не набралось минимальное количество участников (3/6)\n\n'
+    ));
+  });
+
+  test('trainings use the training wording', async () => {
+    const { service, sent } = makeFakes();
+
+    await service.notifyCancelled(cancelledGame({ type: GameType.TRAINING }), 'manual');
+
+    assert.ok(sent[0].text.startsWith('🚫 Тренировка отменена\n\n'));
+  });
+
+  test('omits the location and mention lines when there is nothing to show', async () => {
+    const { service, sent } = makeFakes();
+
+    await service.notifyCancelled(cancelledGame({ location: undefined, participants: [] }), 'manual');
+
+    assert.ok(!sent[0].text.includes('📍'));
+    assert.ok(!sent[0].text.includes('👥'));
+  });
+
+  test('skips silently when the group has no chat and never throws when sending fails', async () => {
+    const noChat = makeFakes();
+    await quiet(() => noChat.service.notifyCancelled(cancelledGame({ group: { id: 1, telegram_chat_id: null } }), 'manual'));
+    assert.equal(noChat.sent.length, 0);
+
+    const failing = makeFakes({ sendFails: true });
+    await quiet(() => failing.service.notifyCancelled(cancelledGame(), 'manual'));
   });
 });

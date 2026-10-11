@@ -4,10 +4,11 @@ import { JokeService } from './JokeService';
 import { Game } from '../models/Game';
 import { Group } from '../models/Group';
 import { User } from '../models/User';
-import { ParticipationStatus } from '../models/GameParticipant';
+import { GameType } from '../models/GameType';
+import { ParticipationStatus, countCertainPlayers } from '../models/GameParticipant';
 import { GameMessageBuilder } from '../bot/ui/GameMessageBuilder';
 import { KeyboardBuilder } from '../bot/ui/KeyboardBuilder';
-import { formatMembersMentions } from '../bot/ui/formatters';
+import { formatDate, formatMembersMentions, formatMention } from '../bot/ui/formatters';
 import { escapeHtml } from '../utils/helpers';
 
 /** Where the action that triggered the notification came from; the web variants carry a participants list. */
@@ -127,6 +128,36 @@ export class NotificationService {
       );
     } catch (error) {
       console.error('Failed to send delete notification to group:', error);
+    }
+  }
+
+  /** `game` must be loaded with group, sport, location and participants (with users), after the cancellation was saved. */
+  async notifyCancelled(game: Game, reason: 'manual' | 'min_not_reached'): Promise<void> {
+    try {
+      const chatId = this.chatIdOf(game.group, game.id);
+      if (chatId === null) return;
+
+      const what = game.type === GameType.TRAINING ? 'Тренировка отменена' : 'Игра отменена';
+      let text = `🚫 ${what}`;
+      if (reason === 'min_not_reached') {
+        text += `: не набралось минимальное количество участников (${countCertainPlayers(game.participants)}/${game.min_participants})`;
+      }
+
+      const sportName = game.sport ? `${game.sport.emoji} ${game.sport.name}` : what;
+      text += `\n\n${escapeHtml(sportName)}\n📅 ${escapeHtml(formatDate(game.game_date))}`;
+      if (game.location) text += `\n📍 ${escapeHtml(game.location.name)}`;
+
+      const participants = game.participants ?? [];
+      const people = [
+        ...participants.filter((p) => p.user).map((p) => formatMention(p.user!)),
+        // Guests have no Telegram account to mention: plain escaped names
+        ...participants.filter((p) => !p.user).map((p) => escapeHtml(p.guest_name || 'Гость')),
+      ];
+      if (people.length > 0) text += `\n\n👥 ${people.join(', ')}`;
+
+      await this.telegram.sendMessage(chatId, text, { parse_mode: 'HTML' });
+    } catch (error) {
+      console.error('Failed to send cancel notification to group:', error);
     }
   }
 

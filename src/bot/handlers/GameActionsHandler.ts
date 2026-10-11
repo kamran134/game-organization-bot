@@ -4,7 +4,10 @@ import { GameParticipant, ParticipationStatus } from '../../models/GameParticipa
 import { GroupRole } from '../../models/GroupMember';
 import { KeyboardBuilder } from '../ui/KeyboardBuilder';
 import { GameMessageBuilder } from '../ui/GameMessageBuilder';
-import { Game } from '../../models/Game';
+import { Game, GameStatus } from '../../models/Game';
+import { GameType } from '../../models/GameType';
+import { rejectionForStatus } from '../../utils/gameStatusGuard';
+import { formatDate } from '../ui/formatters';
 import { Database } from '../../database/Database';
 import { isMessageNotModified } from '../utils/telegramErrors';
 
@@ -57,6 +60,12 @@ export class GameActionsHandler extends ActionHandler {
         return;
       }
 
+      const leaveRejection = rejectionForStatus(gameForLock.status);
+      if (leaveRejection) {
+        await ctx.answerCbQuery(leaveRejection.botAlert, { show_alert: true });
+        return;
+      }
+
       if (gameForLock.isRegistrationLocked()) {
         await ctx.answerCbQuery(
           '🔒 Запись закрыта. Для экстренных ситуаций обратитесь к организатору.',
@@ -72,14 +81,9 @@ export class GameActionsHandler extends ActionHandler {
         // Обновляем кнопки
         const game = await this.services.gameService.getGameById(gameId);
         if (game) {
-          const confirmedCount = game.participants?.filter((p: GameParticipant) => p.participation_status === ParticipationStatus.CONFIRMED).length || 0;
-          const maybeCount = game.participants?.filter((p: GameParticipant) => p.participation_status === ParticipationStatus.MAYBE).length || 0;
           const inGroup = ctx.chat?.type !== 'private';
           const isAdmin = !inGroup && await this.services.groupService.isUserAdmin(user.id, game.group_id);
-          await this.refreshKeyboard(
-            ctx,
-            KeyboardBuilder.createGameActionsKeyboard(gameId, confirmedCount, isAdmin, maybeCount, inGroup, game.registration_lock_hours).reply_markup
-          );
+          await this.refreshKeyboard(ctx, this.cardKeyboard(game, isAdmin, inGroup).reply_markup);
 
           await this.services.notificationService.notifyDeclined(game, user);
         }
@@ -99,9 +103,6 @@ export class GameActionsHandler extends ActionHandler {
         return;
       }
 
-      const confirmedCount = game.participants?.filter((p: GameParticipant) => p.participation_status === ParticipationStatus.CONFIRMED).length || 0;
-      const maybeCount = game.participants?.filter((p: GameParticipant) => p.participation_status === ParticipationStatus.MAYBE).length || 0;
-
       let isAdmin = false;
       if (ctx.from) {
         const user = await this.services.userService.getUserByTelegramId(ctx.from.id);
@@ -111,7 +112,7 @@ export class GameActionsHandler extends ActionHandler {
       }
 
       const message = GameMessageBuilder.formatGameCard(game);
-      const keyboard = KeyboardBuilder.createGameActionsKeyboard(gameId, confirmedCount, isAdmin, maybeCount, false, game.registration_lock_hours);
+      const keyboard = this.cardKeyboard(game, isAdmin, false);
 
       try {
         await ctx.telegram.sendMessage(ctx.from!.id, message, {
@@ -217,6 +218,85 @@ export class GameActionsHandler extends ActionHandler {
       await ctx.editMessageText('❌ Удаление игры отменено');
     });
 
+    // Cancel game (confirmation request)
+    bot.action(/^call_off_(\d+)$/, async (ctx) => {
+      const gameId = parseInt(ctx.match[1]);
+      const game = await this.services.gameService.getGameById(gameId);
+      if (!game) { await ctx.answerCbQuery('❌ Игра не найдена'); return; }
+      if (!await this.checkAdmin(ctx, game.group_id)) {
+        await ctx.answerCbQuery('❌ Только администраторы могут отменять игры');
+        return;
+      }
+      if (game.status !== GameStatus.PLANNED) {
+        await ctx.answerCbQuery('ℹ️ Игра уже не активна');
+        return;
+      }
+
+      await ctx.answerCbQuery();
+      const noun = game.type === GameType.TRAINING ? 'тренировку' : 'игру';
+      await ctx.reply(
+        `⚠️ Отменить ${noun}?\n\n` +
+        `${game.sport.emoji} ${game.sport.name}\n` +
+        `📅 ${formatDate(game.game_date)}\n` +
+        `📍 ${game.location?.name || 'Не указано'}\n\n` +
+        `Участников: ${game.participants?.length || 0}. В группу уйдёт уведомление об отмене.`,
+        Markup.inlineKeyboard([
+          [Markup.button.callback('✅ Да, отменить', `confirm_call_off_${gameId}`)],
+          [Markup.button.callback('↩️ Оставить', `keep_game_${gameId}`)]
+        ])
+      );
+    });
+
+    // Confirm cancel game
+    bot.action(/^confirm_call_off_(\d+)$/, async (ctx) => {
+      const gameId = parseInt(ctx.match[1]);
+      await ctx.answerCbQuery();
+      const groupId = await this.services.gameService.getGameGroupId(gameId);
+      if (groupId === null) { await ctx.editMessageText('❌ Игра не найдена'); return; }
+      if (!await this.checkAdmin(ctx, groupId)) {
+        await ctx.editMessageText('❌ Только администраторы могут отменять игры');
+        return;
+      }
+
+      try {
+        const cancelled = await this.services.gameLifecycleService.cancel(gameId, 'manual');
+        await ctx.editMessageText(cancelled ? '🚫 Игра отменена' : 'ℹ️ Игра уже не активна');
+      } catch (error) {
+        console.error('Error cancelling game:', error);
+        await ctx.editMessageText('❌ Ошибка при отмене игры');
+      }
+    });
+
+    // Keep the game (dismiss the cancel confirmation)
+    bot.action(/^keep_game_(\d+)$/, async (ctx) => {
+      await ctx.answerCbQuery();
+      await ctx.editMessageText('👌 Игра остаётся в силе');
+    });
+
+    // Mark a started game as played (admin only, no confirmation)
+    bot.action(/^complete_game_(\d+)$/, async (ctx) => {
+      const gameId = parseInt(ctx.match[1]);
+      const groupId = await this.services.gameService.getGameGroupId(gameId);
+      if (groupId === null) { await ctx.answerCbQuery('❌ Игра не найдена'); return; }
+      if (!await this.checkAdmin(ctx, groupId)) {
+        await ctx.answerCbQuery('❌ Только администраторы могут завершать игры');
+        return;
+      }
+
+      try {
+        const completed = await this.services.gameLifecycleService.complete(gameId);
+        await ctx.answerCbQuery(completed ? '✅ Игра отмечена сыгранной' : 'ℹ️ Игра уже не активна');
+        if (completed) {
+          // The completed card must lose its admin lifecycle buttons
+          const game = await this.services.gameService.getGameById(gameId);
+          if (game) await this.refreshKeyboard(ctx, this.cardKeyboard(game, true, false).reply_markup);
+        }
+      } catch (error) {
+        console.error('Error completing game:', error);
+        await ctx.answerCbQuery('❌ Ошибка при завершении игры');
+      }
+    });
+
     // Open registration lock settings (admin only)
     bot.action(/^set_lock_(\d+)$/, async (ctx) => {
       const gameId = parseInt(ctx.match[1]);
@@ -304,6 +384,12 @@ export class GameActionsHandler extends ActionHandler {
         return;
       }
 
+      const rejection = rejectionForStatus(game.status);
+      if (rejection) {
+        await ctx.answerCbQuery(rejection.botAlert, { show_alert: true });
+        return;
+      }
+
       if (game.isRegistrationLocked()) {
         await ctx.answerCbQuery(
           '🔒 Запись закрыта. Для экстренных ситуаций обратитесь к организатору.',
@@ -340,16 +426,10 @@ export class GameActionsHandler extends ActionHandler {
       const updatedGame = await this.services.gameService.getGameById(gameId);
       if (!updatedGame) return;
 
-      const confirmedCount = updatedGame.participants?.filter((p: GameParticipant) => p.participation_status === ParticipationStatus.CONFIRMED).length || 0;
-      const maybeCount = updatedGame.participants?.filter((p: GameParticipant) => p.participation_status === ParticipationStatus.MAYBE).length || 0;
-      
       const inGroupJoin = ctx.chat?.type !== 'private';
       const isAdmin = !inGroupJoin && await this.services.groupService.isUserAdmin(user.id, game.group_id);
 
-      await this.refreshKeyboard(
-        ctx,
-        KeyboardBuilder.createGameActionsKeyboard(gameId, confirmedCount, isAdmin, maybeCount, inGroupJoin, updatedGame.registration_lock_hours).reply_markup
-      );
+      await this.refreshKeyboard(ctx, this.cardKeyboard(updatedGame, isAdmin, inGroupJoin).reply_markup);
 
       await this.services.notificationService.notifyJoined(updatedGame, user, status, !!existingParticipant);
     } catch (error) {
@@ -358,6 +438,20 @@ export class GameActionsHandler extends ActionHandler {
     }
   }
   
+  private cardKeyboard(game: Game, isAdmin: boolean, inGroup: boolean) {
+    const countOf = (status: ParticipationStatus): number =>
+      game.participants?.filter((p: GameParticipant) => p.participation_status === status).length || 0;
+    return KeyboardBuilder.createGameActionsKeyboard(
+      game.id,
+      countOf(ParticipationStatus.CONFIRMED),
+      isAdmin,
+      countOf(ParticipationStatus.MAYBE),
+      inGroup,
+      game.registration_lock_hours,
+      game
+    );
+  }
+
   // Telegram rejects an edit that leaves the markup unchanged (e.g. declining a game you
   // never joined keeps the counters the same). Without this the error aborts the handler
   // before the group notification is sent.
@@ -379,9 +473,6 @@ export class GameActionsHandler extends ActionHandler {
   
   private async showGameDetails(ctx: Context, game: Game) {
     const message = GameMessageBuilder.formatGameCard(game);
-    const confirmedCount = game.participants?.filter((p: GameParticipant) => p.participation_status === ParticipationStatus.CONFIRMED).length || 0;
-    const maybeCount = game.participants?.filter((p: GameParticipant) => p.participation_status === ParticipationStatus.MAYBE).length || 0;
-    
     // Admin buttons exist only in private chats, so the lookup is pointless in a group
     const inGroup = ctx.chat?.type !== 'private';
     let isAdmin = false;
@@ -394,7 +485,7 @@ export class GameActionsHandler extends ActionHandler {
 
     await ctx.reply(message, {
       parse_mode: 'Markdown',
-      ...KeyboardBuilder.createGameActionsKeyboard(game.id, confirmedCount, isAdmin, maybeCount, inGroup, game.registration_lock_hours),
+      ...this.cardKeyboard(game, isAdmin, inGroup),
     });
   }
 }

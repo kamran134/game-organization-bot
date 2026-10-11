@@ -33,6 +33,7 @@ import { LocationEditHandler } from './handlers/LocationEditHandler';
 import { CreationHandler } from './handlers/CreationHandler';
 import { GamesFilterHandler } from './handlers/GamesFilterHandler';
 import { ServiceContainer } from './ServiceContainer';
+import { GameLifecycleService } from '../services/GameLifecycleService';
 import { isWizardInput } from './utils/wizardInput';
 
 export class Bot {
@@ -59,6 +60,11 @@ export class Bot {
     this.registerHandlers();
     this.container.groupEventHandler.register(this.bot);
     this.setupTextHandlers();
+  }
+
+  /** Exposed so the process entry point can run the periodic cancel/complete job. */
+  get gameLifecycleService(): GameLifecycleService {
+    return this.container.gameLifecycleService;
   }
 
   private initializeCommands(): (CommandHandler | AddLocationCommand | ListLocationsCommand | EditLocationCommand | NewTrainingCommand | TrainingsCommand | PaymentsCommand | TrainingPaymentsCommand)[] {
@@ -133,6 +139,7 @@ export class Bot {
       sportService: c.sportService,
       locationService: c.locationService,
       notificationService: c.notificationService,
+      gameLifecycleService: c.gameLifecycleService,
       locationEditStates: c.locationEditStates,
       locationEditFlow: c.locationEditFlow,
     };

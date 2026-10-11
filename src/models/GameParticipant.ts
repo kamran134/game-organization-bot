@@ -72,3 +72,10 @@ export class GameParticipant {
     }
   }
 }
+
+/** Players who will certainly be there: confirmed users plus guests (guests are added by admins). `maybe` does not count. */
+export function countCertainPlayers(participants: ReadonlyArray<Pick<GameParticipant, 'participation_status'>> | undefined): number {
+  return (participants ?? []).filter(
+    (p) => p.participation_status === ParticipationStatus.CONFIRMED || p.participation_status === ParticipationStatus.GUEST,
+  ).length;
+}

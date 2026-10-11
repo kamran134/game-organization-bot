@@ -34,6 +34,9 @@ const KNOWN_ERRORS: Record<string, string> = {
   'Admin only': 'Только для администраторов',
   'You are not a member of this group': 'Вы не участник этой группы',
   'Cannot remove an admin': 'Нельзя удалить администратора',
+  'Game cancelled': 'Игра отменена',
+  'Game completed': 'Игра уже завершена',
+  'Game not active': 'Игра уже не активна',
 };
 
 /**

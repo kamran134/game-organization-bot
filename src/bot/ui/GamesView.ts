@@ -144,7 +144,8 @@ export class GamesView {
       isAdmin,
       maybeCount,
       inGroup,
-      game.registration_lock_hours
+      game.registration_lock_hours,
+      game
     );
     const msgOptions: MessageOptions = {
       ...actionKeyboard,

@@ -7,6 +7,7 @@ import { Database } from '../database/Database';
 import { GroupService } from '../services/GroupService';
 import { JokeService } from '../services/JokeService';
 import { NotificationService } from '../services/NotificationService';
+import { GameLifecycleService } from '../services/GameLifecycleService';
 import { createGroupAccessChecker } from './access';
 import { createGamesRouter } from './routes/games';
 import { createSportsRouter } from './routes/sports';
@@ -91,13 +92,14 @@ export function createWebAppServer(db: Database) {
   const groupService = new GroupService(db);
   const canAccessGroup = createGroupAccessChecker(groupService, telegram);
   const notificationService = new NotificationService(telegram, groupService, new JokeService());
+  const lifecycleService = new GameLifecycleService(db, notificationService);
 
   // Serve static files from /public
   const publicDir = path.join(__dirname, '../../public');
   app.use(express.static(publicDir));
 
   // API routes
-  app.use('/api/games', createGamesRouter(db, notificationService, canAccessGroup));
+  app.use('/api/games', createGamesRouter(db, notificationService, lifecycleService, canAccessGroup));
   app.use('/api/sports', createSportsRouter(db, canAccessGroup));
   app.use('/api/locations', createLocationsRouter(db, canAccessGroup));
   app.use('/api/user', createUserRouter(db));

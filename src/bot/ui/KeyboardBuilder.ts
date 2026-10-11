@@ -1,7 +1,10 @@
 import { Markup } from 'telegraf';
 import { Sport } from '../../models/Sport';
-import { Game } from '../../models/Game';
+import { Game, GameStatus } from '../../models/Game';
 import { Location } from '../../models/Location';
+
+/** What the keyboard needs to know about the game to offer the right lifecycle button. */
+export type GameLifecycleState = Pick<Game, 'status' | 'game_date'>;
 
 export class KeyboardBuilder {
   /**
@@ -67,6 +70,8 @@ export class KeyboardBuilder {
    * @param isAdmin - является ли пользователь администратором группы
    * @param inGroup - сообщение живёт в групповом чате; админ-кнопки показываются только в личке,
    *   иначе общая клавиатура группы меняется в зависимости от того, кто нажал последним
+   * @param game - статус и дата игры: админу planned-игры до начала показывается «Отменить», после начала — «Завершить»;
+   *   без неё игра считается запланированной и ещё не начавшейся
    */
   static createGameActionsKeyboard(
     gameId: number,
@@ -74,7 +79,8 @@ export class KeyboardBuilder {
     isAdmin: boolean = false,
     maybeCount: number = 0,
     inGroup: boolean = true,
-    registrationLockHours?: number
+    registrationLockHours?: number,
+    game?: GameLifecycleState
   ) {
     const buttons = [
       [Markup.button.callback(`✅ Точно (${confirmedCount})`, `join_confirmed_${gameId}`)],
@@ -92,6 +98,12 @@ export class KeyboardBuilder {
         ? `🔒 Заморозка: за ${registrationLockHours}ч`
         : '🔓 Заморозить запись';
       buttons.push([Markup.button.callback(lockLabel, `set_lock_${gameId}`)]);
+      if (!game || game.status === GameStatus.PLANNED) {
+        const started = !!game && new Date() >= new Date(game.game_date);
+        buttons.push(started
+          ? [Markup.button.callback('✅ Завершить', `complete_game_${gameId}`)]
+          : [Markup.button.callback('🚫 Отменить игру', `call_off_${gameId}`)]);
+      }
       buttons.push([Markup.button.callback('🗑 Удалить игру', `delete_game_${gameId}`)]);
     }
 

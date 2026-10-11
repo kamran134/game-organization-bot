@@ -89,6 +89,10 @@ describe('callback routing', () => {
     ['cancel_remove_member_5', '^cancel_remove_member_(#)$'],
     ['delete_game_3', '^delete_game_(#)$'],
     ['confirm_delete_game_3', '^confirm_delete_game_(#)$'],
+    ['call_off_5', '^call_off_(#)$'],
+    ['confirm_call_off_5', '^confirm_call_off_(#)$'],
+    ['keep_game_5', '^keep_game_(#)$'],
+    ['complete_game_5', '^complete_game_(#)$'],
     ['sport_5', '^sport_(#)$'],
     ['location_5', '^location_(#)$'],
     ['location_custom', 'location_custom'],
@@ -103,6 +107,20 @@ describe('callback routing', () => {
       assert.equal(firstMatch(callbackData), expectedSource);
     });
   }
+
+  test('lifecycle callbacks do not collide with the creation wizard or the delete flow', () => {
+    for (const data of ['call_off_5', 'confirm_call_off_5', 'keep_game_5', 'complete_game_5']) {
+      const handler = firstMatch(data);
+      assert.ok(handler, data);
+      assert.ok(!handler.includes('(game|training)'), data);
+      assert.ok(!handler.includes('delete_game'), data);
+    }
+    for (const data of ['cancel_game_5', 'confirm_game_5', 'delete_game_5', 'confirm_delete_game_5']) {
+      const handler = firstMatch(data);
+      assert.ok(handler, data);
+      assert.ok(!/call_off|keep_game|complete_game/.test(handler), data);
+    }
+  });
 
   test('only one handler removes a member: no immediate-removal pattern remains', () => {
     const removeHandlers = patterns.filter(
