@@ -1,9 +1,6 @@
 import { Context } from 'telegraf';
 import { CommandHandler } from './base/CommandHandler';
 import { CommandServices } from './base/CommandHandler';
-// import { GameService } from '../../services/GameService';
-// import { SportService } from '../../services/SportService';
-// import { GroupService } from '../../services/GroupService';
 import { LocationService } from '../../services/LocationService';
 import { TrainingCreationStateManager } from '../../utils/TrainingCreationState';
 import { StateManager } from '../../utils/StateManager';

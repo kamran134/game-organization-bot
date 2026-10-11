@@ -1,5 +1,4 @@
 import { Markup } from 'telegraf';
-import type { InlineKeyboardButton } from 'telegraf/types';
 import { Sport } from '../../models/Sport';
 import { Game } from '../../models/Game';
 import { Location } from '../../models/Location';
@@ -66,6 +65,8 @@ export class KeyboardBuilder {
    * @param gameId - ID игры
    * @param confirmedCount - количество подтверждённых участников (для отображения в кнопке)
    * @param isAdmin - является ли пользователь администратором группы
+   * @param inGroup - сообщение живёт в групповом чате; админ-кнопки показываются только в личке,
+   *   иначе общая клавиатура группы меняется в зависимости от того, кто нажал последним
    */
   static createGameActionsKeyboard(
     gameId: number,
@@ -86,7 +87,7 @@ export class KeyboardBuilder {
       buttons.push([Markup.button.callback('📩 В личку', `send_to_dm_${gameId}`)]);
     }
 
-    if (isAdmin) {
+    if (isAdmin && !inGroup) {
       const lockLabel = registrationLockHours
         ? `🔒 Заморозка: за ${registrationLockHours}ч`
         : '🔓 Заморозить запись';
@@ -115,27 +116,6 @@ export class KeyboardBuilder {
   }
 
   /**
-   * Клавиатура управления группой
-   */
-  static createGroupManagementKeyboard(groupId: number, isAdmin: boolean) {
-    const buttons: InlineKeyboardButton[][] = [
-      [Markup.button.callback('👥 Участники', `members_${groupId}`)],
-    ];
-
-    if (isAdmin) {
-      buttons.push([
-        Markup.button.callback('⚙️ Управление', `manage_${groupId}`)
-      ]);
-    }
-
-    buttons.push([
-      Markup.button.callback('🚪 Выйти из группы', `leave_group_${groupId}`)
-    ]);
-
-    return Markup.inlineKeyboard(buttons);
-  }
-
-  /**
    * Клавиатура управления локациями (для админов)
    */
   static createLocationManagementKeyboard(locations: Location[], groupId: number) {
@@ -151,14 +131,11 @@ export class KeyboardBuilder {
   /**
    * Клавиатура подтверждения создания игры
    */
-  static createGameConfirmationKeyboard(userId?: number) {
-    const confirmAction = userId ? `confirm_game_${userId}` : 'confirm_game';
-    const cancelAction = userId ? `cancel_game_${userId}` : 'cancel_game';
-    
+  static createGameConfirmationKeyboard(userId: number) {
     return Markup.inlineKeyboard([
       [
-        Markup.button.callback('✅ Создать', confirmAction),
-        Markup.button.callback('❌ Отмена', cancelAction),
+        Markup.button.callback('✅ Создать', `confirm_game_${userId}`),
+        Markup.button.callback('❌ Отмена', `cancel_game_${userId}`),
       ]
     ]);
   }
@@ -173,20 +150,5 @@ export class KeyboardBuilder {
         Markup.button.callback('❌ Отмена', `cancel_training_${userId}`),
       ]
     ]);
-  }
-
-  /**
-   * Клавиатура списка групп пользователя
-   */
-  static createUserGroupsKeyboard(groups: Array<{ id: number; name: string }>) {
-    if (groups.length === 0) {
-      return undefined;
-    }
-
-    const buttons = groups.map(group => [
-      Markup.button.callback(group.name, `group_${group.id}`)
-    ]);
-
-    return Markup.inlineKeyboard(buttons);
   }
 }

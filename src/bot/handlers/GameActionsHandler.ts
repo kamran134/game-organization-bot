@@ -1,12 +1,11 @@
 import { Context, Markup, Telegraf } from 'telegraf';
 import { ActionHandler, ActionServices } from './base/ActionHandler';
-import { ParticipationStatus } from '../../models/GameParticipant';
+import { GameParticipant, ParticipationStatus } from '../../models/GameParticipant';
 import { GroupRole } from '../../models/GroupMember';
 import { KeyboardBuilder } from '../ui/KeyboardBuilder';
 import { GameMessageBuilder } from '../ui/GameMessageBuilder';
 import { Game } from '../../models/Game';
 import { Database } from '../../database/Database';
-import { escapeHtml } from '../../utils/helpers';
 import { isMessageNotModified } from '../utils/telegramErrors';
 
 export class GameActionsHandler extends ActionHandler {
@@ -73,36 +72,16 @@ export class GameActionsHandler extends ActionHandler {
         // Обновляем кнопки
         const game = await this.services.gameService.getGameById(gameId);
         if (game) {
-          const confirmedCount = game.participants?.filter((p: any) => p.participation_status === ParticipationStatus.CONFIRMED).length || 0;
-          const maybeCount = game.participants?.filter((p: any) => p.participation_status === ParticipationStatus.MAYBE).length || 0;
-          const isAdmin = await this.services.groupService.isUserAdmin(user.id, game.group_id);
-          
+          const confirmedCount = game.participants?.filter((p: GameParticipant) => p.participation_status === ParticipationStatus.CONFIRMED).length || 0;
+          const maybeCount = game.participants?.filter((p: GameParticipant) => p.participation_status === ParticipationStatus.MAYBE).length || 0;
           const inGroup = ctx.chat?.type !== 'private';
+          const isAdmin = !inGroup && await this.services.groupService.isUserAdmin(user.id, game.group_id);
           await this.refreshKeyboard(
             ctx,
             KeyboardBuilder.createGameActionsKeyboard(gameId, confirmedCount, isAdmin, maybeCount, inGroup, game.registration_lock_hours).reply_markup
           );
 
-          // Отправляем сообщение в группу о том кто отказался
-          const userName = user.fullName;
-
-          if (game.group.telegram_chat_id) {
-            try {
-              const joke = await this.services.jokeService.getDeclineJoke(userName);
-              const safeJoke = escapeHtml(joke);
-              await ctx.telegram.sendMessage(
-                game.group.telegram_chat_id,
-                `❌ ${escapeHtml(userName)} отказался от участия\n\n🤖 <i>${safeJoke}</i>`,
-                { parse_mode: 'HTML' }
-              );
-            } catch (sendError) {
-              console.error('Error sending decline notification to group:', sendError);
-              console.log('Group chat_id:', game.group.telegram_chat_id);
-              console.log('User:', userName);
-            }
-          } else {
-            console.error('Game group has no telegram_chat_id:', game.id);
-          }
+          await this.services.notificationService.notifyDeclined(game, user);
         }
       } catch (error) {
         console.error('Error leaving game:', error);
@@ -120,8 +99,8 @@ export class GameActionsHandler extends ActionHandler {
         return;
       }
 
-      const confirmedCount = game.participants?.filter((p: any) => p.participation_status === ParticipationStatus.CONFIRMED).length || 0;
-      const maybeCount = game.participants?.filter((p: any) => p.participation_status === ParticipationStatus.MAYBE).length || 0;
+      const confirmedCount = game.participants?.filter((p: GameParticipant) => p.participation_status === ParticipationStatus.CONFIRMED).length || 0;
+      const maybeCount = game.participants?.filter((p: GameParticipant) => p.participation_status === ParticipationStatus.MAYBE).length || 0;
 
       let isAdmin = false;
       if (ctx.from) {
@@ -299,9 +278,9 @@ export class GameActionsHandler extends ActionHandler {
     bot.action(/^disable_lock_(\d+)$/, async (ctx) => {
       const gameId = parseInt(ctx.match[1]);
       await ctx.answerCbQuery();
-      const game = await this.services.gameService.getGameById(gameId);
-      if (!game) { await ctx.editMessageText('❌ Игра не найдена'); return; }
-      if (!await this.checkAdmin(ctx, game.group_id)) {
+      const groupId = await this.services.gameService.getGameGroupId(gameId);
+      if (groupId === null) { await ctx.editMessageText('❌ Игра не найдена'); return; }
+      if (!await this.checkAdmin(ctx, groupId)) {
         await ctx.editMessageText('❌ Только для администраторов');
         return;
       }
@@ -349,7 +328,7 @@ export class GameActionsHandler extends ActionHandler {
       }
 
       // Проверяем, записан ли уже на игру
-      const existingParticipant = game.participants?.find((p: any) => p.user_id === user.id);
+      const existingParticipant = game.participants?.find((p: GameParticipant) => p.user_id === user.id);
       
       await this.services.gameService.addParticipant(gameId, user.id, status);
       
@@ -361,32 +340,18 @@ export class GameActionsHandler extends ActionHandler {
       const updatedGame = await this.services.gameService.getGameById(gameId);
       if (!updatedGame) return;
 
-      const confirmedCount = updatedGame.participants?.filter((p: any) => p.participation_status === ParticipationStatus.CONFIRMED).length || 0;
-      const maybeCount = updatedGame.participants?.filter((p: any) => p.participation_status === ParticipationStatus.MAYBE).length || 0;
+      const confirmedCount = updatedGame.participants?.filter((p: GameParticipant) => p.participation_status === ParticipationStatus.CONFIRMED).length || 0;
+      const maybeCount = updatedGame.participants?.filter((p: GameParticipant) => p.participation_status === ParticipationStatus.MAYBE).length || 0;
       
-      const isAdmin = await this.services.groupService.isUserAdmin(user.id, game.group_id);
       const inGroupJoin = ctx.chat?.type !== 'private';
+      const isAdmin = !inGroupJoin && await this.services.groupService.isUserAdmin(user.id, game.group_id);
 
       await this.refreshKeyboard(
         ctx,
         KeyboardBuilder.createGameActionsKeyboard(gameId, confirmedCount, isAdmin, maybeCount, inGroupJoin, updatedGame.registration_lock_hours).reply_markup
       );
 
-      const displayName = user.fullName;
-      const notifyEmoji = status === ParticipationStatus.CONFIRMED ? '✅' : '❓';
-      const notifyStatus = status === ParticipationStatus.CONFIRMED ? 'точно идёт' : 'возможно придёт';
-      const actionLabel = existingParticipant ? 'Обновление:' : 'Новая запись:';
-
-      if (updatedGame.group?.telegram_chat_id) {
-        try {
-          await ctx.telegram.sendMessage(
-            updatedGame.group.telegram_chat_id,
-            `${notifyEmoji} ${actionLabel} ${displayName} — ${notifyStatus}`
-          );
-        } catch (err) {
-          console.error('Error sending join notification to group:', err);
-        }
-      }
+      await this.services.notificationService.notifyJoined(updatedGame, user, status, !!existingParticipant);
     } catch (error) {
       console.error('Error joining game:', error);
       await ctx.answerCbQuery('❌ Ошибка записи');
@@ -407,26 +372,26 @@ export class GameActionsHandler extends ActionHandler {
     }
   }
 
-  private async showParticipantsList(ctx: Context, game: any) {
+  private async showParticipantsList(ctx: Context, game: Game) {
     const message = GameMessageBuilder.formatParticipantsMessage(game);
     await ctx.reply(message);
   }
   
-  private async showGameDetails(ctx: Context, game: any) {
+  private async showGameDetails(ctx: Context, game: Game) {
     const message = GameMessageBuilder.formatGameCard(game);
-    const confirmedCount = game.participants?.filter((p: any) => p.participation_status === ParticipationStatus.CONFIRMED).length || 0;
-    const maybeCount = game.participants?.filter((p: any) => p.participation_status === ParticipationStatus.MAYBE).length || 0;
+    const confirmedCount = game.participants?.filter((p: GameParticipant) => p.participation_status === ParticipationStatus.CONFIRMED).length || 0;
+    const maybeCount = game.participants?.filter((p: GameParticipant) => p.participation_status === ParticipationStatus.MAYBE).length || 0;
     
-    // Проверяем isAdmin
+    // Admin buttons exist only in private chats, so the lookup is pointless in a group
+    const inGroup = ctx.chat?.type !== 'private';
     let isAdmin = false;
-    if (ctx.from) {
+    if (!inGroup && ctx.from) {
       const user = await this.services.userService.getUserByTelegramId(ctx.from.id);
       if (user) {
         isAdmin = await this.services.groupService.isUserAdmin(user.id, game.group_id);
       }
     }
-    
-    const inGroup = ctx.chat?.type !== 'private';
+
     await ctx.reply(message, {
       parse_mode: 'Markdown',
       ...KeyboardBuilder.createGameActionsKeyboard(game.id, confirmedCount, isAdmin, maybeCount, inGroup, game.registration_lock_hours),

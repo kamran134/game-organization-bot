@@ -4,7 +4,7 @@ import { GroupService } from '../../../services/GroupService';
 import { GameService } from '../../../services/GameService';
 import { SportService } from '../../../services/SportService';
 import { LocationService } from '../../../services/LocationService';
-import { JokeService } from '../../../services/JokeService';
+import { NotificationService } from '../../../services/NotificationService';
 import { GameCreationStateManager } from '../../../utils/GameCreationState';
 import { LocationEditStateManager } from '../../../utils/LocationEditState';
 import { LocationEditFlow } from '../../flows/LocationEditFlow';
@@ -15,7 +15,7 @@ export interface ActionServices {
   gameService: GameService;
   sportService: SportService;
   locationService: LocationService;
-  jokeService: JokeService;
+  notificationService: NotificationService;
   gameCreationStates: GameCreationStateManager;
   locationEditStates?: LocationEditStateManager;
   locationEditFlow?: LocationEditFlow;
@@ -29,14 +29,6 @@ export abstract class ActionHandler {
   }
 
   abstract register(bot: Telegraf): void;
-
-  protected isGroupChat(ctx: Context): boolean {
-    return ctx.chat?.type !== 'private';
-  }
-
-  protected isPrivateChat(ctx: Context): boolean {
-    return ctx.chat?.type === 'private';
-  }
 
   /**
    * Returns true if the calling Telegram user is an admin in the given group.

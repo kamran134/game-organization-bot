@@ -1,17 +1,25 @@
 import { Context, Markup } from 'telegraf';
+import { ExtraEditMessageText, ExtraReplyMessage } from 'telegraf/typings/telegram-types';
 import { GameType } from '../../models/GameType';
 import { KeyboardBuilder } from './KeyboardBuilder';
 import { GameMessageBuilder } from './GameMessageBuilder';
-import { ParticipationStatus } from '../../models/GameParticipant';
+import { Game } from '../../models/Game';
+import { GameParticipant, ParticipationStatus } from '../../models/GameParticipant';
+import { GameService } from '../../services/GameService';
+import { GroupService } from '../../services/GroupService';
+import { UserService } from '../../services/UserService';
 import { isMessageNotModified } from '../utils/telegramErrors';
 
 export type GamesFilter = 'all' | 'games' | 'trainings';
 
-interface GamesViewServices {
-  gameService: any;
-  groupService: any;
-  userService: any;
+export interface GamesViewServices {
+  gameService: Pick<GameService, 'getUpcomingGroupGames'>;
+  groupService: Pick<GroupService, 'isUserAdmin'>;
+  userService: Pick<UserService, 'getUserByTelegramId'>;
 }
+
+type FilterButtons = ReturnType<typeof GamesView.buildFilterButtons>;
+type MessageOptions = ExtraReplyMessage & ExtraEditMessageText;
 
 /**
  * Shared rendering logic for the games list used by both
@@ -26,7 +34,7 @@ export class GamesView {
     ];
   }
 
-  static filterGames(allGames: any[], filter: GamesFilter): any[] {
+  static filterGames(allGames: Game[], filter: GamesFilter): Game[] {
     if (filter === 'games') return allGames.filter((g) => g.type === GameType.GAME);
     if (filter === 'trainings') return allGames.filter((g) => g.type === GameType.TRAINING);
     return allGames;
@@ -45,9 +53,9 @@ export class GamesView {
   }
 
   /** Edits the message in place; re-tapping the active filter yields an identical message, which is not an error. */
-  private static async edit(ctx: Context, text: string, extra: any): Promise<void> {
+  private static async edit(ctx: Context, text: string, extra: MessageOptions): Promise<void> {
     try {
-      await (ctx as any).editMessageText(text, extra);
+      await ctx.editMessageText(text, extra);
     } catch (error) {
       if (!isMessageNotModified(error)) throw error;
     }
@@ -85,7 +93,7 @@ export class GamesView {
 
     if (listKeyboard?.reply_markup?.inline_keyboard) {
       const text = `${emoji} ${title} (${filteredGames.length}):\n\nВыберите:`;
-      const options: any = {
+      const options: MessageOptions = {
         ...listKeyboard,
         reply_markup: {
           inline_keyboard: [filterButtons, ...listKeyboard.reply_markup.inline_keyboard],
@@ -102,8 +110,8 @@ export class GamesView {
   static async showGameDetails(
     ctx: Context,
     services: GamesViewServices,
-    game: any,
-    filterButtons: any[],
+    game: Game,
+    filterButtons: FilterButtons,
     mode: 'reply' | 'edit'
   ): Promise<void> {
     const message =
@@ -113,22 +121,23 @@ export class GamesView {
 
     const confirmedCount =
       game.participants?.filter(
-        (p: any) => p.participation_status === ParticipationStatus.CONFIRMED
+        (p: GameParticipant) => p.participation_status === ParticipationStatus.CONFIRMED
       ).length ?? 0;
     const maybeCount =
       game.participants?.filter(
-        (p: any) => p.participation_status === ParticipationStatus.MAYBE
+        (p: GameParticipant) => p.participation_status === ParticipationStatus.MAYBE
       ).length ?? 0;
 
+    // Admin buttons exist only in private chats, so the lookup is pointless in a group
+    const inGroup = ctx.chat?.type !== 'private';
     let isAdmin = false;
-    if (ctx.from) {
+    if (!inGroup && ctx.from) {
       const user = await services.userService.getUserByTelegramId(ctx.from.id);
       if (user) {
         isAdmin = await services.groupService.isUserAdmin(user.id, game.group_id);
       }
     }
 
-    const inGroup = ctx.chat?.type !== 'private';
     const actionKeyboard = KeyboardBuilder.createGameActionsKeyboard(
       game.id,
       confirmedCount,
@@ -137,7 +146,7 @@ export class GamesView {
       inGroup,
       game.registration_lock_hours
     );
-    const msgOptions: any = {
+    const msgOptions: MessageOptions = {
       ...actionKeyboard,
       reply_markup: {
         inline_keyboard: [filterButtons, ...actionKeyboard.reply_markup!.inline_keyboard!],

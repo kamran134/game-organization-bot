@@ -28,14 +28,6 @@ export class EditLocationCommand {
     return 'Редактировать локацию (только для админов)';
   }
 
-  get isGroupOnly(): boolean {
-    return true;
-  }
-
-  get isPrivateOnly(): boolean {
-    return false;
-  }
-
   async execute(ctx: Context): Promise<void> {
     // Проверяем что команда вызвана в группе
     if (!ctx.chat || ctx.chat.type === 'private') {

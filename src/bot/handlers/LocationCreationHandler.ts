@@ -78,7 +78,6 @@ export class LocationCreationHandler extends BotHandler {
 
     // Обработка отмены создания локации
     this.bot.action('cancel_location', async (ctx) => {
-      // const userId = ctx.from!.id;
       await ctx.answerCbQuery();
       await this.services.locationManagementFlow.handleCancellation(ctx);
     });

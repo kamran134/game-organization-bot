@@ -3,10 +3,7 @@ import assert from 'node:assert/strict';
 import { GameParticipant, ParticipationStatus } from '../../models/GameParticipant';
 import { User } from '../../models/User';
 import {
-  formatGameStatus,
-  formatParticipantName,
   formatParticipantsList,
-  formatParticipantsCount,
   formatMention,
   formatMembersMentions,
 } from '../../bot/ui/formatters';
@@ -29,67 +26,6 @@ function makeParticipant(
   }
   return p;
 }
-
-// ---------------------------------------------------------------------------
-// formatGameStatus
-// ---------------------------------------------------------------------------
-describe('formatGameStatus', () => {
-  test('planned', () => {
-    assert.match(formatGameStatus('planned'), /Запланирована/);
-  });
-
-  test('active', () => {
-    assert.match(formatGameStatus('active'), /Активна/);
-  });
-
-  test('completed', () => {
-    assert.match(formatGameStatus('completed'), /Завершена/);
-  });
-
-  test('cancelled', () => {
-    assert.match(formatGameStatus('cancelled'), /Отменена/);
-  });
-
-  test('unknown status returns the raw string', () => {
-    assert.equal(formatGameStatus('unknown_status'), 'unknown_status');
-  });
-});
-
-// ---------------------------------------------------------------------------
-// formatParticipantName
-// ---------------------------------------------------------------------------
-describe('formatParticipantName', () => {
-  test('CONFIRMED shows ✅ emoji', () => {
-    const p = makeParticipant(ParticipationStatus.CONFIRMED, { first_name: 'Ivan' });
-    assert.ok(formatParticipantName(p).startsWith('✅'));
-  });
-
-  test('MAYBE shows ❓ emoji', () => {
-    const p = makeParticipant(ParticipationStatus.MAYBE, { first_name: 'Ivan' });
-    assert.ok(formatParticipantName(p).startsWith('❓'));
-  });
-
-  test('GUEST shows 👤 emoji', () => {
-    const p = makeParticipant(ParticipationStatus.GUEST, { guest_name: 'Гость' });
-    assert.ok(formatParticipantName(p).startsWith('👤'));
-  });
-
-  test('prefers our first_name over @username', () => {
-    const p = makeParticipant(ParticipationStatus.CONFIRMED, { username: 'ivanpetrov', first_name: 'Ivan' });
-    assert.match(formatParticipantName(p), /Ivan/);
-    assert.doesNotMatch(formatParticipantName(p), /@ivanpetrov/);
-  });
-
-  test('uses first_name when no username', () => {
-    const p = makeParticipant(ParticipationStatus.CONFIRMED, { first_name: 'Ivan' });
-    assert.match(formatParticipantName(p), /Ivan/);
-  });
-
-  test('uses guest_name when no user', () => {
-    const p = makeParticipant(ParticipationStatus.GUEST, { guest_name: 'Алексей' });
-    assert.match(formatParticipantName(p), /Алексей/);
-  });
-});
 
 // ---------------------------------------------------------------------------
 // formatParticipantsList
@@ -136,22 +72,6 @@ describe('formatParticipantsList', () => {
       makeParticipant(ParticipationStatus.GUEST, { guest_name: `G${i}` })
     );
     assert.match(formatParticipantsList(guests), /5 гостей/);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// formatParticipantsCount
-// ---------------------------------------------------------------------------
-describe('formatParticipantsCount', () => {
-  test('formats confirmed/max and maybe count', () => {
-    const result = formatParticipantsCount(3, 2, 2, 10);
-    assert.match(result, /3\/10/);
-    assert.match(result, /ещё 2/);
-  });
-
-  test('works with zero maybeCount', () => {
-    const result = formatParticipantsCount(5, 0, 2, 8);
-    assert.match(result, /5\/8/);
   });
 });
 

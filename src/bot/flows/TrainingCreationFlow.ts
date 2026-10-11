@@ -6,10 +6,9 @@ import { LocationService } from '../../services/LocationService';
 import { TrainingCreationStateManager, TrainingCreationState } from '../../utils/TrainingCreationState';
 import { KeyboardBuilder } from '../ui/KeyboardBuilder';
 import { GameMessageBuilder } from '../ui/GameMessageBuilder';
+import { NotificationService } from '../../services/NotificationService';
 import { GameCreationValidator } from './GameCreationValidator';
-// import { formatDate } from '../../utils/helpers';
 import { GameType } from '../../models/GameType';
-import { formatMembersMentions } from '../ui/formatters';
 
 export interface TrainingCreationServices {
   gameService: GameService;
@@ -17,13 +16,13 @@ export interface TrainingCreationServices {
   sportService: SportService;
   locationService: LocationService;
   trainingCreationStates: TrainingCreationStateManager;
+  notificationService: NotificationService;
 }
 
 export class TrainingCreationFlow {
   constructor(private services: TrainingCreationServices) {}
 
   async handleTextInput(ctx: Context, userId: number, text: string): Promise<void> {
-    console.log('text input:', text);
     const state = this.services.trainingCreationStates.get(userId);
     if (!state) return;
 
@@ -387,21 +386,10 @@ export class TrainingCreationFlow {
     await ctx.editMessageText('✅ Тренировка создана!');
     await ctx.reply(message, {
       parse_mode: 'Markdown',
-      ...GameMessageBuilder.buildGameActionsKeyboard(training.id, 0, true, 0),
+      ...GameMessageBuilder.buildGameActionsKeyboard(training.id, 0, true, 0, ctx.chat?.type !== 'private'),
     });
 
-    try {
-      const group = await this.services.groupService.getGroupById(state.groupId);
-      if (group?.telegram_chat_id) {
-        const members = await this.services.groupService.getGroupMembers(state.groupId);
-        const mentions = formatMembersMentions(members);
-        if (mentions) {
-          await ctx.telegram.sendMessage(group.telegram_chat_id, `👆 ${mentions}`, { parse_mode: 'HTML' });
-        }
-      }
-    } catch (mentionError) {
-      console.error('Error sending mention notification:', mentionError);
-    }
+    await this.services.notificationService.mentionMembers(state.groupId);
   }
 
   async cancelTraining(ctx: Context, userId: number): Promise<void> {

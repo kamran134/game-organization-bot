@@ -110,40 +110,6 @@ describe('GameMessageBuilder.formatGameCard', () => {
 });
 
 // ---------------------------------------------------------------------------
-// formatGameSummary
-// ---------------------------------------------------------------------------
-describe('GameMessageBuilder.formatGameSummary', () => {
-  test('contains sport emoji and name', () => {
-    const result = GameMessageBuilder.formatGameSummary(makeGame());
-    assert.match(result, /⚽ Футбол/);
-  });
-
-  test('contains location name', () => {
-    assert.match(GameMessageBuilder.formatGameSummary(makeGame()), /Стадион/);
-  });
-
-  test('contains confirmed/max ratio', () => {
-    const g = makeGame({ participants: [makeParticipant(ParticipationStatus.CONFIRMED)], max_participants: 10 });
-    assert.match(GameMessageBuilder.formatGameSummary(g), /1\/10/);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// formatJoinSuccessMessage
-// ---------------------------------------------------------------------------
-describe('GameMessageBuilder.formatJoinSuccessMessage', () => {
-  test('confirmed returns join message', () => {
-    const msg = GameMessageBuilder.formatJoinSuccessMessage('confirmed');
-    assert.match(msg, /Вы записаны/);
-  });
-
-  test('maybe returns maybe message', () => {
-    const msg = GameMessageBuilder.formatJoinSuccessMessage('maybe');
-    assert.match(msg, /Возможно/);
-  });
-});
-
-// ---------------------------------------------------------------------------
 // buildConfirmationMessage
 // ---------------------------------------------------------------------------
 describe('GameMessageBuilder.buildConfirmationMessage', () => {

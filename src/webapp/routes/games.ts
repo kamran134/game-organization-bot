@@ -15,22 +15,16 @@ import { requireUser, currentUser } from '../middleware/requireUser';
 import { GroupAccessChecker } from '../access';
 import { serializeGame } from '../serializers';
 import { parseGameBody } from '../gameBodyValidator';
-import { Telegram } from 'telegraf';
-import { GameMessageBuilder } from '../../bot/ui/GameMessageBuilder';
-import { KeyboardBuilder } from '../../bot/ui/KeyboardBuilder';
-import { JokeService } from '../../services/JokeService';
-import { formatMembersMentions } from '../../bot/ui/formatters';
-import { escapeHtml, escapeMarkdownV1 } from '../../utils/helpers';
+import { NotificationService } from '../../services/NotificationService';
 import { ValidationError } from '../../utils/errors';
 
-export function createGamesRouter(db: Database, telegram: Telegram, canAccessGroup: GroupAccessChecker): Router {
+export function createGamesRouter(db: Database, notifications: NotificationService, canAccessGroup: GroupAccessChecker): Router {
   const router = Router();
   const gameService = new GameService(db);
   const userService = new UserService(db);
   const groupService = new GroupService(db);
   const sportService = new SportService(db);
   const locationService = new LocationService(db);
-  const jokeService = new JokeService();
 
   router.use(verifyTelegramInitData, requireUser(userService));
 
@@ -41,6 +35,15 @@ export function createGamesRouter(db: Database, telegram: Telegram, canAccessGro
     const isAdmin = await groupService.isUserAdmin(user.id, game.group_id);
     if (!isAdmin) { res.status(403).json({ error: 'Admin only' }); return null; }
     return game;
+  }
+
+  /** Admin check for routes that only need the game's group, not the whole game; sends the error response and returns false otherwise. */
+  async function requireGameAdmin(gameId: number, user: User, res: Response): Promise<boolean> {
+    const groupId = await gameService.getGameGroupId(gameId);
+    if (groupId === null) { res.status(404).json({ error: 'Game not found' }); return false; }
+    const isAdmin = await groupService.isUserAdmin(user.id, groupId);
+    if (!isAdmin) { res.status(403).json({ error: 'Admin only' }); return false; }
+    return true;
   }
 
   /** The sport must be a base sport or belong to the group, and be active. */
@@ -139,30 +142,14 @@ export function createGamesRouter(db: Database, telegram: Telegram, canAccessGro
         type: gameType,
       });
 
-      // Send notification to the Telegram group
+      // The game is already saved: a failed notification must not fail the request
       try {
-        const group = await groupService.getGroupById(groupId);
-        if (group?.telegram_chat_id) {
-          const gameWithRelations = await gameService.getGameById(game.id);
-          if (gameWithRelations) {
-            const isAdmin = await groupService.isUserAdmin(user.id, groupId);
-            const text = GameMessageBuilder.formatGameCreatedMessage(gameWithRelations);
-            const keyboard = KeyboardBuilder.createGameActionsKeyboard(game.id, 0, isAdmin, 0);
-            await telegram.sendMessage(
-              Number(group.telegram_chat_id),
-              text,
-              { parse_mode: 'Markdown', ...keyboard }
-            );
-
-            const members = await groupService.getGroupMembers(groupId);
-            const mentions = formatMembersMentions(members);
-            if (mentions) {
-              await telegram.sendMessage(Number(group.telegram_chat_id), `👆 ${mentions}`, { parse_mode: 'HTML' });
-            }
-          }
+        const gameWithRelations = await gameService.getGameById(game.id);
+        if (gameWithRelations) {
+          await notifications.notifyGameCreated(gameWithRelations);
+          await notifications.mentionMembers(groupId);
         }
       } catch (notifyError) {
-        // Don't fail the request if notification fails
         console.error('Failed to send group notification:', notifyError);
       }
 
@@ -220,24 +207,14 @@ export function createGamesRouter(db: Database, telegram: Telegram, canAccessGro
       res.json({ message: 'Registered successfully' });
 
       // Send notification to the Telegram group (fire-and-forget)
-      setImmediate(async () => { try {
-        const updatedGame = await gameService.getGameById(gameId);
-        if (updatedGame?.group?.telegram_chat_id) {
-          const userName = [user.first_name, user.last_name].filter(Boolean).join(' ');
-          const participantsText = GameMessageBuilder.formatParticipantsMessage(updatedGame);
-          const emoji = participationStatus === ParticipationStatus.MAYBE ? '❓' : '✅';
-          const actionText = participationStatus === ParticipationStatus.MAYBE
-            ? 'Новая запись "не точно" (веб):'
-            : 'Новая запись (веб):';
-          await telegram.sendMessage(
-            Number(updatedGame.group.telegram_chat_id),
-            `${emoji} ${actionText} ${escapeMarkdownV1(userName)}\n\n${escapeMarkdownV1(participantsText)}`,
-            { parse_mode: 'Markdown' }
-          );
+      setImmediate(async () => {
+        try {
+          const updatedGame = await gameService.getGameById(gameId);
+          if (updatedGame) await notifications.notifyJoined(updatedGame, user, participationStatus, false, 'web');
+        } catch (notifyError) {
+          console.error('Failed to send join notification to group:', notifyError);
         }
-      } catch (notifyError) {
-        console.error('Failed to send join notification to group:', notifyError);
-      }});
+      });
     } catch (error) {
       const err = error as NodeJS.ErrnoException;
       if ((err as {code?: string})?.code === '23505' || (err as Error)?.message?.includes('duplicate')) {
@@ -271,22 +248,14 @@ export function createGamesRouter(db: Database, telegram: Telegram, canAccessGro
       if (!wasParticipant) return;
 
       // Send cancel notification (fire-and-forget)
-      setImmediate(async () => { try {
-        const updatedGame = await gameService.getGameById(gameId);
-        if (updatedGame?.group?.telegram_chat_id) {
-          const userName = [user.first_name, user.last_name].filter(Boolean).join(' ');
-          const participantsText = GameMessageBuilder.formatParticipantsMessage(updatedGame);
-          const joke = await jokeService.getDeclineJoke(userName);
-          const safeJoke = joke.replace(/</g, '&lt;').replace(/>/g, '&gt;');
-          await telegram.sendMessage(
-            Number(updatedGame.group.telegram_chat_id),
-            `❌ ${escapeHtml(userName)} отказался от участия через веб-приложение\n\n🤖 <i>${safeJoke}</i>\n\n${escapeHtml(participantsText)}`,
-            { parse_mode: 'HTML' }
-          );
+      setImmediate(async () => {
+        try {
+          const updatedGame = await gameService.getGameById(gameId);
+          if (updatedGame) await notifications.notifyDeclined(updatedGame, user, 'web');
+        } catch (notifyError) {
+          console.error('Failed to send cancel notification to group:', notifyError);
         }
-      } catch (notifyError) {
-        console.error('Failed to send cancel notification to group:', notifyError);
-      }});
+      });
     } catch (error) {
       console.error('Error cancelling:', error);
       res.status(500).json({ error: 'Failed to cancel' });
@@ -350,21 +319,7 @@ export function createGamesRouter(db: Database, telegram: Telegram, canAccessGro
       const gameRepo = db.getRepository(Game);
       await gameRepo.remove(game);
 
-      // Notify group
-      try {
-        if (game.group?.telegram_chat_id) {
-          const sportName = game.sport ? `${game.sport.emoji} ${game.sport.name}` : 'Игра';
-          const dateStr = new Date(game.game_date).toLocaleString('ru-RU', {
-            day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit',
-          });
-          await telegram.sendMessage(
-            Number(game.group.telegram_chat_id),
-            `🗑 Игра удалена администратором\n\n${sportName}\n📅 ${dateStr}`
-          );
-        }
-      } catch (notifyError) {
-        console.error('Failed to send delete notification:', notifyError);
-      }
+      await notifications.notifyGameDeleted(game);
 
       res.json({ message: 'Deleted successfully' });
     } catch (error) {
@@ -380,8 +335,7 @@ export function createGamesRouter(db: Database, telegram: Telegram, canAccessGro
     const gameId = parseInt(req.params.id);
     if (!gameId) { res.status(400).json({ error: 'Invalid game id' }); return; }
     try {
-      const game = await loadGameForAdmin(gameId, currentUser(req), res);
-      if (!game) return;
+      if (!(await requireGameAdmin(gameId, currentUser(req), res))) return;
 
       const { first_name, last_name } = req.body as { first_name?: string; last_name?: string };
       if (!first_name?.trim()) {
@@ -403,8 +357,7 @@ export function createGamesRouter(db: Database, telegram: Telegram, canAccessGro
     const participantId = parseInt(req.params.participantId);
     if (!gameId || !participantId) { res.status(400).json({ error: 'Invalid ids' }); return; }
     try {
-      const game = await loadGameForAdmin(gameId, currentUser(req), res);
-      if (!game) return;
+      if (!(await requireGameAdmin(gameId, currentUser(req), res))) return;
 
       const { first_name, last_name } = req.body as { first_name?: string; last_name?: string };
       if (!first_name?.trim()) {
@@ -426,8 +379,7 @@ export function createGamesRouter(db: Database, telegram: Telegram, canAccessGro
     const participantId = parseInt(req.params.participantId);
     if (!gameId || !participantId) { res.status(400).json({ error: 'Invalid ids' }); return; }
     try {
-      const game = await loadGameForAdmin(gameId, currentUser(req), res);
-      if (!game) return;
+      if (!(await requireGameAdmin(gameId, currentUser(req), res))) return;
 
       await gameService.removeGuest(participantId, gameId);
       res.json({ message: 'Guest removed' });

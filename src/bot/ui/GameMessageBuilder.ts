@@ -65,18 +65,6 @@ export class GameMessageBuilder {
   }
 
   /**
-   * Краткая информация об игре (для списка)
-   */
-  static formatGameSummary(game: Game): string {
-    const sportEmoji = game.sport?.emoji || '⚽';
-    const sportName = game.sport?.name || 'Игра';
-    const confirmedCount = game.participants?.filter(p => p.participation_status === 'confirmed').length || 0;
-    
-    return `${sportEmoji} ${sportName} - ${formatDate(game.game_date)}\n` +
-           `📍 ${game.location?.name || game.location_text || 'Не указано'} | 👥 ${confirmedCount}/${game.max_participants}`;
-  }
-
-  /**
    * Подтверждение создания игры
    */
   static formatGameConfirmation(state: GameCreationState): string {
@@ -128,31 +116,6 @@ export class GameMessageBuilder {
    */
   static formatGameCreatedMessage(game: Game): string {
     return `✅ Игра создана!\n\n${this.formatGameCard(game)}`;
-  }
-
-  /**
-   * Сообщение "игра не найдена"
-   */
-  static formatGameNotFoundMessage(): string {
-    return '❌ Игра не найдена или была удалена.';
-  }
-
-  /**
-   * Сообщение об успешной записи на игру
-   */
-  static formatJoinSuccessMessage(status: 'confirmed' | 'maybe'): string {
-    if (status === 'confirmed') {
-      return '✅ Вы записаны на игру!';
-    } else {
-      return '❓ Вы отметились как "Возможно приду"';
-    }
-  }
-
-  /**
-   * Сообщение об отказе от игры
-   */
-  static formatLeaveSuccessMessage(): string {
-    return '👋 Вы отказались от участия в игре';
   }
 
   /**
@@ -240,7 +203,7 @@ export class GameMessageBuilder {
   /**
    * Клавиатура действий для игры/тренировки
    */
-  static buildGameActionsKeyboard(gameId: number, confirmedCount: number, isAdmin: boolean, maybeCount: number = 0) {
-    return KeyboardBuilder.createGameActionsKeyboard(gameId, confirmedCount, isAdmin, maybeCount);
+  static buildGameActionsKeyboard(gameId: number, confirmedCount: number, isAdmin: boolean, maybeCount: number = 0, inGroup: boolean = true) {
+    return KeyboardBuilder.createGameActionsKeyboard(gameId, confirmedCount, isAdmin, maybeCount, inGroup);
   }
 }

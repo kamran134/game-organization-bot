@@ -4,26 +4,18 @@ import { Database } from '../../database/Database';
 import { UserService } from '../../services/UserService';
 import { GroupService } from '../../services/GroupService';
 import { GameService } from '../../services/GameService';
+import { PaymentService } from '../../services/PaymentService';
+import { currentMonth, isValidMonth } from '../../utils/helpers';
 import { verifyTelegramInitData } from '../middleware/telegramAuth';
 import { requireUser, currentUser } from '../middleware/requireUser';
 import { GameType } from '../../models/GameType';
-
-/** Returns 'YYYY-MM' for the current month in UTC. */
-function currentMonth(): string {
-  const d = new Date();
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
-}
-
-/** Validates that a string matches 'YYYY-MM'. */
-function isValidMonth(value: string): boolean {
-  return /^\d{4}-(0[1-9]|1[0-2])$/.test(value);
-}
 
 export function createPaymentsRouter(db: Database): Router {
   const router = Router();
   const userService = new UserService(db);
   const groupService = new GroupService(db);
   const gameService = new GameService(db);
+  const paymentService = new PaymentService(db);
 
   router.use(verifyTelegramInitData, requireUser(userService));
 
@@ -75,30 +67,7 @@ export function createPaymentsRouter(db: Database): Router {
 
       if (game.type === GameType.TRAINING) {
         // Training: load group members + their payment for the chosen month
-        const rows = await db.dataSource.query<Array<{
-          user_id: number;
-          first_name: string | null;
-          last_name: string | null;
-          username: string | null;
-          amount: string | null;
-        }>>(
-          `WITH relevant_users AS (
-             SELECT user_id FROM group_members WHERE group_id = $1 AND is_active = true
-             UNION
-             SELECT user_id FROM payments WHERE group_id = $1 AND period_month = $2 AND game_id IS NULL AND user_id IS NOT NULL
-           )
-           SELECT ru.user_id, u.first_name, u.last_name, u.username,
-                  p.amount
-           FROM relevant_users ru
-           JOIN users u ON u.id = ru.user_id
-           LEFT JOIN payments p
-             ON p.group_id     = $1
-            AND p.period_month = $2
-            AND p.user_id      = ru.user_id
-            AND p.game_id IS NULL
-           ORDER BY u.first_name, u.last_name`,
-          [game.group_id, monthParam],
-        );
+        const rows = await paymentService.getTrainingMemberPayments(game.group_id, monthParam);
         people = rows.map((r) => ({
           user_id:        r.user_id,
           guest_name:     null,
@@ -109,29 +78,7 @@ export function createPaymentsRouter(db: Database): Router {
         }));
       } else {
         // Game: load confirmed+guest participants + their payment for this game
-        const rows = await db.dataSource.query<Array<{
-          user_id: number | null;
-          guest_name: string | null;
-          first_name: string | null;
-          last_name: string | null;
-          username: string | null;
-          amount: string | null;
-        }>>(
-          `SELECT gp.user_id, gp.guest_name, u.first_name, u.last_name, u.username,
-                  p.amount
-           FROM game_participants gp
-           LEFT JOIN users u ON u.id = gp.user_id
-           LEFT JOIN payments p
-             ON p.game_id = gp.game_id
-            AND (
-                  (p.user_id IS NOT NULL AND p.user_id = gp.user_id)
-               OR (p.guest_name IS NOT NULL AND p.guest_name = gp.guest_name)
-            )
-           WHERE gp.game_id = $1
-             AND gp.participation_status IN ('confirmed', 'guest')
-           ORDER BY gp.position, gp.joined_at`,
-          [gameId],
-        );
+        const rows = await paymentService.getGameParticipantPayments(gameId);
         people = rows.map((r) => ({
           user_id:        r.user_id,
           guest_name:     r.guest_name,
@@ -216,18 +163,7 @@ export function createPaymentsRouter(db: Database): Router {
           res.status(400).json({ error: 'user_id is not a member of this group' });
           return;
         }
-        await db.dataSource.query(
-          `INSERT INTO payments
-             (group_id, game_id, period_month, user_id, amount, confirmed_by, confirmed_at, updated_at)
-           VALUES ($1, NULL, $2, $3, $4, $5, NOW(), NOW())
-           ON CONFLICT (group_id, period_month, user_id)
-             WHERE game_id IS NULL AND user_id IS NOT NULL
-           DO UPDATE SET
-             amount       = EXCLUDED.amount,
-             confirmed_by = EXCLUDED.confirmed_by,
-             updated_at   = NOW()`,
-          [game.group_id, monthStr, parsedUserId, parsedAmount, admin.id],
-        );
+        await paymentService.upsertTrainingPayment(game.group_id, monthStr, parsedUserId, parsedAmount, admin.id);
       } else {
         // Game: upsert by (game_id, user_id) or manual upsert for guests
         if (parsedUserId != null) {
@@ -237,36 +173,14 @@ export function createPaymentsRouter(db: Database): Router {
             res.status(400).json({ error: 'user_id is not a participant of this game' });
             return;
           }
-          await db.dataSource.query(
-            `INSERT INTO payments
-               (group_id, game_id, period_month, user_id, amount, confirmed_by, confirmed_at, updated_at)
-             VALUES ($1, $2, NULL, $3, $4, $5, NOW(), NOW())
-             ON CONFLICT (game_id, user_id)
-               WHERE game_id IS NOT NULL AND user_id IS NOT NULL
-             DO UPDATE SET
-               amount       = EXCLUDED.amount,
-               confirmed_by = EXCLUDED.confirmed_by,
-               updated_at   = NOW()`,
-            [game.group_id, parsedGameId, parsedUserId, parsedAmount, admin.id],
-          );
+          await paymentService.upsertGameUserPayment(game.group_id, parsedGameId, parsedUserId, parsedAmount, admin.id);
         } else {
           // Guest: upsert by (game_id, guest_name), see uq_payments_game_guest
           if (typeof guest_name !== 'string' || !guest_name.trim()) {
             res.status(400).json({ error: 'guest_name must be a non-empty string' });
             return;
           }
-          await db.dataSource.query(
-            `INSERT INTO payments
-               (group_id, game_id, period_month, guest_name, amount, confirmed_by, confirmed_at, updated_at)
-             VALUES ($1, $2, NULL, $3, $4, $5, NOW(), NOW())
-             ON CONFLICT (game_id, guest_name)
-               WHERE game_id IS NOT NULL AND user_id IS NULL
-             DO UPDATE SET
-               amount       = EXCLUDED.amount,
-               confirmed_by = EXCLUDED.confirmed_by,
-               updated_at   = NOW()`,
-            [game.group_id, parsedGameId, String(guest_name), parsedAmount, admin.id],
-          );
+          await paymentService.upsertGameGuestPayment(game.group_id, parsedGameId, String(guest_name), parsedAmount, admin.id);
         }
       }
 
@@ -302,30 +216,7 @@ export function createPaymentsRouter(db: Database): Router {
         return;
       }
 
-      const rows = await db.dataSource.query<Array<{
-        user_id: number;
-        first_name: string | null;
-        last_name: string | null;
-        username: string | null;
-        amount: string | null;
-      }>>(
-        `WITH relevant_users AS (
-           SELECT user_id FROM group_members WHERE group_id = $1 AND is_active = true
-           UNION
-           SELECT user_id FROM payments WHERE group_id = $1 AND period_month = $2 AND game_id IS NULL AND user_id IS NOT NULL
-         )
-         SELECT ru.user_id, u.first_name, u.last_name, u.username,
-                p.amount
-         FROM relevant_users ru
-         JOIN users u ON u.id = ru.user_id
-         LEFT JOIN payments p
-           ON p.group_id     = $1
-          AND p.period_month = $2
-          AND p.user_id      = ru.user_id
-          AND p.game_id IS NULL
-         ORDER BY u.first_name, u.last_name`,
-        [groupId, monthParam],
-      );
+      const rows = await paymentService.getTrainingMemberPayments(groupId, monthParam);
 
       const people = rows.map((r) => ({
         user_id:        r.user_id,
@@ -385,18 +276,7 @@ export function createPaymentsRouter(db: Database): Router {
         return;
       }
 
-      await db.dataSource.query(
-        `INSERT INTO payments
-           (group_id, game_id, period_month, user_id, amount, confirmed_by, confirmed_at, updated_at)
-         VALUES ($1, NULL, $2, $3, $4, $5, NOW(), NOW())
-         ON CONFLICT (group_id, period_month, user_id)
-           WHERE game_id IS NULL AND user_id IS NOT NULL
-         DO UPDATE SET
-           amount       = EXCLUDED.amount,
-           confirmed_by = EXCLUDED.confirmed_by,
-           updated_at   = NOW()`,
-        [parsedGroupId, monthStr, parsedUserId, parsedAmount, admin.id],
-      );
+      await paymentService.upsertTrainingPayment(parsedGroupId, monthStr, parsedUserId, parsedAmount, admin.id);
 
       res.json({ success: true });
     } catch (error) {

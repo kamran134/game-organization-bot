@@ -1,17 +1,18 @@
 import { Context } from 'telegraf';
 import { CommandHandler, CommandServices } from './base/CommandHandler';
-import { Database } from '../../database/Database';
+import { PaymentService } from '../../services/PaymentService';
+import { currentMonth } from '../../utils/helpers';
 
 export interface TrainingPaymentsCommandServices extends CommandServices {
-  db: Database;
+  paymentService: PaymentService;
 }
 
 export class TrainingPaymentsCommand extends CommandHandler {
-  private db: Database;
+  private paymentService: PaymentService;
 
   constructor(services: TrainingPaymentsCommandServices) {
     super(services);
-    this.db = services.db;
+    this.paymentService = services.paymentService;
   }
 
   get command(): string {
@@ -31,19 +32,7 @@ export class TrainingPaymentsCommand extends CommandHandler {
 
     const month = currentMonth();
 
-    const rows = await this.db.dataSource.query<Array<{
-      first_name: string | null;
-      last_name: string | null;
-      amount: string;
-    }>>(
-      `SELECT u.first_name, u.last_name, p.amount
-       FROM payments p
-       JOIN users u ON u.id = p.user_id
-       WHERE p.group_id = $1
-         AND p.period_month = $2
-         AND p.game_id IS NULL`,
-      [group.id, month],
-    );
+    const rows = await this.paymentService.getTrainingPaid(group.id, month);
 
     const header = `🏋️ Оплаты за тренировки — ${formatMonth(month)}`;
 
@@ -60,11 +49,6 @@ export class TrainingPaymentsCommand extends CommandHandler {
 
     await ctx.reply(`${header}\n\n✅ Оплатили (${payers.length}):\n${list}\n\n💵 Итого собрано: ${total.toFixed(2)}`);
   }
-}
-
-function currentMonth(): string {
-  const d = new Date();
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
 }
 
 function formatMonth(month: string): string {

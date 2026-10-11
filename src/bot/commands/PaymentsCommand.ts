@@ -1,20 +1,21 @@
 import { Context, Markup } from 'telegraf';
 import { CommandHandler, CommandServices } from './base/CommandHandler';
-import { Database } from '../../database/Database';
+import { PaymentService } from '../../services/PaymentService';
+import { currentMonth } from '../../utils/helpers';
 import { GameType } from '../../models/GameType';
 import { formatDate } from '../ui/formatters';
 import { Game } from '../../models/Game';
 
 export interface PaymentsCommandServices extends CommandServices {
-  db: Database;
+  paymentService: PaymentService;
 }
 
 export class PaymentsCommand extends CommandHandler {
-  private db: Database;
+  private paymentService: PaymentService;
 
   constructor(services: PaymentsCommandServices) {
     super(services);
-    this.db = services.db;
+    this.paymentService = services.paymentService;
   }
 
   get command(): string {
@@ -78,36 +79,13 @@ export class PaymentsCommand extends CommandHandler {
 
     if (game.type === GameType.TRAINING) {
       const month = currentMonth();
-      const rows = await this.db.dataSource.query<Array<{
-        first_name: string | null;
-        last_name: string | null;
-        amount: string;
-      }>>(
-        `SELECT u.first_name, u.last_name, p.amount
-         FROM payments p
-         JOIN users u ON u.id = p.user_id
-         WHERE p.group_id = $1
-           AND p.period_month = $2
-           AND p.game_id IS NULL`,
-        [game.group_id, month],
-      );
+      const rows = await this.paymentService.getTrainingPaid(game.group_id, month);
       payers = rows.map(r =>
         [r.first_name, r.last_name].filter(Boolean).join(' ') || 'Участник',
       );
       total = rows.reduce((sum, r) => sum + parseFloat(r.amount), 0);
     } else {
-      const rows = await this.db.dataSource.query<Array<{
-        first_name: string | null;
-        last_name: string | null;
-        guest_name: string | null;
-        amount: string;
-      }>>(
-        `SELECT u.first_name, u.last_name, p.guest_name, p.amount
-         FROM payments p
-         LEFT JOIN users u ON u.id = p.user_id
-         WHERE p.game_id = $1`,
-        [game.id],
-      );
+      const rows = await this.paymentService.getGamePaid(game.id);
       payers = rows.map(r =>
         r.guest_name ?? ([r.first_name, r.last_name].filter(Boolean).join(' ') || 'Участник'),
       );
@@ -125,9 +103,4 @@ export class PaymentsCommand extends CommandHandler {
     const list = payers.map(name => `• ${name}`).join('\n');
     await ctx.reply(`${header}\n\n✅ Оплатили (${payers.length}):\n${list}\n\n💵 Итого собрано: ${total.toFixed(2)}`);
   }
-}
-
-function currentMonth(): string {
-  const d = new Date();
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
 }

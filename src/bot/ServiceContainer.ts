@@ -5,6 +5,9 @@ import { GameService } from '../services/GameService';
 import { SportService } from '../services/SportService';
 import { LocationService } from '../services/LocationService';
 import { JokeService } from '../services/JokeService';
+import { PaymentService } from '../services/PaymentService';
+import { NotificationService } from '../services/NotificationService';
+import { Telegram } from 'telegraf';
 import { GameCreationStateManager } from '../utils/GameCreationState';
 import { TrainingCreationStateManager } from '../utils/TrainingCreationState';
 import { LocationCreationStateManager } from '../utils/LocationCreationState';
@@ -27,6 +30,8 @@ export class ServiceContainer {
   readonly sportService: SportService;
   readonly locationService: LocationService;
   readonly jokeService: JokeService;
+  readonly paymentService: PaymentService;
+  readonly notificationService: NotificationService;
 
   // State managers
   readonly gameCreationStates: GameCreationStateManager;
@@ -43,7 +48,7 @@ export class ServiceContainer {
   // Special event handler shared across the bot lifecycle
   readonly groupEventHandler: GroupEventHandler;
 
-  constructor(private readonly db: Database) {
+  constructor(private readonly db: Database, telegram: Telegram) {
     // ── Services ──────────────────────────────────────────────────────────────
     this.userService = new UserService(db);
     this.groupService = new GroupService(db);
@@ -51,6 +56,8 @@ export class ServiceContainer {
     this.sportService = new SportService(db);
     this.locationService = new LocationService(db);
     this.jokeService = new JokeService();
+    this.paymentService = new PaymentService(db);
+    this.notificationService = new NotificationService(telegram, this.groupService, this.jokeService);
 
     // ── State managers ────────────────────────────────────────────────────────
     this.gameCreationStates = new GameCreationStateManager();
@@ -73,6 +80,7 @@ export class ServiceContainer {
       sportService: this.sportService,
       locationService: this.locationService,
       trainingCreationStates: this.trainingCreationStates,
+      notificationService: this.notificationService,
     });
 
     this.locationManagementFlow = new LocationManagementFlow({

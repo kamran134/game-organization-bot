@@ -2,7 +2,6 @@ import { Context, Markup } from 'telegraf';
 import { LocationEditState, LocationEditStateManager } from '../../utils/LocationEditState';
 import { LocationService } from '../../services/LocationService';
 import { SportService } from '../../services/SportService';
-// import { KeyboardBuilder } from '../ui/KeyboardBuilder';
 
 interface LocationEditServices {
   locationService: LocationService;

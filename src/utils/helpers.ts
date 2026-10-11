@@ -99,3 +99,14 @@ export function splitMessage(text: string, limit: number = 4096): string[] {
   );
   return chunks.filter((chunk) => chunk.trim() !== '');
 }
+
+/** Returns 'YYYY-MM' for the current month in UTC. */
+export function currentMonth(): string {
+  const d = new Date();
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+}
+
+/** Validates that a string matches 'YYYY-MM'. */
+export function isValidMonth(value: string): boolean {
+  return /^\d{4}-(0[1-9]|1[0-2])$/.test(value);
+}

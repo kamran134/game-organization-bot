@@ -1,6 +1,6 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { escapeMarkdownV1, escapeMarkdown, generateInviteCode, formatDate, splitMessage } from '../../utils/helpers';
+import { escapeMarkdownV1, escapeMarkdown, generateInviteCode, formatDate, splitMessage, currentMonth, isValidMonth } from '../../utils/helpers';
 
 describe('escapeMarkdownV1', () => {
   test('escapes underscore', () => {
@@ -159,5 +159,20 @@ describe('splitMessage', () => {
   test('default limit is the Telegram 4096-char cap', () => {
     const text = ('a'.repeat(1000) + '\n\n').repeat(10);
     for (const chunk of splitMessage(text)) assert.ok(chunk.length <= 4096);
+  });
+});
+
+describe('month helpers', () => {
+  test('currentMonth returns a valid YYYY-MM string', () => {
+    assert.ok(isValidMonth(currentMonth()));
+  });
+
+  test('isValidMonth accepts only YYYY-MM with months 01-12', () => {
+    assert.equal(isValidMonth('2026-01'), true);
+    assert.equal(isValidMonth('2026-12'), true);
+    assert.equal(isValidMonth('2026-00'), false);
+    assert.equal(isValidMonth('2026-13'), false);
+    assert.equal(isValidMonth('26-01'), false);
+    assert.equal(isValidMonth('2026-1'), false);
   });
 });

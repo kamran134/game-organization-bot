@@ -1,41 +1,10 @@
-import { GameParticipant, ParticipationStatus } from '../../models/GameParticipant';
+import { GameParticipant } from '../../models/GameParticipant';
 import { User } from '../../models/User';
 import { GroupMember } from '../../models/GroupMember';
 import { escapeHtml } from '../../utils/helpers';
 
 // Single source of truth for date formatting lives in helpers.ts
 export { formatDate } from '../../utils/helpers';
-
-/**
- * Форматирование статуса игры с emoji
- */
-export function formatGameStatus(status: string): string {
-  const statusMap: Record<string, string> = {
-    planned: '📅 Запланирована',
-    active: '🟢 Активна',
-    completed: '✅ Завершена',
-    cancelled: '❌ Отменена',
-  };
-  return statusMap[status] || status;
-}
-
-/**
- * Форматирование имени участника с его статусом
- */
-export function formatParticipantName(participant: GameParticipant): string {
-  const statusEmoji: Record<ParticipationStatus, string> = {
-    confirmed: '✅',
-    maybe: '❓',
-    guest: '👤',
-  };
-
-  const emoji = statusEmoji[participant.participation_status] || '';
-  const name = participant.user
-    ? [participant.user.first_name, participant.user.last_name].filter(Boolean).join(' ')
-    : participant.guest_name || 'Гость';
-
-  return `${emoji} ${name}`;
-}
 
 /**
  * Форматирование списка участников с группировкой по статусу
@@ -90,19 +59,6 @@ export function formatParticipantsList(participants: GameParticipant[]): string 
   }
 
   return text.trimEnd();
-}
-
-/**
- * Форматирование числа участников
- */
-export function formatParticipantsCount(
-  confirmedCount: number,
-  maybeCount: number,
-  min: number,
-  max: number
-): string {
-  // const total = confirmedCount + maybeCount;
-  return `${confirmedCount}/${max} (ещё ${maybeCount} под вопросом)`;
 }
 
 /**

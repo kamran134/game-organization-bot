@@ -2,7 +2,6 @@ import { Telegraf } from 'telegraf';
 import { ActionHandler, ActionServices } from './base/ActionHandler';
 import { KeyboardBuilder } from '../ui/KeyboardBuilder';
 import { GameMessageBuilder } from '../ui/GameMessageBuilder';
-import { formatMembersMentions } from '../ui/formatters';
 
 export class GameCreationActionsHandler extends ActionHandler {
   constructor(services: ActionServices) {
@@ -92,31 +91,24 @@ export class GameCreationActionsHandler extends ActionHandler {
 
       await ctx.answerCbQuery('✅ Игра создана!');
 
-      // Проверяем isAdmin (создатель скорее всего админ)
-      const user = await this.services.userService.getUserByTelegramId(userId);
-      const isAdmin = user ? await this.services.groupService.isUserAdmin(user.id, state.groupId) : false;
+      // Admin buttons exist only in private chats, so the lookup is pointless in a group
+      const inGroup = ctx.chat?.type !== 'private';
+      let isAdmin = false;
+      if (!inGroup) {
+        const user = await this.services.userService.getUserByTelegramId(userId);
+        isAdmin = user ? await this.services.groupService.isUserAdmin(user.id, state.groupId) : false;
+      }
 
       const createdMessage = GameMessageBuilder.formatGameCreatedMessage(game);
       await ctx.editMessageText(
         createdMessage + '\n\nУчастники могут записаться прямо здесь:',
         {
           parse_mode: 'Markdown',
-          ...KeyboardBuilder.createGameActionsKeyboard(game.id, 0, isAdmin, 0),
+          ...KeyboardBuilder.createGameActionsKeyboard(game.id, 0, isAdmin, 0, inGroup),
         }
       );
 
-      try {
-        const group = await this.services.groupService.getGroupById(state.groupId);
-        if (group?.telegram_chat_id) {
-          const members = await this.services.groupService.getGroupMembers(state.groupId);
-          const mentions = formatMembersMentions(members);
-          if (mentions) {
-            await ctx.telegram.sendMessage(group.telegram_chat_id, `👆 ${mentions}`, { parse_mode: 'HTML' });
-          }
-        }
-      } catch (mentionError) {
-        console.error('Error sending mention notification:', mentionError);
-      }
+      await this.services.notificationService.mentionMembers(state.groupId);
     });
 
     // Location selection

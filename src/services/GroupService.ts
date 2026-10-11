@@ -130,11 +130,6 @@ export class GroupService {
     });
   }
 
-  async getGroupByInviteCode(inviteCode: string): Promise<Group | null> {
-    const groupRepo = this.db.getRepository(Group);
-    return groupRepo.findOne({ where: { invite_code: inviteCode } });
-  }
-
   async getGroupByChatId(chatId: number): Promise<Group | null> {
     const groupRepo = this.db.getRepository(Group);
     return groupRepo.findOne({

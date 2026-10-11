@@ -58,6 +58,16 @@ export class GameService {
     return game;
   }
 
+  /** Cheap lookup for permission checks that only need the owning group. */
+  async getGameGroupId(gameId: number): Promise<number | null> {
+    const gameRepo = this.db.getRepository(Game);
+    const game = await gameRepo.findOne({
+      where: { id: gameId },
+      select: { id: true, group_id: true },
+    });
+    return game ? game.group_id : null;
+  }
+
   async getUpcomingGroupGames(groupId: number): Promise<Game[]> {
     const gameRepo = this.db.getRepository(Game);
     const games = await gameRepo.find({
@@ -131,28 +141,6 @@ export class GameService {
   async removeParticipant(gameId: number, userId: number): Promise<void> {
     const participantRepo = this.db.getRepository(GameParticipant);
     await participantRepo.delete({ game_id: gameId, user_id: userId });
-  }
-
-  async updateParticipantPositions(gameId: number): Promise<void> {
-    const participantRepo = this.db.getRepository(GameParticipant);
-    const participants = await participantRepo.find({
-      where: { game_id: gameId },
-      relations: ['user'],
-      order: { joined_at: 'ASC' },
-    });
-
-    // Sort by priority: confirmed -> maybe -> guest
-    participants.sort((a, b) => {
-      const priorityDiff = a.getPriority() - b.getPriority();
-      if (priorityDiff !== 0) return priorityDiff;
-      return a.joined_at.getTime() - b.joined_at.getTime();
-    });
-
-    // Update positions (bulk save instead of N individual queries)
-    for (let i = 0; i < participants.length; i++) {
-      participants[i].position = i + 1;
-    }
-    await participantRepo.save(participants);
   }
 
   async getParticipantsByStatus(gameId: number): Promise<{

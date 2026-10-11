@@ -1,4 +1,4 @@
-﻿import { Telegraf } from 'telegraf';
+import { Telegraf } from 'telegraf';
 import { Database } from '../database/Database';
 import {
   CommandHandler,
@@ -49,7 +49,7 @@ export class Bot {
     }
 
     this.bot = new Telegraf(token);
-    this.container = new ServiceContainer(Database.getInstance());
+    this.container = new ServiceContainer(Database.getInstance(), this.bot.telegram);
 
     this.commands = this.initializeCommands();
     this.handlers = this.initializeHandlers();
@@ -105,11 +105,11 @@ export class Bot {
       new CreateGroupCommand(services),
       new PaymentsCommand({
         ...services,
-        db: Database.getInstance(),
+        paymentService: c.paymentService,
       }),
       new TrainingPaymentsCommand({
         ...services,
-        db: Database.getInstance(),
+        paymentService: c.paymentService,
       }),
       new AddLocationCommand(locationCommandServices),
       new ListLocationsCommand({
@@ -142,7 +142,7 @@ export class Bot {
       gameService: c.gameService,
       sportService: c.sportService,
       locationService: c.locationService,
-      jokeService: c.jokeService,
+      notificationService: c.notificationService,
       gameCreationStates: c.gameCreationStates,
       locationEditStates: c.locationEditStates,
       locationEditFlow: c.locationEditFlow,

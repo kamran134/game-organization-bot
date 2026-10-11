@@ -1,7 +1,7 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { GameService } from '../../services/GameService';
-import { GameParticipant, ParticipationStatus } from '../../models/GameParticipant';
+import { ParticipationStatus } from '../../models/GameParticipant';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -114,44 +114,6 @@ describe('GameService.addParticipant', () => {
 });
 
 // ---------------------------------------------------------------------------
-// updateParticipantPositions
-// ---------------------------------------------------------------------------
-describe('GameService.updateParticipantPositions', () => {
-  test('assigns ascending positions sorted by priority then join time', async () => {
-    const t0 = new Date('2024-01-01T10:00:00');
-    const t1 = new Date('2024-01-01T11:00:00');
-    const t2 = new Date('2024-01-01T12:00:00');
-
-    const p1 = Object.assign(new GameParticipant(), {
-      id: 1, game_id: 1, participation_status: ParticipationStatus.MAYBE, joined_at: t0,
-      getPriority() { return 2; },
-    });
-    const p2 = Object.assign(new GameParticipant(), {
-      id: 2, game_id: 1, participation_status: ParticipationStatus.CONFIRMED, joined_at: t1,
-      getPriority() { return 1; },
-    });
-    const p3 = Object.assign(new GameParticipant(), {
-      id: 3, game_id: 1, participation_status: ParticipationStatus.GUEST, joined_at: t2,
-      getPriority() { return 3; },
-    });
-
-    let savedParticipants: any[] = [];
-    const service = makeService({
-      find: async () => [p1, p2, p3],
-      save: async (arr: any) => { savedParticipants = arr; return arr; },
-    });
-
-    await service.updateParticipantPositions(1);
-
-    // p2 (CONFIRMED) → 1, p1 (MAYBE) → 2, p3 (GUEST) → 3
-    const byId = Object.fromEntries(savedParticipants.map((p: any) => [p.id, p.position]));
-    assert.equal(byId[2], 1); // CONFIRMED first
-    assert.equal(byId[1], 2); // MAYBE second
-    assert.equal(byId[3], 3); // GUEST third
-  });
-});
-
-// ---------------------------------------------------------------------------
 // addGuest
 // ---------------------------------------------------------------------------
 describe('GameService.addGuest', () => {
@@ -235,5 +197,28 @@ describe('GameService.removeGuest', () => {
       () => service.removeGuest(1, 10),
       /Guest participant not found/
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getGameGroupId
+// ---------------------------------------------------------------------------
+describe('GameService.getGameGroupId', () => {
+  test('selects only id and group_id and returns the group id', async () => {
+    let options: any;
+    const service = makeService({
+      findOne: async (o: any) => { options = o; return { id: 4, group_id: 9 }; },
+    });
+
+    assert.equal(await service.getGameGroupId(4), 9);
+    assert.deepEqual(options.where, { id: 4 });
+    assert.deepEqual(options.select, { id: true, group_id: true });
+    assert.equal(options.relations, undefined);
+  });
+
+  test('returns null for an unknown game', async () => {
+    const service = makeService({ findOne: async () => null });
+
+    assert.equal(await service.getGameGroupId(404), null);
   });
 });

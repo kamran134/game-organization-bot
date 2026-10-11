@@ -1,6 +1,5 @@
 import { Context } from 'telegraf';
 import { CommandHandler } from './base/CommandHandler';
-// import { GameService } from '../../services/GameService';
 import { GameType } from '../../models/GameType';
 import { GameMessageBuilder } from '../ui/GameMessageBuilder';
 import { KeyboardBuilder } from '../ui/KeyboardBuilder';
@@ -43,22 +42,13 @@ export class TrainingsCommand extends CommandHandler {
       return;
     }
 
-    // Проверяем права админа
-    let isAdmin = false;
-    if (ctx.from) {
-      const user = await this.services.userService.getUserByTelegramId(ctx.from.id);
-      if (user) {
-        isAdmin = await this.services.groupService.isUserAdmin(user.id, group.id);
-      }
-    }
-
     // Отправляем карточки тренировок
     for (const training of trainings) {
       const confirmedCount = training.participants?.filter(p => p.participation_status === 'confirmed').length || 0;
       const maybeCount = training.participants?.filter(p => p.participation_status === 'maybe').length || 0;
       
       const message = GameMessageBuilder.buildTrainingCard(training);
-      const keyboard = KeyboardBuilder.createGameActionsKeyboard(training.id, confirmedCount, isAdmin, maybeCount);
+      const keyboard = KeyboardBuilder.createGameActionsKeyboard(training.id, confirmedCount, false, maybeCount, true);
 
       await ctx.reply(message, {
         parse_mode: 'Markdown',

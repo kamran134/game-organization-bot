@@ -1,15 +1,9 @@
 import { Context } from 'telegraf';
 import { BotHandler } from './base/BotHandler';
-import { GamesView, GamesFilter } from '../ui/GamesView';
-
-interface HandlerServices {
-  gameService: any;
-  groupService: any;
-  userService: any;
-}
+import { GamesView, GamesFilter, GamesViewServices } from '../ui/GamesView';
 
 export class GamesFilterHandler extends BotHandler {
-  constructor(private services: HandlerServices) {
+  constructor(private services: GamesViewServices) {
     super();
   }
 
