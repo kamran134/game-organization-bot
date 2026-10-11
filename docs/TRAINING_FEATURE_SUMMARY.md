@@ -1,3 +1,5 @@
+> Исторический документ: описывает состояние на момент реализации фичи. Актуальное поведение — в [README.md](../README.md).
+
 # Training vs Game Feature - Implementation Summary
 
 ## ✅ Completed Implementation

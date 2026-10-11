@@ -1,16 +1,9 @@
+import './loadEnv';
 import 'reflect-metadata';
-import * as dotenv from 'dotenv';
 import { Bot } from './bot/Bot';
 import { Database } from './database/Database';
 import { SportService } from './services/SportService';
 import { startWebAppServer } from './webapp/server';
-import * as path from 'path';
-
-// Load environment variables
-const envFile = process.env.NODE_ENV === 'production'
-  ? '.env.prod'
-  : '.env.dev';
-dotenv.config({ path: path.resolve(process.cwd(), envFile) });
 
 /** Docker sends SIGKILL 10s after SIGTERM; finish well before that. */
 const SHUTDOWN_TIMEOUT_MS = 8000;

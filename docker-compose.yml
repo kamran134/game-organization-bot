@@ -1,12 +1,11 @@
-version: '3.8'
-
 services:
   bot:
     image: ghcr.io/${GITHUB_REPOSITORY:-your-username/game-organization-bot}:latest
     container_name: game-bot
     restart: unless-stopped
     env_file:
-      - .env
+      - path: .env
+        required: false
     ports:
       - "3000:3000"
     depends_on:
@@ -25,7 +24,7 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
     ports:
-      - "${DB_PORT}:5432"
+      - "127.0.0.1:${DB_PORT}:5432"
     networks:
       - game-bot-network
 

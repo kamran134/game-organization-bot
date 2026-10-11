@@ -1,225 +1,112 @@
-# 🚀 Инструкция по деплою
+# Деплой
 
-## 📋 Требования на сервере
+Источник истины — `.github/workflows/deploy.yml`. Окружение одно: продакшн, dev-сервера и отдельного пайплайна для него нет.
 
-- Ubuntu 20.04+ / Debian 11+
-- Docker 24.0+
-- Docker Compose 2.20+
-- Git
-- SSH доступ
+## Пайплайн
 
-## 🔐 Секреты GitHub Actions
+**Триггер:** push в `main` или `master`, либо ручной запуск (`workflow_dispatch`).
 
-Перейдите в **Settings → Secrets and variables → Actions → New repository secret** и добавьте:
+**Concurrency:** группа `deploy-<ref>`, `cancel-in-progress: false`. Два быстрых пуша не гоняют миграции и `up -d` параллельно; второй запуск ждёт в очереди. Отмены нет намеренно: прерванный запуск мог бы остановиться между миграцией и перезапуском.
 
-### Обязательные секреты:
+Задачи идут последовательно, каждая зависит от предыдущей:
 
-| Секрет | Описание | Пример |
-|--------|----------|--------|
-| `SSH_HOST` | IP или домен сервера | `123.45.67.89` |
-| `SSH_USERNAME` | SSH пользователь | `deploy` |
-| `SSH_PRIVATE_KEY` | SSH приватный ключ (без passphrase!) | `-----BEGIN OPENSSH PRIVATE KEY-----...` |
-| `SSH_PORT` | SSH порт | `22` |
-| `DEPLOY_PATH` | Путь к проекту на сервере | `/opt/game-organization-bot` |
-| `BOT_TOKEN` | Telegram Bot Token | `1234567890:ABCdef...` |
-| `DB_HOST` | Хост БД (для production обычно `db`) | `db` |
-| `DB_PORT` | Порт БД | `5432` |
-| `DB_USERNAME` | Имя пользователя БД | `gamebot` |
-| `DB_PASSWORD` | Пароль БД | `secure_password_123` |
-| `DB_DATABASE` | Имя базы данных | `game_organization_bot` |
+1. **`test`** (Node 22): `npm ci`, `npx tsc --noEmit`, `npx tsc -p tsconfig.client.json --noEmit`, `npm run lint -- --quiet` (только ошибки, предупреждения не блокируют), `npm test`. Любая ошибка останавливает пайплайн до сборки образа.
+2. **`build-and-push`**: сборка образа по `Dockerfile` (`linux/amd64`, кэш GHA) и push в GHCR как `ghcr.io/<owner>/<repo>`. Теги:
+   - `latest` — только с default-ветки;
+   - `<branch>` — например `main`;
+   - `<branch>-<sha>` — например `main-a1b2c3d` (короткий sha), по нему делается откат.
+3. **`deploy`** — только для `main` / `master`:
+   1. `scp` копирует `docker-compose.prod.yml` в `DEPLOY_PATH`.
+   2. По SSH: `docker login ghcr.io` (токеном `GITHUB_TOKEN` этого запуска), экспорт переменных из секретов, `docker compose -f docker-compose.prod.yml pull` (старый бот пока обслуживает трафик).
+   3. **Миграции:** `docker compose ... run --rm -T bot npm run migration:run` — одноразовый контейнер из нового образа; `db` поднимается сам через `depends_on`. Если миграции упали, деплой прерывается, старый контейнер остаётся в строю.
+   4. `docker compose ... up -d --remove-orphans` пересоздаёт только изменившиеся сервисы: `bot` переезжает на новый образ, `db` не трогается.
+   5. `docker image prune -af` удаляет неиспользуемые образы, затем `docker compose ... ps`.
+4. **Verify** (шаг внутри `deploy`): до 30 проверок с шагом 5 с (150 с). Деплой успешен, когда Docker-health контейнера `bot` стал `healthy`. Неуспех: контейнера нет; `RestartCount > 3` (crash loop — `restart: unless-stopped` иначе скрыл бы его); не стал `healthy` за 150 с. В каждом случае в лог выводятся последние 100 строк логов бота.
+5. **`notify`**: при падении любой задачи только пишет в лог раннера ветку и коммит. Никуда ничего не отправляет.
 
-### Автоматический секрет (уже есть):
-- `GITHUB_TOKEN` - автоматически доступен в Actions для push в GHCR
+Миграции выполняются при живом старом контейнере, поэтому каждая должна быть обратно совместима со старым кодом (см. README, «Схема БД»).
 
-## 🔑 Права в GitHub Container Registry (GHCR)
+## Секреты GitHub Actions
 
-### Автоматическая настройка (рекомендуется):
-1. После первого деплоя перейдите: **GitHub → Packages → game-organization-bot**
-2. Нажмите **Package settings**
-3. В разделе **Manage Actions access** добавьте:
-   - Repository: `Read and Write` (уже должно быть)
-4. Сделайте пакет публичным (опционально):
-   - **Change visibility → Public**
+Settings → Secrets and variables → Actions. Имена ровно такие, как в workflow:
 
-### Права в workflow:
-```yaml
-permissions:
-  contents: read    # Читать код
-  packages: write   # Писать в GHCR
-```
-Эти права уже настроены в `.github/workflows/deploy.yml`
+| Секрет | Назначение |
+|--------|-----------|
+| `SSH_HOST` | Хост сервера |
+| `SSH_USERNAME` | SSH-пользователь (должен быть в группе `docker`) |
+| `SSH_PRIVATE_KEY` | Приватный ключ без passphrase |
+| `SSH_PORT` | SSH-порт |
+| `DEPLOY_PATH` | Каталог на сервере, куда копируется `docker-compose.prod.yml` |
+| `BOT_TOKEN` | Токен Telegram-бота |
+| `DB_HOST` | Хост БД для бота; в связке с `docker-compose.prod.yml` это `db` |
+| `DB_PORT` | Порт БД (`5432`) |
+| `DB_USERNAME` | Пользователь PostgreSQL; им же инициализируется контейнер `db` |
+| `DB_PASSWORD` | Пароль PostgreSQL |
+| `DB_DATABASE` | Имя базы |
+| `WEBAPP_URL` | Публичный origin WebApp (попадает в allow-list CORS) |
+| `GROQ_API_KEY` | Ключ Groq (без него бот использует фиксированные шутки) |
 
-## 🖥️ Настройка сервера
+`GITHUB_TOKEN` создаётся Actions автоматически: им workflow пушит образ в GHCR (`permissions: packages: write` задано в задаче `build-and-push`) и логинится на сервере для `pull`. Токен живёт только пока идёт запуск.
 
-### 1. Создайте пользователя для деплоя:
+`TZ=Asia/Baku` и `WEBAPP_PORT=3000` зашиты прямо в `docker-compose.prod.yml`.
+
+## Подготовка сервера
+
+Один раз:
+
+- Docker с плагином Compose; пользователь из `SSH_USERNAME` добавлен в группу `docker`.
+- Каталог `DEPLOY_PATH` существует и доступен этому пользователю. Сам `docker-compose.prod.yml` кладёт туда pipeline.
+- Публичный ключ из пары `SSH_PRIVATE_KEY` лежит в `~/.ssh/authorized_keys`.
+- Пакет в GHCR доступен серверу: либо публичный, либо используется токен с правом `read:packages` (для ручных `pull` вне пайплайна).
+- Перед ботом стоит reverse proxy с TLS (Telegram WebApp требует HTTPS). В репозитории его конфигурации нет. Контейнер публикует порт только на `127.0.0.1:3000`, а Express настроен на ровно один прокси (`trust proxy 1`) — иначе rate limiter видел бы адрес прокси вместо клиента.
+
+## Что проверяет `/health`
+
+`GET /health` выполняет `SELECT 1` в PostgreSQL. Ответ `200 {"status":"ok"}` — БД доступна; `503 {"status":"db_unavailable"}` — нет. К Telegram он не обращается, но если запуск бота не удался (неверный токен, 409 от второго инстанса), процесс сам завершается с кодом 1 и контейнер перезапускается, так что «healthy при мёртвом long polling» исключён.
+
+`HEALTHCHECK` в `Dockerfile`: `wget -qO- http://localhost:${WEBAPP_PORT:-3000}/health`, интервал 30 с, таймаут 5 с, `start-period` 45 с.
+
+## Откат
+
+Образы тегируются `main-<sha>`, поэтому вернуть предыдущую версию можно, не пересобирая:
+
 ```bash
-sudo adduser deploy
-sudo usermod -aG docker deploy
+cd $DEPLOY_PATH
+IMG=ghcr.io/<owner>/<repo>
+
+docker pull $IMG:main-<sha>            # если образа нет локально
+docker tag  $IMG:main-<sha> $IMG:latest
+docker compose -f docker-compose.prod.yml up -d bot   # БЕЗ предварительного pull
 ```
 
-### 2. Настройте SSH ключ:
+`docker-compose.prod.yml` ссылается на `:latest`, поэтому нужен `tag`, а `pull` перед `up` затёр бы откат.
+
+- `docker image prune -af` в конце каждого деплоя удаляет все неиспользуемые образы, включая предыдущий релиз. Локально старого образа, как правило, не будет: его придётся тянуть из GHCR (нужен `docker login ghcr.io` с токеном `read:packages`, если пакет не публичный).
+- `compose` на сервере интерполирует переменные (`BOT_TOKEN`, `DB_*`, `WEBAPP_URL`, `GITHUB_REPOSITORY` и др.) из окружения. Пайплайн экспортирует их только на время своего SSH-сеанса, поэтому для ручных команд их нужно экспортировать или положить в `.env` рядом с `docker-compose.prod.yml` (pipeline такой файл не создаёт).
+- Откат образа не откатывает схему БД. Это безопасно, пока миграции обратно совместимы — поэтому они обязаны такими быть. Если нужно откатить саму миграцию, это отдельная ручная операция.
+- Следующий push в `main` задеплоит свежий `latest` поверх отката.
+
+## Полезные команды на сервере
+
+Все — из `DEPLOY_PATH`, переменные окружения для compose заданы (см. выше).
+
 ```bash
-# На вашем компьютере
-ssh-keygen -t ed25519 -C "deploy@game-bot" -f ~/.ssh/game-bot-deploy
-# Не указывайте passphrase!
+# статус и логи
+docker compose -f docker-compose.prod.yml ps
+docker compose -f docker-compose.prod.yml logs -f --tail=100 bot
+docker inspect --format '{{.State.Health.Status}} restarts={{.RestartCount}}' game-bot
 
-# Копируйте публичный ключ на сервер
-ssh-copy-id -i ~/.ssh/game-bot-deploy.pub deploy@YOUR_SERVER_IP
+# psql в базе
+docker exec -it game-bot-db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
 
-# Приватный ключ добавьте в GitHub Secrets (SSH_PRIVATE_KEY)
-cat ~/.ssh/game-bot-deploy
+# дамп базы
+docker exec game-bot-db sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB"' > backup_$(date +%F).sql
+
+# ручной прогон миграций (то же, что делает пайплайн)
+docker compose -f docker-compose.prod.yml run --rm -T bot npm run migration:run
+
+# перезапуск только бота
+docker compose -f docker-compose.prod.yml restart bot
 ```
 
-### 3. Создайте директорию проекта:
-```bash
-ssh deploy@YOUR_SERVER_IP
-sudo mkdir -p /opt/game-organization-bot
-sudo chown deploy:deploy /opt/game-organization-bot
-cd /opt/game-organization-bot
-
-# Клонируйте репозиторий
-git clone https://github.com/YOUR_USERNAME/game-organization-bot.git .
-```
-
-### 4. Создайте .env файл:
-```bash
-nano .env
-```
-
-Скопируйте содержимое из `.env.example` и заполните реальными значениями.
-
-## 🚀 Первый деплой
-
-### Автоматический (через GitHub Actions):
-1. Сделайте commit и push в `main` или `master`:
-   ```bash
-   git add .
-   git commit -m "feat: setup deployment"
-   git push origin main
-   ```
-
-2. Перейдите: **Actions** → следите за прогрессом
-
-3. При успехе увидите: ✅ Deployment successful!
-
-### Ручной (для тестирования):
-```bash
-# На сервере
-cd /opt/game-organization-bot
-
-# Авторизация в GHCR
-echo "YOUR_GITHUB_PAT" | docker login ghcr.io -u YOUR_USERNAME --password-stdin
-
-# Подтягиваем образ
-export GITHUB_REPOSITORY=your-username/game-organization-bot
-docker-compose -f docker-compose.prod.yml pull
-
-# Запускаем
-docker-compose -f docker-compose.prod.yml up -d
-
-# Проверяем логи
-docker-compose -f docker-compose.prod.yml logs -f bot
-```
-
-## 📊 Мониторинг
-
-### Проверка статуса:
-```bash
-docker-compose -f docker-compose.prod.yml ps
-```
-
-### Логи:
-```bash
-# Все логи
-docker-compose -f docker-compose.prod.yml logs -f
-
-# Только бот
-docker-compose -f docker-compose.prod.yml logs -f bot
-
-# Последние 100 строк
-docker-compose -f docker-compose.prod.yml logs --tail=100 bot
-```
-
-### Рестарт:
-```bash
-docker-compose -f docker-compose.prod.yml restart bot
-```
-
-### Остановка:
-```bash
-docker-compose -f docker-compose.prod.yml down
-```
-
-### Полная переустановка:
-```bash
-docker-compose -f docker-compose.prod.yml down -v
-docker-compose -f docker-compose.prod.yml up -d
-```
-
-## 🔧 Troubleshooting
-
-### Проблема: "Permission denied" при деплое
-**Решение:**
-```bash
-sudo usermod -aG docker deploy
-# Перелогиньтесь
-```
-
-### Проблема: "Connection refused" к БД
-**Решение:**
-```bash
-# Проверьте, что DB_HOST=db в .env
-# Проверьте что контейнер БД запущен
-docker-compose -f docker-compose.prod.yml ps db
-```
-
-### Проблема: Образ не обновляется
-**Решение:**
-```bash
-# Принудительно удалите старый образ
-docker-compose -f docker-compose.prod.yml down
-docker rmi ghcr.io/YOUR_USERNAME/game-organization-bot:latest
-docker-compose -f docker-compose.prod.yml pull
-docker-compose -f docker-compose.prod.yml up -d
-```
-
-## 🔄 Workflow
-
-1. **Разработка** → работаете локально
-2. **Commit & Push** → `git push origin main`
-3. **GitHub Actions** → автоматически собирает Docker образ
-4. **GHCR** → публикует образ в registry
-5. **Deploy** → подключается по SSH и обновляет сервер
-6. **Verify** → проверяет что бот запустился
-
-## 📈 Оптимизация
-
-### Добавьте проверку здоровья (healthcheck):
-```typescript
-// src/index.ts
-import express from 'express';
-
-const app = express();
-app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'ok' });
-});
-app.listen(3000);
-```
-
-### Настройте логирование в файл:
-```yaml
-# docker-compose.prod.yml
-logging:
-  driver: "json-file"
-  options:
-    max-size: "10m"
-    max-file: "3"
-```
-
-## 🛡️ Безопасность
-
-1. ✅ Используйте непривилегированного пользователя в Docker
-2. ✅ Храните секреты в GitHub Secrets, не в коде
-3. ✅ Используйте SSH ключи без passphrase для автодеплоя
-4. ✅ Регулярно обновляйте зависимости
-5. ✅ Используйте `.dockerignore` для исключения лишних файлов
+**Не выполняйте `docker compose down -v`**: флаг `-v` удаляет том `postgres-data`, то есть всю базу. Обычный `down` тоже не нужен: пайплайн обновляет сервисы через `up -d`, без остановки БД.
