@@ -4,15 +4,18 @@ import { Database } from '../../database/Database';
 import { UserService } from '../../services/UserService';
 import { GroupService } from '../../services/GroupService';
 import { verifyTelegramInitData } from '../middleware/telegramAuth';
+import { requireUser, currentUser } from '../middleware/requireUser';
 
 export function createUserRouter(db: Database): Router {
   const router = Router();
   const userService = new UserService(db);
   const groupService = new GroupService(db);
 
-  // GET /api/user/role?group_id=X — returns isAdmin flag for current user
-  router.get('/role', verifyTelegramInitData, async (req: AuthRequest, res: Response): Promise<void> => {
-    const telegramUser = req.telegramUser;
+  router.use(verifyTelegramInitData, requireUser(userService));
+
+  // GET /api/user/role?group_id=X — returns isAdmin flag for current user.
+  // Deliberately open to non-members: they simply get isAdmin: false.
+  router.get('/role', async (req: AuthRequest, res: Response): Promise<void> => {
     const groupId = parseInt(req.query.group_id as string);
 
     if (!groupId) {
@@ -21,13 +24,7 @@ export function createUserRouter(db: Database): Router {
     }
 
     try {
-      const user = await userService.findOrCreateUser({
-        id: telegramUser!.id,
-        username: telegramUser!.username,
-        first_name: telegramUser!.first_name,
-        last_name: telegramUser!.last_name,
-      });
-
+      const user = currentUser(req);
       const isAdmin = await groupService.isUserAdmin(user.id, groupId);
       res.json({ isAdmin, userId: user.id });
     } catch (error) {
@@ -37,8 +34,7 @@ export function createUserRouter(db: Database): Router {
   });
 
   // GET /api/user/members?group_id=X — returns group members list (admin only)
-  router.get('/members', verifyTelegramInitData, async (req: AuthRequest, res: Response): Promise<void> => {
-    const telegramUser = req.telegramUser;
+  router.get('/members', async (req: AuthRequest, res: Response): Promise<void> => {
     const groupId = parseInt(req.query.group_id as string);
 
     if (!groupId) {
@@ -47,14 +43,7 @@ export function createUserRouter(db: Database): Router {
     }
 
     try {
-      const requester = await userService.findOrCreateUser({
-        id: telegramUser!.id,
-        username: telegramUser!.username,
-        first_name: telegramUser!.first_name,
-        last_name: telegramUser!.last_name,
-      });
-
-      const isAdmin = await groupService.isUserAdmin(requester.id, groupId);
+      const isAdmin = await groupService.isUserAdmin(currentUser(req).id, groupId);
       if (!isAdmin) {
         res.status(403).json({ error: 'Admin only' });
         return;
@@ -74,11 +63,10 @@ export function createUserRouter(db: Database): Router {
   });
 
   // PATCH /api/user/:id/name?group_id=X — update user name (admin only)
-  router.patch('/:id/name', verifyTelegramInitData, async (req: AuthRequest, res: Response): Promise<void> => {
-    const telegramUser = req.telegramUser;
+  router.patch('/:id/name', async (req: AuthRequest, res: Response): Promise<void> => {
     const targetUserId = parseInt(req.params.id);
     const groupId = parseInt(req.query.group_id as string);
-    const { first_name, last_name } = req.body;
+    const { first_name, last_name } = req.body ?? {};
 
     if (!groupId || !targetUserId) {
       res.status(400).json({ error: 'group_id and user id are required' });
@@ -91,19 +79,19 @@ export function createUserRouter(db: Database): Router {
     }
 
     try {
-      const requester = await userService.findOrCreateUser({
-        id: telegramUser!.id,
-        username: telegramUser!.username,
-        first_name: telegramUser!.first_name,
-        last_name: telegramUser!.last_name,
-      });
-
-      const isAdmin = await groupService.isUserAdmin(requester.id, groupId);
+      const isAdmin = await groupService.isUserAdmin(currentUser(req).id, groupId);
       if (!isAdmin) {
         res.status(403).json({ error: 'Admin only' });
         return;
       }
 
+      // An admin may only rename people of their own group, not any user in the system
+      if (!(await groupService.isUserMember(targetUserId, groupId))) {
+        res.status(404).json({ error: 'Member not found' });
+        return;
+      }
+
+      // Empty string clears last_name; absent leaves it untouched
       await userService.updateUserName(
         targetUserId,
         first_name.trim(),
@@ -118,8 +106,7 @@ export function createUserRouter(db: Database): Router {
   });
 
   // DELETE /api/user/:id/member?group_id=X — remove (soft-delete) a member from the group (admin only)
-  router.delete('/:id/member', verifyTelegramInitData, async (req: AuthRequest, res: Response): Promise<void> => {
-    const telegramUser = req.telegramUser;
+  router.delete('/:id/member', async (req: AuthRequest, res: Response): Promise<void> => {
     const targetUserId = parseInt(req.params.id);
     const groupId = parseInt(req.query.group_id as string);
 
@@ -129,16 +116,20 @@ export function createUserRouter(db: Database): Router {
     }
 
     try {
-      const requester = await userService.findOrCreateUser({
-        id: telegramUser!.id,
-        username: telegramUser!.username,
-        first_name: telegramUser!.first_name,
-        last_name: telegramUser!.last_name,
-      });
-
-      const isAdmin = await groupService.isUserAdmin(requester.id, groupId);
+      const isAdmin = await groupService.isUserAdmin(currentUser(req).id, groupId);
       if (!isAdmin) {
         res.status(403).json({ error: 'Admin only' });
+        return;
+      }
+
+      if (!(await groupService.isUserMember(targetUserId, groupId))) {
+        res.status(404).json({ error: 'Member not found' });
+        return;
+      }
+
+      // Removing an admin (including oneself) could leave the group with nobody able to manage it
+      if (await groupService.isUserAdmin(targetUserId, groupId)) {
+        res.status(400).json({ error: 'Cannot remove an admin' });
         return;
       }
 

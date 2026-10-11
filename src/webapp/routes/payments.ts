@@ -5,6 +5,7 @@ import { UserService } from '../../services/UserService';
 import { GroupService } from '../../services/GroupService';
 import { GameService } from '../../services/GameService';
 import { verifyTelegramInitData } from '../middleware/telegramAuth';
+import { requireUser, currentUser } from '../middleware/requireUser';
 import { GameType } from '../../models/GameType';
 
 /** Returns 'YYYY-MM' for the current month in UTC. */
@@ -24,6 +25,8 @@ export function createPaymentsRouter(db: Database): Router {
   const groupService = new GroupService(db);
   const gameService = new GameService(db);
 
+  router.use(verifyTelegramInitData, requireUser(userService));
+
   // ── GET /api/payments ────────────────────────────────────────────────────
   //
   // For GAME:      ?game_id=X
@@ -33,12 +36,11 @@ export function createPaymentsRouter(db: Database): Router {
   //   Returns all group members with their payment amounts for that month.
   //
   // Only group admins may access this endpoint.
-  router.get('/', verifyTelegramInitData, async (req: AuthRequest, res: Response): Promise<void> => {
-    const telegramUser = req.telegramUser;
+  router.get('/', async (req: AuthRequest, res: Response): Promise<void> => {
     const gameId = parseInt(req.query['game_id'] as string);
     const monthParam = (req.query['month'] as string | undefined) ?? currentMonth();
 
-    if (!telegramUser || isNaN(gameId)) {
+    if (isNaN(gameId)) {
       res.status(400).json({ error: 'game_id is required' });
       return;
     }
@@ -48,12 +50,7 @@ export function createPaymentsRouter(db: Database): Router {
     }
 
     try {
-      const user = await userService.findOrCreateUser({
-        id: telegramUser.id,
-        username: telegramUser.username,
-        first_name: telegramUser.first_name,
-        last_name: telegramUser.last_name,
-      });
+      const user = currentUser(req);
 
       const game = await gameService.getGameById(gameId);
       if (!game) {
@@ -160,9 +157,7 @@ export function createPaymentsRouter(db: Database): Router {
   //   game_id is provided so we can resolve group_id and validate admin role.
   //
   // Only group admins may call this.
-  router.post('/upsert', verifyTelegramInitData, async (req: AuthRequest, res: Response): Promise<void> => {
-    const telegramUser = req.telegramUser;
-
+  router.post('/upsert', async (req: AuthRequest, res: Response): Promise<void> => {
     const {
       game_id,
       user_id,
@@ -181,7 +176,7 @@ export function createPaymentsRouter(db: Database): Router {
     const parsedAmount = parseFloat(String(amount));
     const monthStr: string = typeof month === 'string' && isValidMonth(month) ? month : currentMonth();
 
-    if (!telegramUser || isNaN(parsedGameId) || isNaN(parsedAmount) || parsedAmount < 0) {
+    if (isNaN(parsedGameId) || !Number.isFinite(parsedAmount) || parsedAmount < 0) {
       res.status(400).json({ error: 'game_id and a non-negative amount are required' });
       return;
     }
@@ -191,12 +186,7 @@ export function createPaymentsRouter(db: Database): Router {
     }
 
     try {
-      const admin = await userService.findOrCreateUser({
-        id: telegramUser.id,
-        username: telegramUser.username,
-        first_name: telegramUser.first_name,
-        last_name: telegramUser.last_name,
-      });
+      const admin = currentUser(req);
 
       const game = await gameService.getGameById(parsedGameId);
       if (!game) {
@@ -211,11 +201,19 @@ export function createPaymentsRouter(db: Database): Router {
       }
 
       const parsedUserId = user_id != null ? parseInt(String(user_id)) : null;
+      if (parsedUserId != null && isNaN(parsedUserId)) {
+        res.status(400).json({ error: 'Invalid user_id' });
+        return;
+      }
 
       if (game.type === GameType.TRAINING) {
         // Training: upsert by (group_id, period_month, user_id)
         if (parsedUserId == null) {
           res.status(400).json({ error: 'user_id is required for training payments' });
+          return;
+        }
+        if (!(await groupService.isUserMember(parsedUserId, game.group_id))) {
+          res.status(400).json({ error: 'user_id is not a member of this group' });
           return;
         }
         await db.dataSource.query(
@@ -233,6 +231,12 @@ export function createPaymentsRouter(db: Database): Router {
       } else {
         // Game: upsert by (game_id, user_id) or manual upsert for guests
         if (parsedUserId != null) {
+          // A game payer is either someone signed up for this game or a current group member
+          const isParticipant = game.participants?.some((p) => p.user_id === parsedUserId) ?? false;
+          if (!isParticipant && !(await groupService.isUserMember(parsedUserId, game.group_id))) {
+            res.status(400).json({ error: 'user_id is not a participant of this game' });
+            return;
+          }
           await db.dataSource.query(
             `INSERT INTO payments
                (group_id, game_id, period_month, user_id, amount, confirmed_by, confirmed_at, updated_at)
@@ -247,6 +251,10 @@ export function createPaymentsRouter(db: Database): Router {
           );
         } else {
           // Guest: upsert by (game_id, guest_name), see uq_payments_game_guest
+          if (typeof guest_name !== 'string' || !guest_name.trim()) {
+            res.status(400).json({ error: 'guest_name must be a non-empty string' });
+            return;
+          }
           await db.dataSource.query(
             `INSERT INTO payments
                (group_id, game_id, period_month, guest_name, amount, confirmed_by, confirmed_at, updated_at)
@@ -274,12 +282,11 @@ export function createPaymentsRouter(db: Database): Router {
   // ?group_id=X&month=YYYY-MM  (month defaults to current month)
   // Returns all group members with their training payment status for the given month.
   // Only group admins may access this endpoint.
-  router.get('/training', verifyTelegramInitData, async (req: AuthRequest, res: Response): Promise<void> => {
-    const telegramUser = req.telegramUser;
+  router.get('/training', async (req: AuthRequest, res: Response): Promise<void> => {
     const groupId = parseInt(req.query['group_id'] as string);
     const monthParam = (req.query['month'] as string | undefined) ?? currentMonth();
 
-    if (!telegramUser || isNaN(groupId)) {
+    if (isNaN(groupId)) {
       res.status(400).json({ error: 'group_id is required' });
       return;
     }
@@ -289,14 +296,7 @@ export function createPaymentsRouter(db: Database): Router {
     }
 
     try {
-      const user = await userService.findOrCreateUser({
-        id: telegramUser.id,
-        username: telegramUser.username,
-        first_name: telegramUser.first_name,
-        last_name: telegramUser.last_name,
-      });
-
-      const isAdmin = await groupService.isUserAdmin(user.id, groupId);
+      const isAdmin = await groupService.isUserAdmin(currentUser(req).id, groupId);
       if (!isAdmin) {
         res.status(403).json({ error: 'Only group admins can view payments' });
         return;
@@ -349,9 +349,7 @@ export function createPaymentsRouter(db: Database): Router {
   // Body: { group_id, user_id, amount, month? }
   // Upserts a monthly training payment for a group member.
   // Only group admins may call this.
-  router.post('/training/upsert', verifyTelegramInitData, async (req: AuthRequest, res: Response): Promise<void> => {
-    const telegramUser = req.telegramUser;
-
+  router.post('/training/upsert', async (req: AuthRequest, res: Response): Promise<void> => {
     const {
       group_id,
       user_id,
@@ -369,22 +367,21 @@ export function createPaymentsRouter(db: Database): Router {
     const parsedAmount  = parseFloat(String(amount));
     const monthStr: string = typeof month === 'string' && isValidMonth(month) ? month : currentMonth();
 
-    if (!telegramUser || isNaN(parsedGroupId) || isNaN(parsedUserId) || isNaN(parsedAmount) || parsedAmount < 0) {
+    if (isNaN(parsedGroupId) || isNaN(parsedUserId) || !Number.isFinite(parsedAmount) || parsedAmount < 0) {
       res.status(400).json({ error: 'group_id, user_id and a non-negative amount are required' });
       return;
     }
 
     try {
-      const admin = await userService.findOrCreateUser({
-        id: telegramUser.id,
-        username: telegramUser.username,
-        first_name: telegramUser.first_name,
-        last_name: telegramUser.last_name,
-      });
+      const admin = currentUser(req);
 
       const isAdmin = await groupService.isUserAdmin(admin.id, parsedGroupId);
       if (!isAdmin) {
         res.status(403).json({ error: 'Only group admins can confirm payments' });
+        return;
+      }
+      if (!(await groupService.isUserMember(parsedUserId, parsedGroupId))) {
+        res.status(400).json({ error: 'user_id is not a member of this group' });
         return;
       }
 

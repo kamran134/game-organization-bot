@@ -1,3 +1,5 @@
+import { ApiError } from './api.js';
+
 /**
  * Escapes a value for safe insertion into innerHTML.
  * Prevents XSS when rendering server-supplied data.
@@ -25,11 +27,25 @@ export function formatDate(dateStr: string): string {
   });
 }
 
+/** Server error strings that should be shown to the user in Russian. */
+const KNOWN_ERRORS: Record<string, string> = {
+  'Forbidden': 'Нет доступа к этой группе',
+  'Registration locked': 'Запись закрыта',
+  'Admin only': 'Только для администраторов',
+  'You are not a member of this group': 'Вы не участник этой группы',
+  'Cannot remove an admin': 'Нельзя удалить администратора',
+};
+
 /**
  * Extracts a human-readable message from an unknown error value.
  */
 export function getErrorMessage(err: unknown): string {
-  if (err instanceof Error) return err.message;
+  if (err instanceof Error) {
+    const known = KNOWN_ERRORS[err.message];
+    if (known) return known;
+    if (err instanceof ApiError && err.status === 403) return 'Нет доступа к этой группе';
+    return err.message;
+  }
   if (typeof err === 'string') return err;
   return 'Неизвестная ошибка';
 }

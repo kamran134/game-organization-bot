@@ -60,21 +60,30 @@ export function verifyTelegramInitData(
       return;
     }
 
-    // Verify auth_date is not too old
+    // auth_date is mandatory: without it a leaked initData would never expire
     const authDate = params.get('auth_date');
-    if (authDate) {
-      const authTimestamp = parseInt(authDate, 10);
-      const now = Math.floor(Date.now() / 1000);
-      if (isNaN(authTimestamp) || now - authTimestamp > MAX_AUTH_AGE_SECONDS) {
-        res.status(401).json({ error: 'Init data expired' });
-        return;
-      }
+    if (!authDate) {
+      res.status(401).json({ error: 'Missing auth_date' });
+      return;
+    }
+    const authTimestamp = parseInt(authDate, 10);
+    const now = Math.floor(Date.now() / 1000);
+    if (isNaN(authTimestamp) || now - authTimestamp > MAX_AUTH_AGE_SECONDS) {
+      res.status(401).json({ error: 'Init data expired' });
+      return;
     }
 
     const userParam = params.get('user');
-    if (userParam) {
-      req.telegramUser = JSON.parse(userParam) as import('../types/express').TelegramUser;
+    if (!userParam) {
+      res.status(401).json({ error: 'Missing user' });
+      return;
     }
+    const telegramUser = JSON.parse(userParam) as import('../types/express').TelegramUser;
+    if (typeof telegramUser?.id !== 'number') {
+      res.status(401).json({ error: 'Invalid user' });
+      return;
+    }
+    req.telegramUser = telegramUser;
 
     next();
   } catch {

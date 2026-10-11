@@ -74,9 +74,12 @@ export class UserService {
     await userRepo.update(userId, { phone });
   }
 
-  async updateUserName(userId: number, firstName: string, lastName?: string): Promise<void> {
+  /** `lastName`: undefined leaves it untouched, '' or null clears it. */
+  async updateUserName(userId: number, firstName: string, lastName?: string | null): Promise<void> {
     const userRepo = this.db.getRepository(User);
-    await userRepo.update(userId, { first_name: firstName, last_name: lastName || undefined });
+    const lastNameUpdate = lastName === undefined ? undefined : (lastName || null);
+    // last_name is nullable in the DB, but the entity types it as string | undefined
+    await userRepo.update(userId, { first_name: firstName, last_name: lastNameUpdate as string | undefined });
   }
 
   async getUserStats(userId: number): Promise<{

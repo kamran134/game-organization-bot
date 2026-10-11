@@ -43,6 +43,13 @@ export class GroupService {
     });
   }
 
+  /** Lightweight lookup of the linked Telegram chat (no relations loaded). */
+  async getTelegramChatId(groupId: number): Promise<number | string | null> {
+    const groupRepo = this.db.getRepository(Group);
+    const group = await groupRepo.findOne({ where: { id: groupId }, select: { id: true, telegram_chat_id: true } });
+    return group?.telegram_chat_id ?? null;
+  }
+
   async getUserGroups(userId: number): Promise<Group[]> {
     const memberRepo = this.db.getRepository(GroupMember);
     const memberships = await memberRepo.find({

@@ -5,6 +5,14 @@
 
 let _initData = '';
 
+/** Error carrying the HTTP status so callers can show status-specific messages. */
+export class ApiError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
 /**
  * Store the Telegram initData string to be sent with every request.
  */
@@ -33,7 +41,7 @@ export async function apiFetch<T = unknown>(
     const body = await res
       .json()
       .catch(() => ({ error: res.statusText })) as { error?: string };
-    throw new Error(body.error ?? 'Request failed');
+    throw new ApiError(body.error ?? 'Request failed', res.status);
   }
 
   return res.json() as Promise<T>;

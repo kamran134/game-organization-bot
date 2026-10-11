@@ -59,7 +59,11 @@ export async function renderCreateForm(ctx: CreateCtx, nav: Nav): Promise<void> 
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     tomorrow.setHours(18, 0, 0, 0);
-    const defaultDate = tomorrow.toISOString().slice(0, 16);
+    // datetime-local expects local time, so toISOString() (UTC) would shift it by the user's offset
+    const pad = (n: number): string => String(n).padStart(2, '0');
+    const defaultDate =
+      `${tomorrow.getFullYear()}-${pad(tomorrow.getMonth() + 1)}-${pad(tomorrow.getDate())}` +
+      `T${pad(tomorrow.getHours())}:${pad(tomorrow.getMinutes())}`;
 
     show(`
       <div class="page">

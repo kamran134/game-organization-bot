@@ -5,16 +5,20 @@ import { UserService } from '../../services/UserService';
 import { GroupService } from '../../services/GroupService';
 import { SportService } from '../../services/SportService';
 import { verifyTelegramInitData } from '../middleware/telegramAuth';
+import { requireUser, currentUser } from '../middleware/requireUser';
+import { GroupAccessChecker } from '../access';
 import { ValidationError } from '../../utils/errors';
 
-export function createSportsRouter(db: Database): Router {
+export function createSportsRouter(db: Database, canAccessGroup: GroupAccessChecker): Router {
   const router = Router();
   const userService = new UserService(db);
   const groupService = new GroupService(db);
   const sportService = new SportService(db);
 
+  router.use(verifyTelegramInitData, requireUser(userService));
+
   // GET /api/sports?group_id=X - list sports visible to a group (base + group's own)
-  router.get('/', verifyTelegramInitData, async (req: AuthRequest, res: Response): Promise<void> => {
+  router.get('/', async (req: AuthRequest, res: Response): Promise<void> => {
     const groupId = parseInt(req.query.group_id as string);
     if (!groupId) {
       res.status(400).json({ error: 'group_id is required' });
@@ -22,6 +26,11 @@ export function createSportsRouter(db: Database): Router {
     }
 
     try {
+      if (!(await canAccessGroup(currentUser(req), groupId))) {
+        res.status(403).json({ error: 'Forbidden' });
+        return;
+      }
+
       const sports = await sportService.getSportsForGroup(groupId);
       res.json(sports.map(sport => ({
         id: sport.id,
@@ -36,8 +45,7 @@ export function createSportsRouter(db: Database): Router {
   });
 
   // POST /api/sports?group_id=X - create a group sport (admin only)
-  router.post('/', verifyTelegramInitData, async (req: AuthRequest, res: Response): Promise<void> => {
-    const telegramUser = req.telegramUser;
+  router.post('/', async (req: AuthRequest, res: Response): Promise<void> => {
     const groupId = parseInt(req.query.group_id as string);
     const { name, emoji } = req.body;
 
@@ -51,14 +59,7 @@ export function createSportsRouter(db: Database): Router {
     }
 
     try {
-      const user = await userService.findOrCreateUser({
-        id: telegramUser!.id,
-        username: telegramUser!.username,
-        first_name: telegramUser!.first_name,
-        last_name: telegramUser!.last_name,
-      });
-
-      const isAdmin = await groupService.isUserAdmin(user.id, groupId);
+      const isAdmin = await groupService.isUserAdmin(currentUser(req).id, groupId);
       if (!isAdmin) {
         res.status(403).json({ error: 'Admin only' });
         return;
@@ -82,8 +83,7 @@ export function createSportsRouter(db: Database): Router {
   });
 
   // DELETE /api/sports/:id?group_id=X - deactivate a group sport (admin only)
-  router.delete('/:id', verifyTelegramInitData, async (req: AuthRequest, res: Response): Promise<void> => {
-    const telegramUser = req.telegramUser;
+  router.delete('/:id', async (req: AuthRequest, res: Response): Promise<void> => {
     const sportId = parseInt(req.params.id);
     const groupId = parseInt(req.query.group_id as string);
 
@@ -93,14 +93,7 @@ export function createSportsRouter(db: Database): Router {
     }
 
     try {
-      const user = await userService.findOrCreateUser({
-        id: telegramUser!.id,
-        username: telegramUser!.username,
-        first_name: telegramUser!.first_name,
-        last_name: telegramUser!.last_name,
-      });
-
-      const isAdmin = await groupService.isUserAdmin(user.id, groupId);
+      const isAdmin = await groupService.isUserAdmin(currentUser(req).id, groupId);
       if (!isAdmin) {
         res.status(403).json({ error: 'Admin only' });
         return;

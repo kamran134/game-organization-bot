@@ -4,34 +4,71 @@ import { Database } from '../../database/Database';
 import { GameService } from '../../services/GameService';
 import { UserService } from '../../services/UserService';
 import { GroupService } from '../../services/GroupService';
+import { SportService } from '../../services/SportService';
+import { LocationService } from '../../services/LocationService';
 import { GameType } from '../../models/GameType';
 import { ParticipationStatus } from '../../models/GameParticipant';
 import { Game } from '../../models/Game';
+import { User } from '../../models/User';
 import { verifyTelegramInitData } from '../middleware/telegramAuth';
+import { requireUser, currentUser } from '../middleware/requireUser';
+import { GroupAccessChecker } from '../access';
+import { serializeGame } from '../serializers';
+import { parseGameBody } from '../gameBodyValidator';
 import { Telegram } from 'telegraf';
 import { GameMessageBuilder } from '../../bot/ui/GameMessageBuilder';
 import { KeyboardBuilder } from '../../bot/ui/KeyboardBuilder';
 import { JokeService } from '../../services/JokeService';
 import { formatMembersMentions } from '../../bot/ui/formatters';
 import { escapeHtml, escapeMarkdownV1 } from '../../utils/helpers';
+import { ValidationError } from '../../utils/errors';
 
-export function createGamesRouter(db: Database): Router {
+export function createGamesRouter(db: Database, telegram: Telegram, canAccessGroup: GroupAccessChecker): Router {
   const router = Router();
   const gameService = new GameService(db);
   const userService = new UserService(db);
   const groupService = new GroupService(db);
+  const sportService = new SportService(db);
+  const locationService = new LocationService(db);
   const jokeService = new JokeService();
 
+  router.use(verifyTelegramInitData, requireUser(userService));
+
+  /** Loads a game and checks the user is an admin of its group; sends the error response and returns null otherwise. */
+  async function loadGameForAdmin(gameId: number, user: User, res: Response): Promise<Game | null> {
+    const game = await gameService.getGameById(gameId);
+    if (!game) { res.status(404).json({ error: 'Game not found' }); return null; }
+    const isAdmin = await groupService.isUserAdmin(user.id, game.group_id);
+    if (!isAdmin) { res.status(403).json({ error: 'Admin only' }); return null; }
+    return game;
+  }
+
+  /** The sport must be a base sport or belong to the group, and be active. */
+  async function isSportAvailable(sportId: number, groupId: number): Promise<boolean> {
+    const sport = await sportService.getSportById(sportId);
+    if (!sport || !sport.is_active) return false;
+    return sport.group_id === null || sport.group_id === undefined || sport.group_id === groupId;
+  }
+
+  async function isLocationAvailable(locationId: number, groupId: number): Promise<boolean> {
+    const location = await locationService.getById(locationId);
+    return !!location && location.is_active && location.group_id === groupId;
+  }
+
   // GET /api/games?group_id=X — upcoming games for a group (requires auth)
-  router.get('/', verifyTelegramInitData, async (req: AuthRequest, res: Response): Promise<void> => {
+  router.get('/', async (req: AuthRequest, res: Response): Promise<void> => {
     const groupId = parseInt(req.query.group_id as string);
     if (!groupId) {
       res.status(400).json({ error: 'group_id is required' });
       return;
     }
     try {
+      if (!(await canAccessGroup(currentUser(req), groupId))) {
+        res.status(403).json({ error: 'Forbidden' });
+        return;
+      }
       const games = await gameService.getUpcomingGroupGames(groupId);
-      res.json(games);
+      res.json(games.map(serializeGame));
     } catch (error) {
       console.error('Error fetching games:', error);
       res.status(500).json({ error: 'Failed to fetch games' });
@@ -39,13 +76,17 @@ export function createGamesRouter(db: Database): Router {
   });
 
   // GET /api/games/:id — get single game (requires auth)
-  router.get('/:id', verifyTelegramInitData, async (req: AuthRequest, res: Response): Promise<void> => {
+  router.get('/:id', async (req: AuthRequest, res: Response): Promise<void> => {
     const gameId = parseInt(req.params.id);
     if (!gameId) { res.status(400).json({ error: 'Invalid game id' }); return; }
     try {
       const game = await gameService.getGameById(gameId);
       if (!game) { res.status(404).json({ error: 'Game not found' }); return; }
-      res.json(game);
+      if (!(await canAccessGroup(currentUser(req), game.group_id))) {
+        res.status(403).json({ error: 'Forbidden' });
+        return;
+      }
+      res.json(serializeGame(game));
     } catch (error) {
       console.error('Error fetching game:', error);
       res.status(500).json({ error: 'Failed to fetch game' });
@@ -53,80 +94,67 @@ export function createGamesRouter(db: Database): Router {
   });
 
   // POST /api/games — create game or training (requires auth)
-  router.post('/', verifyTelegramInitData, async (req: AuthRequest, res: Response): Promise<void> => {
-    const telegramUser = req.telegramUser;
-
-    const {
-      group_id,
-      sport_id,
-      game_date,
-      location_id,
-      min_participants,
-      max_participants,
-      cost,
-      notes,
-      type, // 'game' | 'training'
-    } = req.body;
-
-    if (!telegramUser || !group_id || !sport_id || !game_date || !location_id || !max_participants) {
-      res.status(400).json({ error: 'Missing required fields' });
-      return;
-    }
+  router.post('/', async (req: AuthRequest, res: Response): Promise<void> => {
+    const user = currentUser(req);
+    const { group_id, type } = req.body ?? {}; // type: 'game' | 'training'
 
     try {
-      // Find or create user from Telegram data
-      const user = await userService.findOrCreateUser({
-        id: telegramUser.id,
-        username: telegramUser.username,
-        first_name: telegramUser.first_name,
-        last_name: telegramUser.last_name,
-      });
-
-      // Verify user is a member of the group
-      const parsedGroupId = parseInt(group_id);
-      if (isNaN(parsedGroupId) || isNaN(parseInt(sport_id)) || isNaN(parseInt(location_id)) || isNaN(parseInt(max_participants))) {
-        res.status(400).json({ error: 'Invalid numeric field' });
+      const groupId = Number(group_id);
+      if (!Number.isInteger(groupId) || groupId < 1) {
+        res.status(400).json({ error: 'Invalid group_id' });
         return;
       }
-      const isMember = await groupService.isUserMember(user.id, parsedGroupId);
+
+      const body = parseGameBody(req.body, 'create');
+      const sportId = body.sport_id as number;
+      const locationId = body.location_id as number;
+
+      const isMember = await groupService.isUserMember(user.id, groupId);
       if (!isMember) {
         res.status(403).json({ error: 'You are not a member of this group' });
+        return;
+      }
+
+      if (!(await isSportAvailable(sportId, groupId))) {
+        res.status(400).json({ error: 'Вид спорта недоступен для этой группы' });
+        return;
+      }
+      if (!(await isLocationAvailable(locationId, groupId))) {
+        res.status(400).json({ error: 'Площадка недоступна для этой группы' });
         return;
       }
 
       const gameType = type === 'training' ? GameType.TRAINING : GameType.GAME;
 
       const game = await gameService.createGame({
-        group_id: parseInt(group_id),
+        group_id: groupId,
         creator_id: user.id,
-        sport_id: parseInt(sport_id),
-        game_date: new Date(game_date),
-        location_id: parseInt(location_id),
-        min_participants: parseInt(min_participants) || 2,
-        max_participants: parseInt(max_participants),
-        cost: cost ? parseFloat(cost) : undefined,
-        notes: notes || undefined,
+        sport_id: sportId,
+        game_date: body.game_date as Date,
+        location_id: locationId,
+        min_participants: body.min_participants as number,
+        max_participants: body.max_participants as number,
+        cost: body.cost || undefined,
+        notes: body.notes ?? undefined,
         type: gameType,
       });
 
       // Send notification to the Telegram group
       try {
-        const botToken = process.env.BOT_TOKEN;
-        const group = await groupService.getGroupById(parseInt(group_id));
-        if (botToken && group?.telegram_chat_id) {
+        const group = await groupService.getGroupById(groupId);
+        if (group?.telegram_chat_id) {
           const gameWithRelations = await gameService.getGameById(game.id);
           if (gameWithRelations) {
-            const isAdmin = await groupService.isUserAdmin(user.id, parseInt(group_id));
+            const isAdmin = await groupService.isUserAdmin(user.id, groupId);
             const text = GameMessageBuilder.formatGameCreatedMessage(gameWithRelations);
             const keyboard = KeyboardBuilder.createGameActionsKeyboard(game.id, 0, isAdmin, 0);
-            const telegram = new Telegram(botToken);
             await telegram.sendMessage(
               Number(group.telegram_chat_id),
               text,
               { parse_mode: 'Markdown', ...keyboard }
             );
 
-            const members = await groupService.getGroupMembers(parseInt(group_id));
+            const members = await groupService.getGroupMembers(groupId);
             const mentions = formatMembersMentions(members);
             if (mentions) {
               await telegram.sendMessage(Number(group.telegram_chat_id), `👆 ${mentions}`, { parse_mode: 'HTML' });
@@ -140,14 +168,18 @@ export function createGamesRouter(db: Database): Router {
 
       res.status(201).json({ id: game.id, message: 'Created successfully' });
     } catch (error) {
+      if (error instanceof ValidationError) {
+        res.status(400).json({ error: error.message });
+        return;
+      }
       console.error('Error creating game:', error);
       res.status(500).json({ error: 'Failed to create game' });
     }
   });
 
   // POST /api/games/:id/register — register for a game (requires auth)
-  router.post('/:id/register', verifyTelegramInitData, async (req: AuthRequest, res: Response): Promise<void> => {
-    const telegramUser = req.telegramUser;
+  router.post('/:id/register', async (req: AuthRequest, res: Response): Promise<void> => {
+    const user = currentUser(req);
     const gameId = parseInt(req.params.id);
 
     if (!gameId) {
@@ -156,16 +188,29 @@ export function createGamesRouter(db: Database): Router {
     }
 
     try {
-      if (!telegramUser) { res.status(401).json({ error: 'Unauthorized' }); return; }
+      const game = await gameService.getGameById(gameId);
+      if (!game) { res.status(404).json({ error: 'Game not found' }); return; }
 
-      const user = await userService.findOrCreateUser({
-        id: telegramUser.id,
-        username: telegramUser.username,
-        first_name: telegramUser.first_name,
-        last_name: telegramUser.last_name,
-      });
+      if (!(await canAccessGroup(user, game.group_id))) {
+        res.status(403).json({ error: 'Forbidden' });
+        return;
+      }
+      if (game.isRegistrationLocked()) {
+        res.status(403).json({ error: 'Registration locked' });
+        return;
+      }
 
-      const { status: rawStatus } = req.body as { status?: string };
+      // Mirrors the bot's join handler: membership is created lazily on first registration
+      if (!(await groupService.isUserMember(user.id, game.group_id))) {
+        try {
+          await groupService.addMemberToGroup(user.id, game.group_id);
+        } catch (addError) {
+          // Lost a race with a parallel request that already added the user
+          if (!(addError instanceof Error && addError.message.includes('already a member'))) throw addError;
+        }
+      }
+
+      const { status: rawStatus } = (req.body ?? {}) as { status?: string };
       const participationStatus =
         rawStatus === 'maybe' ? ParticipationStatus.MAYBE : ParticipationStatus.CONFIRMED;
 
@@ -176,10 +221,8 @@ export function createGamesRouter(db: Database): Router {
 
       // Send notification to the Telegram group (fire-and-forget)
       setImmediate(async () => { try {
-        const botToken = process.env.BOT_TOKEN;
         const updatedGame = await gameService.getGameById(gameId);
-        if (botToken && updatedGame?.group?.telegram_chat_id) {
-          const telegram = new Telegram(botToken);
+        if (updatedGame?.group?.telegram_chat_id) {
           const userName = [user.first_name, user.last_name].filter(Boolean).join(' ');
           const participantsText = GameMessageBuilder.formatParticipantsMessage(updatedGame);
           const emoji = participationStatus === ParticipationStatus.MAYBE ? '❓' : '✅';
@@ -207,29 +250,30 @@ export function createGamesRouter(db: Database): Router {
   });
 
   // DELETE /api/games/:id/register — cancel registration (requires auth)
-  router.delete('/:id/register', verifyTelegramInitData, async (req: AuthRequest, res: Response): Promise<void> => {
-    const telegramUser = req.telegramUser;
+  router.delete('/:id/register', async (req: AuthRequest, res: Response): Promise<void> => {
+    const user = currentUser(req);
     const gameId = parseInt(req.params.id);
     if (!gameId) { res.status(400).json({ error: 'Invalid game id' }); return; }
 
     try {
-      if (!telegramUser) { res.status(401).json({ error: 'Unauthorized' }); return; }
-      const user = await userService.getUserByTelegramId(telegramUser.id);
-      if (!user) {
-        res.status(404).json({ error: 'User not found' });
+      const game = await gameService.getGameById(gameId);
+      if (!game) { res.status(404).json({ error: 'Game not found' }); return; }
+      if (game.isRegistrationLocked()) {
+        res.status(403).json({ error: 'Registration locked' });
         return;
       }
+
+      const wasParticipant = game.participants?.some((p) => p.user_id === user.id) ?? false;
       await gameService.removeParticipant(gameId, user.id);
 
       // Respond immediately, notify group in background
       res.json({ message: 'Cancelled successfully' });
+      if (!wasParticipant) return;
 
       // Send cancel notification (fire-and-forget)
       setImmediate(async () => { try {
-        const botToken = process.env.BOT_TOKEN;
         const updatedGame = await gameService.getGameById(gameId);
-        if (botToken && updatedGame?.group?.telegram_chat_id) {
-          const telegram = new Telegram(botToken);
+        if (updatedGame?.group?.telegram_chat_id) {
           const userName = [user.first_name, user.last_name].filter(Boolean).join(' ');
           const participantsText = GameMessageBuilder.formatParticipantsMessage(updatedGame);
           const joke = await jokeService.getDeclineJoke(userName);
@@ -250,59 +294,65 @@ export function createGamesRouter(db: Database): Router {
   });
 
   // PUT /api/games/:id — update game (admin only)
-  router.put('/:id', verifyTelegramInitData, async (req: AuthRequest, res: Response): Promise<void> => {
-    const telegramUser = req.telegramUser;
+  router.put('/:id', async (req: AuthRequest, res: Response): Promise<void> => {
     const gameId = parseInt(req.params.id);
-    if (!telegramUser) { res.status(401).json({ error: 'Unauthorized' }); return; }
     if (!gameId) { res.status(400).json({ error: 'Invalid game id' }); return; }
     try {
-      const user = await userService.getUserByTelegramId(telegramUser.id);
-      if (!user) { res.status(404).json({ error: 'User not found' }); return; }
-      const game = await gameService.getGameById(gameId);
-      if (!game) { res.status(404).json({ error: 'Game not found' }); return; }
-      const isAdmin = await groupService.isUserAdmin(user.id, game.group_id);
-      if (!isAdmin) { res.status(403).json({ error: 'Admin only' }); return; }
+      const game = await loadGameForAdmin(gameId, currentUser(req), res);
+      if (!game) return;
 
-      const { sport_id, game_date, location_id, min_participants, max_participants, cost, notes } = req.body as Record<string, string | undefined>;
-      const gameRepo = db.getRepository(Game);
-      await gameRepo.update(gameId, {
-        ...(sport_id      && { sport_id: parseInt(sport_id) }),
-        ...(game_date     && { game_date: new Date(game_date) }),
-        ...(location_id   && { location_id: parseInt(location_id) }),
-        ...(min_participants && { min_participants: parseInt(min_participants) }),
-        ...(max_participants && { max_participants: parseInt(max_participants) }),
-        ...(cost !== undefined && { cost: cost === '' || cost === null ? undefined : parseFloat(cost) }),
-        ...(notes !== undefined && { notes: notes || undefined }),
-      });
+      const body = parseGameBody(req.body, 'update');
+
+      const minParticipants = body.min_participants ?? game.min_participants;
+      const maxParticipants = body.max_participants ?? game.max_participants;
+      if (minParticipants > maxParticipants) {
+        res.status(400).json({ error: 'Мин. игроков не может быть больше макс.' });
+        return;
+      }
+
+      // Only re-check references that actually change: an already-assigned sport/location
+      // that was deactivated later must not block editing the rest of the game.
+      if (body.sport_id !== undefined && body.sport_id !== game.sport_id
+        && !(await isSportAvailable(body.sport_id, game.group_id))) {
+        res.status(400).json({ error: 'Вид спорта недоступен для этой группы' });
+        return;
+      }
+      if (body.location_id !== undefined && body.location_id !== game.location_id
+        && !(await isLocationAvailable(body.location_id, game.group_id))) {
+        res.status(400).json({ error: 'Площадка недоступна для этой группы' });
+        return;
+      }
+
+      // null values clear the nullable columns (cost, notes)
+      const changes = body as Partial<Game>;
+      if (Object.keys(changes).length > 0) {
+        await db.getRepository(Game).update(gameId, changes);
+      }
       res.json({ message: 'Updated successfully' });
     } catch (error) {
+      if (error instanceof ValidationError) {
+        res.status(400).json({ error: error.message });
+        return;
+      }
       console.error('Error updating game:', error);
       res.status(500).json({ error: 'Failed to update game' });
     }
   });
 
   // DELETE /api/games/:id — delete game (admin only)
-  router.delete('/:id', verifyTelegramInitData, async (req: AuthRequest, res: Response): Promise<void> => {
-    const telegramUser = req.telegramUser;
+  router.delete('/:id', async (req: AuthRequest, res: Response): Promise<void> => {
     const gameId = parseInt(req.params.id);
-    if (!telegramUser) { res.status(401).json({ error: 'Unauthorized' }); return; }
     if (!gameId) { res.status(400).json({ error: 'Invalid game id' }); return; }
     try {
-      const user = await userService.getUserByTelegramId(telegramUser.id);
-      if (!user) { res.status(404).json({ error: 'User not found' }); return; }
-      const game = await gameService.getGameById(gameId);
-      if (!game) { res.status(404).json({ error: 'Game not found' }); return; }
-      const isAdmin = await groupService.isUserAdmin(user.id, game.group_id);
-      if (!isAdmin) { res.status(403).json({ error: 'Admin only' }); return; }
+      const game = await loadGameForAdmin(gameId, currentUser(req), res);
+      if (!game) return;
 
       const gameRepo = db.getRepository(Game);
       await gameRepo.remove(game);
 
       // Notify group
       try {
-        const botToken = process.env.BOT_TOKEN;
-        if (botToken && game.group?.telegram_chat_id) {
-          const telegram = new Telegram(botToken);
+        if (game.group?.telegram_chat_id) {
           const sportName = game.sport ? `${game.sport.emoji} ${game.sport.name}` : 'Игра';
           const dateStr = new Date(game.game_date).toLocaleString('ru-RU', {
             day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit',
@@ -326,18 +376,12 @@ export function createGamesRouter(db: Database): Router {
   // ---- Guest management (admin only) ----
 
   // POST /api/games/:id/guests — add a guest participant
-  router.post('/:id/guests', verifyTelegramInitData, async (req: AuthRequest, res: Response): Promise<void> => {
-    const telegramUser = req.telegramUser;
+  router.post('/:id/guests', async (req: AuthRequest, res: Response): Promise<void> => {
     const gameId = parseInt(req.params.id);
-    if (!telegramUser) { res.status(401).json({ error: 'Unauthorized' }); return; }
     if (!gameId) { res.status(400).json({ error: 'Invalid game id' }); return; }
     try {
-      const user = await userService.getUserByTelegramId(telegramUser.id);
-      if (!user) { res.status(404).json({ error: 'User not found' }); return; }
-      const game = await gameService.getGameById(gameId);
-      if (!game) { res.status(404).json({ error: 'Game not found' }); return; }
-      const isAdmin = await groupService.isUserAdmin(user.id, game.group_id);
-      if (!isAdmin) { res.status(403).json({ error: 'Admin only' }); return; }
+      const game = await loadGameForAdmin(gameId, currentUser(req), res);
+      if (!game) return;
 
       const { first_name, last_name } = req.body as { first_name?: string; last_name?: string };
       if (!first_name?.trim()) {
@@ -354,19 +398,13 @@ export function createGamesRouter(db: Database): Router {
   });
 
   // PUT /api/games/:id/guests/:participantId — edit a guest participant
-  router.put('/:id/guests/:participantId', verifyTelegramInitData, async (req: AuthRequest, res: Response): Promise<void> => {
-    const telegramUser = req.telegramUser;
+  router.put('/:id/guests/:participantId', async (req: AuthRequest, res: Response): Promise<void> => {
     const gameId = parseInt(req.params.id);
     const participantId = parseInt(req.params.participantId);
-    if (!telegramUser) { res.status(401).json({ error: 'Unauthorized' }); return; }
     if (!gameId || !participantId) { res.status(400).json({ error: 'Invalid ids' }); return; }
     try {
-      const user = await userService.getUserByTelegramId(telegramUser.id);
-      if (!user) { res.status(404).json({ error: 'User not found' }); return; }
-      const game = await gameService.getGameById(gameId);
-      if (!game) { res.status(404).json({ error: 'Game not found' }); return; }
-      const isAdmin = await groupService.isUserAdmin(user.id, game.group_id);
-      if (!isAdmin) { res.status(403).json({ error: 'Admin only' }); return; }
+      const game = await loadGameForAdmin(gameId, currentUser(req), res);
+      if (!game) return;
 
       const { first_name, last_name } = req.body as { first_name?: string; last_name?: string };
       if (!first_name?.trim()) {
@@ -383,19 +421,13 @@ export function createGamesRouter(db: Database): Router {
   });
 
   // DELETE /api/games/:id/guests/:participantId — remove a guest participant
-  router.delete('/:id/guests/:participantId', verifyTelegramInitData, async (req: AuthRequest, res: Response): Promise<void> => {
-    const telegramUser = req.telegramUser;
+  router.delete('/:id/guests/:participantId', async (req: AuthRequest, res: Response): Promise<void> => {
     const gameId = parseInt(req.params.id);
     const participantId = parseInt(req.params.participantId);
-    if (!telegramUser) { res.status(401).json({ error: 'Unauthorized' }); return; }
     if (!gameId || !participantId) { res.status(400).json({ error: 'Invalid ids' }); return; }
     try {
-      const user = await userService.getUserByTelegramId(telegramUser.id);
-      if (!user) { res.status(404).json({ error: 'User not found' }); return; }
-      const game = await gameService.getGameById(gameId);
-      if (!game) { res.status(404).json({ error: 'Game not found' }); return; }
-      const isAdmin = await groupService.isUserAdmin(user.id, game.group_id);
-      if (!isAdmin) { res.status(403).json({ error: 'Admin only' }); return; }
+      const game = await loadGameForAdmin(gameId, currentUser(req), res);
+      if (!game) return;
 
       await gameService.removeGuest(participantId, gameId);
       res.json({ message: 'Guest removed' });

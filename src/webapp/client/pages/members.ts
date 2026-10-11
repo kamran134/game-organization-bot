@@ -143,7 +143,7 @@ export async function renderMembers(ctx: MembersCtx, nav: Nav): Promise<void> {
         try {
           await apiFetch(`/api/user/${encodeURIComponent(userId)}/name?group_id=${encodeURIComponent(gid)}`, {
             method: 'PATCH',
-            body: JSON.stringify({ first_name: firstName, last_name: lastName || undefined }),
+            body: JSON.stringify({ first_name: firstName, last_name: lastName }),
           });
 
           const m = members.find(x => x.id === parseInt(userId));

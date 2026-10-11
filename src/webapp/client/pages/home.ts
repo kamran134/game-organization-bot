@@ -35,7 +35,9 @@ export function renderHome(ctx: HomeCtx, nav: Nav): void {
     </div>
   `);
 
-  document.getElementById('content')!.addEventListener('click', (e) => {
+  // Bound to the freshly rendered element (not the persistent #content), so listeners
+  // never pile up across visits and never fire on other pages.
+  document.querySelector('.home-actions')!.addEventListener('click', (e) => {
     const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-action]');
     if (!btn) return;
 
