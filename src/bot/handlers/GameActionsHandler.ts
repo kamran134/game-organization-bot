@@ -71,7 +71,8 @@ export class GameActionsHandler extends ActionHandler {
           const isAdmin = await this.services.groupService.isUserAdmin(user.id, game.group_id);
           
           const inGroup = ctx.chat?.type !== 'private';
-          await ctx.editMessageReplyMarkup(
+          await this.refreshKeyboard(
+            ctx,
             KeyboardBuilder.createGameActionsKeyboard(gameId, confirmedCount, isAdmin, maybeCount, inGroup, game.registration_lock_hours).reply_markup
           );
 
@@ -360,7 +361,8 @@ export class GameActionsHandler extends ActionHandler {
       const isAdmin = await this.services.groupService.isUserAdmin(user.id, game.group_id);
       const inGroupJoin = ctx.chat?.type !== 'private';
 
-      await ctx.editMessageReplyMarkup(
+      await this.refreshKeyboard(
+        ctx,
         KeyboardBuilder.createGameActionsKeyboard(gameId, confirmedCount, isAdmin, maybeCount, inGroupJoin, updatedGame.registration_lock_hours).reply_markup
       );
 
@@ -385,6 +387,22 @@ export class GameActionsHandler extends ActionHandler {
     }
   }
   
+  // Telegram rejects an edit that leaves the markup unchanged (e.g. declining a game you
+  // never joined keeps the counters the same). Without this the error aborts the handler
+  // before the group notification is sent.
+  private async refreshKeyboard(
+    ctx: Context,
+    markup: ReturnType<typeof KeyboardBuilder.createGameActionsKeyboard>['reply_markup']
+  ): Promise<void> {
+    try {
+      await ctx.editMessageReplyMarkup(markup);
+    } catch (error: any) {
+      if (!String(error?.description ?? error?.message).includes('message is not modified')) {
+        throw error;
+      }
+    }
+  }
+
   private async showParticipantsList(ctx: Context, game: any) {
     const message = GameMessageBuilder.formatParticipantsMessage(game);
     await ctx.reply(message);
