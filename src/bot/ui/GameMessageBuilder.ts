@@ -1,9 +1,7 @@
 import { Game } from '../../models/Game';
-import { GameType } from '../../models/GameType';
 import { GameCreationState } from '../../utils/GameCreationState';
 import { formatDate, formatParticipantsList } from './formatters';
 import { escapeMarkdownV1, escapeMarkdownUrl } from '../../utils/helpers';
-import { Markup } from 'telegraf';
 import { KeyboardBuilder } from './KeyboardBuilder';
 
 /** Currency symbol — override via CURRENCY_SYMBOL env var if needed. */
@@ -191,9 +189,8 @@ export class GameMessageBuilder {
    * Карточка тренировки
    */
   static buildTrainingCard(training: Game): string {
-    const sportEmoji = training.sport?.emoji || '🏋️';
     const sportName = training.sport?.name || 'Тренировка';
-    
+
     const confirmedCount = training.participants?.filter(p => p.participation_status === 'confirmed').length || 0;
     const maybeCount = training.participants?.filter(p => p.participation_status === 'maybe').length || 0;
 

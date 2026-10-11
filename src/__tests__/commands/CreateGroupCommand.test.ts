@@ -1,4 +1,4 @@
-import { describe, test, beforeEach } from 'node:test';
+import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { CreateGroupCommand } from '../../bot/commands/CreateGroupCommand';
 import type { CommandServices } from '../../bot/commands/base/CommandHandler';

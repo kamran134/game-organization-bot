@@ -2,7 +2,6 @@ import { Context, Markup } from 'telegraf';
 import { LocationService } from '../../services/LocationService';
 import { GroupService } from '../../services/GroupService';
 import { UserService } from '../../services/UserService';
-import { KeyboardBuilder } from '../ui/KeyboardBuilder';
 import { escapeMarkdownV1, escapeMarkdownUrl } from '../../utils/helpers';
 
 interface ListLocationsCommandServices {

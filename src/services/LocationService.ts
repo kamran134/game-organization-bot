@@ -114,7 +114,7 @@ export class LocationService {
       location.is_active = data.is_active;
     }
 
-    const savedLocation = await this.locationRepository.save(location);
+    await this.locationRepository.save(location);
 
     // Обновляем связи с видами спорта если указаны
     if (data.sport_ids !== undefined) {

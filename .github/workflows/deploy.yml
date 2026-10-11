@@ -11,10 +11,46 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
+# Two quick pushes must not run migrations and `up -d` against prod at the same time.
+# Queue instead of cancelling: a cancelled run could stop between migration and restart.
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
+  test:
+    name: Type-check, lint and test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check server
+        run: npx tsc --noEmit
+
+      - name: Type-check WebApp client
+        run: npx tsc -p tsconfig.client.json --noEmit
+
+      - name: Lint (errors only)
+        run: npm run lint -- --quiet
+
+      - name: Run tests
+        run: npm test
+
   build-and-push:
     name: Build Docker Image
     runs-on: ubuntu-latest
+    needs: test
     permissions:
       contents: read
       packages: write

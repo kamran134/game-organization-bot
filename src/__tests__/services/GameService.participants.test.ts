@@ -1,4 +1,4 @@
-import { describe, test, beforeEach } from 'node:test';
+import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { GameService } from '../../services/GameService';
 import { GameParticipant, ParticipationStatus } from '../../models/GameParticipant';

@@ -85,7 +85,7 @@ export async function migrateLocationsToManyToMany(): Promise<void> {
     // 4. Для каждой группы создаём одну локацию и связи
     const locationMapping = new Map<number, number>(); // old_id -> new_id
 
-    for (const [key, locs] of locationGroups.entries()) {
+    for (const locs of locationGroups.values()) {
       const first = locs[0];
       
       // Создаём новую локацию без sport_id

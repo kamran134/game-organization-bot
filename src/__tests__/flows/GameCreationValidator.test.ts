@@ -2,8 +2,6 @@ import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { GameCreationValidator } from '../../bot/flows/GameCreationValidator';
 
-// A date in the far future so "date in the past" checks never trigger
-const FUTURE = '01.01.2099 12:00';
 
 describe('GameCreationValidator.parseDate', () => {
   test('accepts DD.MM YYYY HH:MM format', () => {

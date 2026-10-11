@@ -2,7 +2,6 @@ import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { LocationService } from '../../services/LocationService';
 import { Location } from '../../models/Location';
-import { SportLocation } from '../../models/SportLocation';
 
 // ---------------------------------------------------------------------------
 // Helpers
