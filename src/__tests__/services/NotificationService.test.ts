@@ -312,3 +312,29 @@ describe('NotificationService.notifySantaDrawn', () => {
     assert.deepEqual(sent.map((m) => m.chatId).sort((x, y) => x - y), [-1001, 1001, 1003]);
   });
 });
+
+describe('NotificationService.notifySantaParticipation', () => {
+  const event = { id: 3, title: 'NY <2027>', group: { id: 1, telegram_chat_id: '-1001' } } as never;
+  const people = [{ fullName: 'Alice' }, { fullName: 'Bob <b>' }] as unknown as User[];
+
+  test('posts the joiner and the escaped participant list to the group', async () => {
+    const { service, sent } = makeFakes();
+
+    await service.notifySantaParticipation(event, people[1], 'joined', people);
+
+    assert.equal(sent.length, 1);
+    assert.equal(sent[0].chatId, -1001);
+    assert.ok(sent[0].text.includes('Bob &lt;b&gt; участвует в Тайном Санте «NY &lt;2027&gt;»'));
+    assert.ok(sent[0].text.includes('Участники (2): Alice, Bob &lt;b&gt;'));
+  });
+
+  test('posts a leave notice and swallows send errors', async () => {
+    const { service, sent } = makeFakes();
+    await service.notifySantaParticipation(event, people[0], 'left', [people[1]]);
+    assert.ok(sent[0].text.includes('Alice больше не участвует'));
+    assert.ok(sent[0].text.includes('Участники (1)'));
+
+    const failing = makeFakes({ sendFails: true });
+    await quiet(() => failing.service.notifySantaParticipation(event, people[0], 'joined', people));
+  });
+});

@@ -186,6 +186,40 @@ export class NotificationService {
   }
 
   /**
+   * Group post when someone joins or leaves a Santa event, like the game signup notices.
+   * `event` must be loaded with its group; `participants` is the list after the change.
+   * Wishlists are never posted: only the person's Santa may see them.
+   */
+  async notifySantaParticipation(
+    event: SantaEvent,
+    user: User,
+    action: 'joined' | 'left',
+    participants: User[],
+  ): Promise<void> {
+    try {
+      const chatId = this.chatIdOf(event.group, event.id);
+      if (chatId === null) return;
+
+      const title = escapeHtml(event.title);
+      const name = escapeHtml(user.fullName);
+      let text = action === 'joined'
+        ? `🎅 ${name} участвует в Тайном Санте «${title}»`
+        : `❌ ${name} больше не участвует в Тайном Санте «${title}»`;
+      text += `\n\n👥 Участники (${participants.length})`;
+      if (participants.length > 0) {
+        text += `: ${participants.map((p) => escapeHtml(p.fullName)).join(', ')}`;
+      }
+
+      await this.telegram.sendMessage(chatId, text, {
+        parse_mode: 'HTML',
+        reply_markup: santaButton('🎅 Участвовать', event.id),
+      });
+    } catch (error) {
+      console.error('Failed to send santa participation notification to group:', error);
+    }
+  }
+
+  /**
    * `event` must be loaded with its group. The group post never names a pair; each giver is DMed
    * their own recipient only. DMs fail for users who never started the bot — expected, only counted.
    */

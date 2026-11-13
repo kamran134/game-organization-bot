@@ -143,7 +143,10 @@ export function createSantaRouter(
       const event = await loadEvent(req, res, 'member');
       if (!event) return;
 
-      await santaService.join(event.id, currentUser(req).id, parseWishlist(req.body?.wishlist));
+      const user = currentUser(req);
+      await santaService.join(event.id, user.id, parseWishlist(req.body?.wishlist));
+      const participants = await santaService.getParticipants(event.id);
+      await notifications.notifySantaParticipation(event, user, 'joined', participants.map((p) => p.user));
       res.json({ ok: true });
     } catch (error) {
       fail(res, error, 'join');
@@ -156,7 +159,10 @@ export function createSantaRouter(
       const event = await loadEvent(req, res, 'member');
       if (!event) return;
 
-      await santaService.leave(event.id, currentUser(req).id);
+      const user = currentUser(req);
+      await santaService.leave(event.id, user.id);
+      const participants = await santaService.getParticipants(event.id);
+      await notifications.notifySantaParticipation(event, user, 'left', participants.map((p) => p.user));
       res.json({ ok: true });
     } catch (error) {
       fail(res, error, 'leave');
