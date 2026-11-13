@@ -1,6 +1,6 @@
 -- ============================================================
 -- Production schema snapshot (pg_dump --schema-only) + the migrations
--- table rows, taken 2026-10-11 after HardenSchema1758000000000.
+-- table rows, taken 2026-11-13 after AddSecretSanta1759000000000.
 --
 -- Bootstrapping an EMPTY database: psql -f schema.sql, then
 -- `npm run migration:run` applies only migrations newer than this snapshot.
@@ -12,8 +12,8 @@
 --
 
 
--- Dumped from database version 16.15
--- Dumped by pg_dump version 16.15
+-- Dumped from database version 16.16
+-- Dumped by pg_dump version 16.16
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -308,6 +308,80 @@ ALTER SEQUENCE public.payments_id_seq OWNED BY public.payments.id;
 
 
 --
+-- Name: santa_events; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.santa_events (
+    id integer NOT NULL,
+    group_id integer NOT NULL,
+    title character varying(100) NOT NULL,
+    description text,
+    budget character varying(50),
+    exchange_date date,
+    status character varying(20) DEFAULT 'registration'::character varying NOT NULL,
+    created_by integer,
+    drawn_at timestamp with time zone,
+    created_at timestamp without time zone DEFAULT now() NOT NULL,
+    updated_at timestamp without time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: santa_events_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.santa_events_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: santa_events_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.santa_events_id_seq OWNED BY public.santa_events.id;
+
+
+--
+-- Name: santa_participants; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.santa_participants (
+    id integer NOT NULL,
+    event_id integer NOT NULL,
+    user_id integer NOT NULL,
+    wishlist text,
+    receiver_id integer,
+    joined_at timestamp without time zone DEFAULT now() NOT NULL,
+    updated_at timestamp without time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: santa_participants_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.santa_participants_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: santa_participants_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.santa_participants_id_seq OWNED BY public.santa_participants.id;
+
+
+--
 -- Name: sport_locations; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -460,6 +534,20 @@ ALTER TABLE ONLY public.payments ALTER COLUMN id SET DEFAULT nextval('public.pay
 
 
 --
+-- Name: santa_events id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.santa_events ALTER COLUMN id SET DEFAULT nextval('public.santa_events_id_seq'::regclass);
+
+
+--
+-- Name: santa_participants id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.santa_participants ALTER COLUMN id SET DEFAULT nextval('public.santa_participants_id_seq'::regclass);
+
+
+--
 -- Name: sport_locations id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -585,6 +673,22 @@ ALTER TABLE ONLY public.payments
 
 
 --
+-- Name: santa_events santa_events_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.santa_events
+    ADD CONSTRAINT santa_events_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: santa_participants santa_participants_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.santa_participants
+    ADD CONSTRAINT santa_participants_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: idx_game_participants_game_id; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -634,6 +738,13 @@ CREATE INDEX idx_payments_user_id ON public.payments USING btree (user_id);
 
 
 --
+-- Name: idx_santa_events_group_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_santa_events_group_id ON public.santa_events USING btree (group_id);
+
+
+--
 -- Name: uq_group_members_user_group; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -659,6 +770,13 @@ CREATE UNIQUE INDEX uq_payments_game_user ON public.payments USING btree (game_i
 --
 
 CREATE UNIQUE INDEX uq_payments_training_user ON public.payments USING btree (group_id, period_month, user_id) WHERE ((game_id IS NULL) AND (user_id IS NOT NULL));
+
+
+--
+-- Name: uq_santa_participants_event_user; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_santa_participants_event_user ON public.santa_participants USING btree (event_id, user_id);
 
 
 --
@@ -811,6 +929,46 @@ ALTER TABLE ONLY public.payments
 
 
 --
+-- Name: santa_events santa_events_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.santa_events
+    ADD CONSTRAINT santa_events_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: santa_events santa_events_group_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.santa_events
+    ADD CONSTRAINT santa_events_group_id_fkey FOREIGN KEY (group_id) REFERENCES public.groups(id) ON DELETE CASCADE;
+
+
+--
+-- Name: santa_participants santa_participants_event_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.santa_participants
+    ADD CONSTRAINT santa_participants_event_id_fkey FOREIGN KEY (event_id) REFERENCES public.santa_events(id) ON DELETE CASCADE;
+
+
+--
+-- Name: santa_participants santa_participants_receiver_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.santa_participants
+    ADD CONSTRAINT santa_participants_receiver_id_fkey FOREIGN KEY (receiver_id) REFERENCES public.users(id);
+
+
+--
+-- Name: santa_participants santa_participants_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.santa_participants
+    ADD CONSTRAINT santa_participants_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id);
+
+
+--
 -- Name: sports sports_group_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -828,8 +986,8 @@ ALTER TABLE ONLY public.sports
 --
 
 
--- Dumped from database version 16.15
--- Dumped by pg_dump version 16.15
+-- Dumped from database version 16.16
+-- Dumped by pg_dump version 16.16
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -857,13 +1015,14 @@ INSERT INTO public.migrations VALUES (8, 1755000000000, 'AddGroupMemberIsActive1
 INSERT INTO public.migrations VALUES (9, 1756000000000, 'AddGroupScopedSports1756000000000');
 INSERT INTO public.migrations VALUES (10, 1757000000000, 'UniqueGuestPayments1757000000000');
 INSERT INTO public.migrations VALUES (11, 1758000000000, 'HardenSchema1758000000000');
+INSERT INTO public.migrations VALUES (12, 1759000000000, 'AddSecretSanta1759000000000');
 
 
 --
 -- Name: migrations_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
-SELECT pg_catalog.setval('public.migrations_id_seq', 11, true);
+SELECT pg_catalog.setval('public.migrations_id_seq', 12, true);
 
 
 --
