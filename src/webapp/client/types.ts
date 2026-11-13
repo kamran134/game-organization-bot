@@ -80,4 +80,48 @@ export interface Nav {
   goCreateLocation(): void;
   goMembers(): void;
   goSports(): void;
+  goSantaList(): void;
+  goSantaEvent(eventId: number): void;
+  goSantaCreate(): void;
+}
+
+export type SantaStatus = 'registration' | 'drawn' | 'finished';
+
+export interface SantaEventSummaryDto {
+  id: number;
+  title: string;
+  budget: string | null;
+  exchange_date: string | null;
+  status: SantaStatus;
+  participants_count: number;
+  joined: boolean;
+}
+
+export interface SantaEventDto {
+  id: number;
+  group_id: number;
+  title: string;
+  description: string | null;
+  budget: string | null;
+  exchange_date: string | null;
+  status: SantaStatus;
+  drawn_at: string | null;
+}
+
+export interface SantaPersonDto {
+  first_name?: string;
+  last_name?: string;
+  username?: string | null;
+}
+
+export interface SantaParticipantDto extends SantaPersonDto {
+  user_id: number;
+}
+
+export interface SantaDetailsDto {
+  event: SantaEventDto;
+  participants: SantaParticipantDto[];
+  me: { joined: boolean; wishlist: string | null };
+  assignment: { receiver: SantaPersonDto; wishlist: string | null } | null;
+  isAdmin: boolean;
 }

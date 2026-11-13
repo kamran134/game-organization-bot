@@ -31,6 +31,7 @@ export function renderHome(ctx: HomeCtx, nav: Nav): void {
       <div class="home-actions">
         ${adminButtons}
         <button class="btn btn-outline btn-large" data-action="list-games">📅 Расписание</button>
+        <button class="btn btn-outline btn-large" data-action="santa">🎅 Тайный Санта</button>
       </div>
     </div>
   `);
@@ -48,5 +49,6 @@ export function renderHome(ctx: HomeCtx, nav: Nav): void {
     if (action === 'members')         nav.goMembers();
     if (action === 'sports')          nav.goSports();
     if (action === 'list-games')      nav.goGamesList();
+    if (action === 'santa')           nav.goSantaList();
   });
 }

@@ -7,10 +7,12 @@ import { GameParticipant } from '../models/GameParticipant';
 import { Sport } from '../models/Sport';
 import { Location } from '../models/Location';
 import { SportLocation } from '../models/SportLocation';
+import { SantaEvent } from '../models/SantaEvent';
+import { SantaParticipant } from '../models/SantaParticipant';
 
 /** Single source of truth for the entity list — used both by the runtime DataSource
  *  and by the entity-metadata test, so the test can never validate a different set. */
-export const ENTITIES = [User, Group, GroupMember, Game, GameParticipant, Sport, Location, SportLocation];
+export const ENTITIES = [User, Group, GroupMember, Game, GameParticipant, Sport, Location, SportLocation, SantaEvent, SantaParticipant];
 
 /** Base connection config read from environment variables.
  *  Shared by Database and standalone CLI scripts (e.g. runMigrations.ts). */

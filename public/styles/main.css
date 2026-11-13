@@ -720,6 +720,53 @@ select.input {
   margin-top: 16px;
 }
 
+/* ── Secret Santa ── */
+.santa-list { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+.santa-section-title { margin: 20px 0 8px; font-size: 15px; color: var(--tg-hint); }
+.santa-event-card {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 14px;
+  border: none;
+  border-radius: var(--radius);
+  background: var(--tg-secondary);
+  color: var(--tg-text);
+  font: inherit;
+  cursor: pointer;
+}
+.santa-event-card:active { opacity: 0.75; }
+.santa-event-title { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+.santa-event-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 13px; color: var(--tg-hint); }
+.santa-meta { display: flex; flex-direction: column; gap: 6px; margin: 8px 0 16px; font-size: 14px; }
+.santa-description { color: var(--tg-hint); white-space: pre-wrap; }
+.santa-badge {
+  display: inline-block;
+  align-self: flex-start;
+  padding: 2px 8px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  background: rgba(127, 127, 127, 0.18);
+  color: var(--tg-hint);
+}
+.santa-badge-registration { background: rgba(76, 175, 80, 0.18); color: #2e7d32; }
+.santa-badge-drawn { background: rgba(38, 120, 182, 0.18); color: var(--tg-link); }
+.santa-card {
+  margin: 0 0 16px;
+  padding: 16px;
+  border: 2px solid var(--tg-btn);
+  border-radius: var(--radius);
+  background: var(--tg-secondary);
+}
+.santa-card-title { font-size: 17px; font-weight: 600; margin-bottom: 8px; }
+.santa-card-label { font-size: 13px; color: var(--tg-hint); margin-bottom: 4px; }
+.santa-wishlist { white-space: pre-wrap; word-break: break-word; }
+.santa-hint { font-size: 13px; color: var(--tg-hint); }
+.santa-admin { display: flex; flex-direction: column; gap: 10px; margin-top: 24px; }
+#santa-event-page .field, #santa-event-page .btn { margin-bottom: 10px; }
+#santa-event-page .member-row { margin-bottom: 6px; }
+
 /* ── Tablet media query (≥ 600px) ── */
 @media (min-width: 600px) {
   .page { padding: 24px 32px 120px; }

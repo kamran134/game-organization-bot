@@ -4,6 +4,8 @@ import { Location } from '../models/Location';
 import { User } from '../models/User';
 import { Group } from '../models/Group';
 import { Sport } from '../models/Sport';
+import { SantaEvent } from '../models/SantaEvent';
+import { SantaParticipant } from '../models/SantaParticipant';
 
 // Response DTOs: expose only what the client reads, never raw entities
 // (users carry `phone`, groups carry `invite_code`).
@@ -82,4 +84,39 @@ export function serializeGame(game: Game): Record<string, unknown> {
     location: game.location ? serializeLocation(game.location) : undefined,
     participants: game.participants?.map(serializeParticipant),
   };
+}
+
+// Secret Santa DTOs. Deliberately without receiver_id, wishlist, phone and telegram_id:
+// nobody may learn who gives to whom, and other participants' wishlists stay hidden.
+
+interface SantaPerson {
+  first_name?: string;
+  last_name?: string;
+  username?: string | null;
+}
+
+function serializeSantaPerson(user: SantaPerson): SantaPerson {
+  return { first_name: user.first_name, last_name: user.last_name, username: user.username };
+}
+
+export function serializeSantaEvent(event: SantaEvent): Record<string, unknown> {
+  return {
+    id: event.id,
+    group_id: event.group_id,
+    title: event.title,
+    description: event.description ?? null,
+    budget: event.budget ?? null,
+    exchange_date: event.exchange_date ?? null,
+    status: event.status,
+    drawn_at: event.drawn_at ?? null,
+  };
+}
+
+export function serializeSantaParticipant(p: SantaParticipant): Record<string, unknown> {
+  return { user_id: p.user_id, ...serializeSantaPerson(p.user) };
+}
+
+/** The caller's own recipient: the only pair information that ever leaves the server. */
+export function serializeSantaAssignment(assignment: { receiver: User; wishlist: string | null }): Record<string, unknown> {
+  return { receiver: serializeSantaPerson(assignment.receiver), wishlist: assignment.wishlist };
 }

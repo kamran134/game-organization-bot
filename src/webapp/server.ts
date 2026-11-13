@@ -14,6 +14,7 @@ import { createSportsRouter } from './routes/sports';
 import { createLocationsRouter } from './routes/locations';
 import { createUserRouter } from './routes/user';
 import { createPaymentsRouter } from './routes/payments';
+import { createSantaRouter } from './routes/santa';
 
 /** Origins allowed to call the API. */
 const ALLOWED_ORIGINS = [
@@ -104,6 +105,7 @@ export function createWebAppServer(db: Database) {
   app.use('/api/locations', createLocationsRouter(db, canAccessGroup));
   app.use('/api/user', createUserRouter(db));
   app.use('/api/payments', createPaymentsRouter(db));
+  app.use('/api/santa', createSantaRouter(db, notificationService, canAccessGroup));
 
   // Unknown API paths must not fall through to the SPA's index.html
   app.use('/api', (_req: Request, res: Response) => {

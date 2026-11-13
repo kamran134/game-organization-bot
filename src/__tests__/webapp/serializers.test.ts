@@ -1,6 +1,8 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { serializeGame, serializeUser } from '../../webapp/serializers';
+import {
+  serializeGame, serializeUser, serializeSantaEvent, serializeSantaParticipant, serializeSantaAssignment,
+} from '../../webapp/serializers';
 
 const user = {
   id: 1, telegram_id: 100, username: 'alice', first_name: 'Alice', last_name: 'A', phone: '+994500000000',
@@ -61,5 +63,42 @@ describe('webapp serializers', () => {
     const dto = serializeGame(game) as any;
     assert.equal(dto.group, undefined);
     assert.equal(dto.creator, undefined);
+  });
+});
+
+describe('santa serializers', () => {
+  const FORBIDDEN = ['receiver_id', 'wishlist', 'phone', 'telegram_id', '+994500000000', 'SECRET'];
+
+  function assertClean(value: unknown): void {
+    const json = JSON.stringify(value);
+    for (const word of FORBIDDEN) assert.ok(!json.includes(word), `leaked ${word}`);
+  }
+
+  test('participant exposes only the user id and public name fields', () => {
+    const dto = serializeSantaParticipant({
+      id: 1, event_id: 2, user_id: 1, user, wishlist: 'SECRET', receiver_id: 7, receiver: user,
+    } as any);
+    assert.deepEqual(Object.keys(dto).sort(), ['first_name', 'last_name', 'user_id', 'username']);
+    assertClean(dto);
+  });
+
+  test('event drops everything outside the allow-list', () => {
+    const dto = serializeSantaEvent({
+      id: 2, group_id: 1, title: 'NY', description: null, budget: '30', exchange_date: '2026-12-31',
+      status: 'drawn', drawn_at: new Date(), group: { invite_code: 'SECRET' }, creator: user, created_by: 1,
+    } as any);
+    assert.deepEqual(
+      Object.keys(dto).sort(),
+      ['budget', 'description', 'drawn_at', 'exchange_date', 'group_id', 'id', 'status', 'title'],
+    );
+    assertClean(dto);
+  });
+
+  test('assignment carries the recipient name and wishlist but no identifiers', () => {
+    const dto = serializeSantaAssignment({ receiver: user as any, wishlist: 'socks' });
+    assert.deepEqual(Object.keys(dto).sort(), ['receiver', 'wishlist']);
+    assert.deepEqual(Object.keys(dto.receiver as object).sort(), ['first_name', 'last_name', 'username']);
+    assert.ok(!JSON.stringify(dto).includes('telegram_id'));
+    assert.ok(!JSON.stringify(dto).includes('phone'));
   });
 });

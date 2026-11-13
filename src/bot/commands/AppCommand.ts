@@ -1,6 +1,7 @@
 import { Context } from 'telegraf';
 import { Markup } from 'telegraf';
 import { CommandHandler } from './base/CommandHandler';
+import { webAppLink } from '../ui/webAppLink';
 
 export class AppCommand extends CommandHandler {
   get command(): string {
@@ -22,7 +23,7 @@ export class AppCommand extends CommandHandler {
       return;
     }
 
-    const url = `https://t.me/gameorganizationbot/webapp?startapp=group_${group.id}`;
+    const url = webAppLink(`group_${group.id}`);
 
     await ctx.reply(
       '📱 Веб-приложение группы',

@@ -21,7 +21,11 @@ import { renderEditGame } from './pages/edit.js';
 import { renderCreateLocation } from './pages/createLocation.js';
 import { renderMembers } from './pages/members.js';
 import { renderSports } from './pages/sports.js';
-import type { GameType, Nav, UserRoleDto } from './types.js';
+import { renderSantaList } from './pages/santaList.js';
+import { renderSantaCreate } from './pages/santaCreate.js';
+import { renderSantaEvent } from './pages/santaEvent.js';
+import { escapeHtml, getErrorMessage } from './utils.js';
+import type { GameType, Nav, SantaDetailsDto, UserRoleDto } from './types.js';
 
 // ─── Telegram SDK ─────────────────────────────────────────────────────────────
 
@@ -51,11 +55,12 @@ for (const [prop, val] of Object.entries(themeMap)) {
 setInitData(tg.initData);
 
 // ─── Group ID resolution ──────────────────────────────────────────────────────
-// Priority: tg.initDataUnsafe.start_param ("group_42") → URL ?group_id=42
+// start_param: "group_42" (home), "santas_42" (Santa list of group 42), "santa_7" (Santa event 7,
+// group resolved via the API). Fallback: URL ?group_id=42
 
 const startParam = tg.initDataUnsafe?.start_param ?? '';
 const urlParams  = new URLSearchParams(window.location.search);
-const groupId    = startParam.startsWith('group_')
+let groupId      = startParam.startsWith('group_')
   ? startParam.replace('group_', '')
   : (urlParams.get('group_id') ?? '');
 
@@ -89,11 +94,38 @@ const nav: Nav = {
   goSports() {
     renderSports({ tg, groupId }, nav);
   },
+  goSantaList() {
+    renderSantaList({ tg, groupId, isAdmin: _isAdmin }, nav);
+  },
+  goSantaEvent(eventId: number) {
+    renderSantaEvent({ tg, eventId }, nav);
+  },
+  goSantaCreate() {
+    renderSantaCreate({ tg, groupId }, nav);
+  },
 };
 
 // ─── Bootstrap ────────────────────────────────────────────────────────────────
 
 async function init(): Promise<void> {
+  // Where to land once the group (and the admin role) are known
+  let openStartPage: () => void = () => nav.goHome();
+
+  if (startParam.startsWith('santas_')) {
+    groupId = startParam.replace('santas_', '');
+    openStartPage = () => nav.goSantaList();
+  } else if (startParam.startsWith('santa_')) {
+    const eventId = parseInt(startParam.replace('santa_', ''), 10);
+    try {
+      const details = await apiFetch<SantaDetailsDto>(`/api/santa/${encodeURIComponent(String(eventId))}`);
+      groupId = String(details.event.group_id);
+      openStartPage = () => nav.goSantaEvent(eventId);
+    } catch (err) {
+      show(`<div class="error">❌ ${escapeHtml(getErrorMessage(err))}</div>`);
+      return;
+    }
+  }
+
   if (!groupId) {
     show('<div class="error">❌ Откройте приложение из чата группы через команду /app</div>');
     return;
@@ -109,7 +141,7 @@ async function init(): Promise<void> {
     _isAdmin = false;
   }
 
-  nav.goHome();
+  openStartPage();
 }
 
 init();

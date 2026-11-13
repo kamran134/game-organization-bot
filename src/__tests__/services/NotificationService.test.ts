@@ -264,3 +264,51 @@ describe('NotificationService.notifyCancelled', () => {
     await quiet(() => failing.service.notifyCancelled(cancelledGame(), 'manual'));
   });
 });
+
+describe('NotificationService.notifySantaDrawn', () => {
+  function makeDrawn() {
+    const event = { id: 3, title: 'NY <2027>', budget: null, exchange_date: null, group: { id: 1, telegram_chat_id: '-1001' } };
+    const mk = (id: number, name: string): User => ({
+      id, telegram_id: 1000 + id, fullName: name, username: null,
+    }) as unknown as User;
+    const [a, b, c] = [mk(1, 'Alice'), mk(2, 'Bob'), mk(3, 'Carol')];
+    const assignments = [
+      { giver: a, receiver: b, receiverWishlist: 'socks' },
+      { giver: b, receiver: c, receiverWishlist: null },
+      { giver: c, receiver: a, receiverWishlist: 'tea' },
+    ];
+    return { event: event as never, assignments };
+  }
+
+  test('posts to the group without naming any receiver and DMs every giver', async () => {
+    const { service, sent } = makeFakes();
+    const { event, assignments } = makeDrawn();
+
+    await quiet(() => service.notifySantaDrawn(event, assignments));
+
+    const group = sent.filter((m) => m.chatId === -1001);
+    assert.equal(group.length, 1);
+    for (const name of ['Alice', 'Bob', 'Carol']) assert.ok(!group[0].text.includes(name));
+    assert.ok(group[0].text.includes('NY &lt;2027&gt;'));
+
+    const dms = sent.filter((m) => m.chatId !== -1001);
+    assert.deepEqual(dms.map((m) => m.chatId).sort(), [1001, 1002, 1003]);
+    assert.ok(dms.find((m) => m.chatId === 1001)!.text.includes('Вы дарите: Bob'));
+  });
+
+  test('keeps sending DMs after one fails and never throws', async () => {
+    const sent: SentMessage[] = [];
+    const telegram = {
+      sendMessage: async (chatId: number, text: string, extra?: { parse_mode?: string }): Promise<void> => {
+        if (chatId === 1002) throw new Error('403 Forbidden: bot cant initiate conversation');
+        sent.push({ chatId, text, extra });
+      },
+    };
+    const service = new NotificationService(telegram as never, {} as never, {} as never);
+    const { event, assignments } = makeDrawn();
+
+    await quiet(() => service.notifySantaDrawn(event, assignments));
+
+    assert.deepEqual(sent.map((m) => m.chatId).sort((x, y) => x - y), [-1001, 1001, 1003]);
+  });
+});
