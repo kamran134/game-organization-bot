@@ -94,7 +94,7 @@ export class Bot {
       new RegisterCommand(services),
       new NewGameCommand(creationCommandServices),
       new AppCommand(services),
-      new SantaCommand(services),
+      new SantaCommand({ ...services, santaService: c.santaService }),
       new NewTrainingCommand(creationCommandServices),
       new GamesCommand(services),
       new TrainingsCommand(services),

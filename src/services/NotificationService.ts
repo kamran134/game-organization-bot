@@ -11,7 +11,7 @@ import { KeyboardBuilder } from '../bot/ui/KeyboardBuilder';
 import { formatDate, formatMembersMentions, formatMention } from '../bot/ui/formatters';
 import { escapeHtml } from '../utils/helpers';
 import { SantaEvent } from '../models/SantaEvent';
-import { webAppLink } from '../bot/ui/webAppLink';
+import { formatSantaCard, formatSantaDate, santaButton } from '../bot/ui/SantaMessageBuilder';
 import type { SantaAssignment } from './SantaService';
 
 /** Where the action that triggered the notification came from; the web variants carry a participants list. */
@@ -170,16 +170,8 @@ export class NotificationService {
       const chatId = this.chatIdOf(event.group, event.id);
       if (chatId === null) return;
 
-      const lines = [`🎅 <b>Тайный Санта: ${escapeHtml(event.title)}</b>`];
-      if (event.budget) lines.push(`💰 Бюджет: ${escapeHtml(event.budget)}`);
-      if (event.exchange_date) lines.push(`📅 Обмен подарками: ${formatSantaDate(event.exchange_date)}`);
-      if (event.description) lines.push(escapeHtml(event.description));
-      lines.push('', 'Записывайтесь и пишите пожелания в приложении 👇');
-
-      await this.telegram.sendMessage(chatId, lines.join('\n'), {
-        parse_mode: 'HTML',
-        reply_markup: santaButton('🎅 Участвовать', event.id),
-      });
+      const { text, reply_markup } = formatSantaCard(event, []);
+      await this.telegram.sendMessage(chatId, text, { parse_mode: 'HTML', reply_markup });
     } catch (error) {
       console.error('Failed to send santa created notification to group:', error);
     }
@@ -311,15 +303,4 @@ export class NotificationService {
     // The bigint column comes back from the driver as a string
     return Number(group.telegram_chat_id);
   }
-}
-
-/** Url button (web_app buttons do not work in group chats) that opens the event page. */
-function santaButton(text: string, eventId: number): { inline_keyboard: Array<Array<{ text: string; url: string }>> } {
-  return { inline_keyboard: [[{ text, url: webAppLink(`santa_${eventId}`) }]] };
-}
-
-/** 'YYYY-MM-DD' → 'DD.MM.YYYY'. */
-function formatSantaDate(date: string): string {
-  const [y, m, d] = date.split('-');
-  return `${d}.${m}.${y}`;
 }
