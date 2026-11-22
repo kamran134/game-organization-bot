@@ -13,6 +13,12 @@ import { escapeHtml } from '../utils/helpers';
 import { SantaEvent } from '../models/SantaEvent';
 import { formatSantaCard, formatSantaDate, santaButton } from '../bot/ui/SantaMessageBuilder';
 import type { SantaAssignment } from './SantaService';
+import { MafiaEvent } from '../models/MafiaEvent';
+import { isMessageGone, isMessageNotModified } from '../bot/utils/telegramErrors';
+import { MafiaRole } from '../models/MafiaRole';
+import { formatMafiaCard, mafiaButton } from '../bot/ui/MafiaMessageBuilder';
+import { MAFIA_ROLE_NAME, MAFIA_ROLE_ORDER, isMafiaTeamRole } from '../utils/mafiaDeal';
+import type { MafiaDealtPlayer } from './MafiaService';
 
 /** Where the action that triggered the notification came from; the web variants carry a participants list. */
 export type NotifyVia = 'web';
@@ -291,6 +297,150 @@ export class NotificationService {
       );
     } catch (error) {
       console.error('Failed to send santa reset notification to group:', error);
+    }
+  }
+
+  /**
+   * Posts the live card of a Mafia evening (creation, /mafia re-post); `event` must be loaded with its group
+   * and host. Returns where it landed so the caller can remember it for later edits, or null when nothing was sent.
+   */
+  async postMafiaCard(event: MafiaEvent, participants: User[]): Promise<{ chatId: number; messageId: number } | null> {
+    try {
+      const chatId = this.chatIdOf(event.group, event.id);
+      if (chatId === null) return null;
+
+      const { text, reply_markup } = formatMafiaCard(event, participants);
+      const message = await this.telegram.sendMessage(chatId, text, { parse_mode: 'HTML', reply_markup });
+      return { chatId, messageId: message.message_id };
+    } catch (error) {
+      console.error('Failed to post mafia card to group:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Edits the stored live card after any state change; `event` must be loaded with its host (and card ids),
+   * `participants` is the list after the change. A vanished or unchanged message is not an error.
+   */
+  async updateMafiaCard(event: MafiaEvent, participants: User[]): Promise<void> {
+    if (!event.card_chat_id || !event.card_message_id) return;
+    try {
+      const { text, reply_markup } = formatMafiaCard(event, participants);
+      await this.telegram.editMessageText(Number(event.card_chat_id), event.card_message_id, undefined, text, {
+        parse_mode: 'HTML',
+        reply_markup,
+      });
+    } catch (error) {
+      if (isMessageNotModified(error) || isMessageGone(error)) return;
+      console.error('Failed to update mafia card:', error);
+    }
+  }
+
+  /**
+   * `event` must be loaded with its group and host. The group post names no role; every player is DMed
+   * their own role inside a spoiler, the host gets the full layout. DMs fail for users who never
+   * started the bot — expected, only counted.
+   */
+  async notifyMafiaDealt(event: MafiaEvent, round: number, players: MafiaDealtPlayer[]): Promise<void> {
+    try {
+      const chatId = this.chatIdOf(event.group, event.id);
+      if (chatId !== null) {
+        try {
+          await this.telegram.sendMessage(
+            chatId,
+            `🎭 Роли розданы — партия №${round}. Откройте свою карточку`,
+            { parse_mode: 'HTML', reply_markup: mafiaButton('🎭 Моя карточка', event.id) },
+          );
+        } catch (error) {
+          console.error('Failed to send mafia deal notification to group:', error);
+        }
+      }
+
+      let failed = 0;
+      for (const player of players) {
+        const lines = [
+          `🎭 <b>${escapeHtml(event.title)}</b> — партия №${round}`,
+          `Ваша роль: <tg-spoiler>${MAFIA_ROLE_NAME[player.role]}</tg-spoiler>`,
+        ];
+        if (player.seat !== null) lines.push(`Ваше место: №${player.seat}`);
+        if (event.show_mafia_team && isMafiaTeamRole(player.role)) {
+          const mates = players
+            .filter((p) => p.user.id !== player.user.id && isMafiaTeamRole(p.role))
+            .map((p) => escapeHtml(p.user.fullName) + (p.role === MafiaRole.DON ? ' (Дон)' : ''));
+          if (mates.length > 0) lines.push(`Ваша команда: <tg-spoiler>${mates.join(', ')}</tg-spoiler>`);
+        }
+
+        try {
+          await this.telegram.sendMessage(Number(player.user.telegram_id), lines.join('\n'), {
+            parse_mode: 'HTML',
+            reply_markup: mafiaButton('🎭 Открыть карточку', event.id),
+          });
+        } catch {
+          failed++;
+        }
+      }
+      if (failed > 0) {
+        console.warn(`Mafia deal ${event.id}: ${failed} of ${players.length} DMs were not delivered`);
+      }
+
+      if (event.host) {
+        const roleIndex = (role: MafiaRole): number => MAFIA_ROLE_ORDER.indexOf(role);
+        const sorted = [...players].sort((a, b) => event.assign_seats
+          ? (a.seat ?? 0) - (b.seat ?? 0)
+          : roleIndex(a.role) - roleIndex(b.role));
+        const rows = sorted.map((p) =>
+          `${p.seat !== null ? `${p.seat}. ` : '• '}${escapeHtml(p.user.fullName)} — ${MAFIA_ROLE_NAME[p.role]}`);
+        try {
+          await this.telegram.sendMessage(
+            Number(event.host.telegram_id),
+            `🎙 <b>${escapeHtml(event.title)}</b> — партия №${round}, раскладка:\n\n${rows.join('\n')}`,
+            { parse_mode: 'HTML', reply_markup: mafiaButton('🎭 Открыть', event.id) },
+          );
+        } catch (error) {
+          console.warn('Failed to DM the mafia layout to the host:', error instanceof Error ? error.message : error);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to send mafia deal notifications:', error);
+    }
+  }
+
+  /** `event` must be loaded with its group. */
+  async notifyMafiaFinished(event: MafiaEvent): Promise<void> {
+    try {
+      const chatId = this.chatIdOf(event.group, event.id);
+      if (chatId === null) return;
+
+      await this.telegram.sendMessage(chatId, `🏁 Вечер мафии «${escapeHtml(event.title)}» завершён`, { parse_mode: 'HTML' });
+    } catch (error) {
+      console.error('Failed to send mafia finished notification to group:', error);
+    }
+  }
+
+  /**
+   * After the event is deleted its card must not keep live buttons: delete the message, or, when Telegram
+   * refuses (older than 48 h), replace it with a stub without a keyboard.
+   */
+  async removeMafiaCard(event: MafiaEvent): Promise<void> {
+    if (!event.card_chat_id || !event.card_message_id) return;
+    const chatId = Number(event.card_chat_id);
+    try {
+      await this.telegram.deleteMessage(chatId, event.card_message_id);
+      return;
+    } catch {
+      // fall through to the stub
+    }
+    try {
+      await this.telegram.editMessageText(
+        chatId,
+        event.card_message_id,
+        undefined,
+        `🗑 Вечер мафии «${escapeHtml(event.title)}» отменён`,
+        { parse_mode: 'HTML', reply_markup: { inline_keyboard: [] } },
+      );
+    } catch (error) {
+      if (isMessageNotModified(error) || isMessageGone(error)) return;
+      console.error('Failed to remove mafia card:', error);
     }
   }
 

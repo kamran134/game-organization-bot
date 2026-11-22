@@ -9,6 +9,7 @@ export { MyGroupsCommand } from './MyGroupsCommand';
 export { CreateGroupCommand } from './CreateGroupCommand';
 export { AppCommand } from './AppCommand';
 export { SantaCommand } from './SantaCommand';
+export { MafiaCommand } from './MafiaCommand';
 export { PlayersCommand } from './PlayersCommand';
 export { PaymentsCommand } from './PaymentsCommand';
 export type { PaymentsCommandServices } from './PaymentsCommand';

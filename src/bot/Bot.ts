@@ -13,6 +13,7 @@ import {
   CreateGroupCommand,
   AppCommand,
   SantaCommand,
+  MafiaCommand,
   PlayersCommand,
   PaymentsCommand,
   TrainingPaymentsCommand,
@@ -28,6 +29,7 @@ import {
   ActionServices,
   GameActionsHandler,
   GroupActionsHandler,
+  MafiaActionsHandler,
 } from './handlers';
 import { LocationCreationHandler } from './handlers/LocationCreationHandler';
 import { LocationEditHandler } from './handlers/LocationEditHandler';
@@ -95,6 +97,7 @@ export class Bot {
       new NewGameCommand(creationCommandServices),
       new AppCommand(services),
       new SantaCommand({ ...services, santaService: c.santaService }),
+      new MafiaCommand({ ...services, mafiaService: c.mafiaService }),
       new NewTrainingCommand(creationCommandServices),
       new GamesCommand(services),
       new TrainingsCommand(services),
@@ -149,6 +152,7 @@ export class Bot {
     return [
       new GameActionsHandler(services),
       new GroupActionsHandler(services),
+      new MafiaActionsHandler({ ...services, mafiaService: c.mafiaService }),
     ];
   }
 

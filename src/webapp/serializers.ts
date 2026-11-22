@@ -6,6 +6,9 @@ import { Group } from '../models/Group';
 import { Sport } from '../models/Sport';
 import { SantaEvent } from '../models/SantaEvent';
 import { SantaParticipant } from '../models/SantaParticipant';
+import { MafiaEvent } from '../models/MafiaEvent';
+import { MafiaParticipant } from '../models/MafiaParticipant';
+import type { MafiaCard, MafiaLayoutRow } from '../services/MafiaService';
 
 // Response DTOs: expose only what the client reads, never raw entities
 // (users carry `phone`, groups carry `invite_code`).
@@ -95,7 +98,7 @@ interface SantaPerson {
   username?: string | null;
 }
 
-function serializeSantaPerson(user: SantaPerson): SantaPerson {
+export function serializeSantaPerson(user: SantaPerson): SantaPerson {
   return { first_name: user.first_name, last_name: user.last_name, username: user.username };
 }
 
@@ -119,4 +122,45 @@ export function serializeSantaParticipant(p: SantaParticipant): Record<string, u
 /** The caller's own recipient: the only pair information that ever leaves the server. */
 export function serializeSantaAssignment(assignment: { receiver: User; wishlist: string | null }): Record<string, unknown> {
   return { receiver: serializeSantaPerson(assignment.receiver), wishlist: assignment.wishlist };
+}
+
+// Mafia DTOs. Roles and card variants are secret: they appear only in the caller's own card
+// and in the host's layout. Seat is public (shown in the participant list after a deal).
+
+export function serializeMafiaEvent(event: MafiaEvent): Record<string, unknown> {
+  return {
+    id: event.id,
+    group_id: event.group_id,
+    title: event.title,
+    description: event.description ?? null,
+    starts_at: event.starts_at ?? null,
+    place: event.place ?? null,
+    status: event.status,
+    host: event.host ? serializeSantaPerson(event.host) : null,
+    show_mafia_team: event.show_mafia_team,
+    assign_seats: event.assign_seats,
+    max_players: event.max_players,
+    round: event.round,
+    dealt_at: event.dealt_at ?? null,
+  };
+}
+
+export function serializeMafiaParticipant(p: MafiaParticipant): Record<string, unknown> {
+  return { user_id: p.user_id, ...serializeSantaPerson(p.user), seat: p.seat ?? null };
+}
+
+/** The caller's own card: the only place a role reaches a player. */
+export function serializeMafiaCard(card: MafiaCard): Record<string, unknown> {
+  return {
+    round: card.round,
+    role: card.role,
+    seat: card.seat,
+    variant: card.variant,
+    teammates: card.teammates.map((t) => ({ name: t.name, role: t.role, seat: t.seat })),
+  };
+}
+
+/** One row of the host's layout. */
+export function serializeMafiaLayoutRow(row: MafiaLayoutRow): Record<string, unknown> {
+  return { user_id: row.user.id, ...serializeSantaPerson(row.user), seat: row.seat, role: row.role };
 }

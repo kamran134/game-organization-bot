@@ -1,6 +1,6 @@
 -- ============================================================
 -- Production schema snapshot (pg_dump --schema-only) + the migrations
--- table rows, taken 2026-11-13 after AddSecretSanta1759000000000.
+-- table rows, hand-edited 2026-11-23 after AddMafia1760000000000 (no local DB for pg_dump).
 --
 -- Bootstrapping an EMPTY database: psql -f schema.sql, then
 -- `npm run migration:run` applies only migrations newer than this snapshot.
@@ -234,6 +234,89 @@ CREATE SEQUENCE public.locations_id_seq
 --
 
 ALTER SEQUENCE public.locations_id_seq OWNED BY public.locations.id;
+
+
+--
+-- Name: mafia_events; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.mafia_events (
+    id integer NOT NULL,
+    group_id integer NOT NULL,
+    title character varying(100) NOT NULL,
+    description text,
+    starts_at timestamp with time zone,
+    place character varying(200),
+    status character varying(20) DEFAULT 'registration'::character varying NOT NULL,
+    host_id integer,
+    show_mafia_team boolean DEFAULT true NOT NULL,
+    assign_seats boolean DEFAULT false NOT NULL,
+    max_players integer DEFAULT 10 NOT NULL,
+    round integer DEFAULT 0 NOT NULL,
+    roles_config jsonb,
+    dealt_at timestamp with time zone,
+    card_chat_id bigint,
+    card_message_id integer,
+    created_at timestamp without time zone DEFAULT now() NOT NULL,
+    updated_at timestamp without time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chk_mafia_events_max_players CHECK (((max_players >= 4) AND (max_players <= 30)))
+);
+
+
+--
+-- Name: mafia_events_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.mafia_events_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: mafia_events_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.mafia_events_id_seq OWNED BY public.mafia_events.id;
+
+
+--
+-- Name: mafia_participants; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.mafia_participants (
+    id integer NOT NULL,
+    event_id integer NOT NULL,
+    user_id integer NOT NULL,
+    role character varying(20),
+    seat integer,
+    card_variant smallint,
+    joined_at timestamp without time zone DEFAULT now() NOT NULL,
+    updated_at timestamp without time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: mafia_participants_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.mafia_participants_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: mafia_participants_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.mafia_participants_id_seq OWNED BY public.mafia_participants.id;
 
 
 --
@@ -520,6 +603,20 @@ ALTER TABLE ONLY public.locations ALTER COLUMN id SET DEFAULT nextval('public.lo
 
 
 --
+-- Name: mafia_events id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.mafia_events ALTER COLUMN id SET DEFAULT nextval('public.mafia_events_id_seq'::regclass);
+
+
+--
+-- Name: mafia_participants id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.mafia_participants ALTER COLUMN id SET DEFAULT nextval('public.mafia_participants_id_seq'::regclass);
+
+
+--
 -- Name: migrations id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -665,6 +762,22 @@ ALTER TABLE ONLY public.groups
 
 
 --
+-- Name: mafia_events mafia_events_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.mafia_events
+    ADD CONSTRAINT mafia_events_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: mafia_participants mafia_participants_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.mafia_participants
+    ADD CONSTRAINT mafia_participants_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: payments payments_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -717,6 +830,13 @@ CREATE INDEX idx_group_members_group_id ON public.group_members USING btree (gro
 
 
 --
+-- Name: idx_mafia_events_group_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_mafia_events_group_id ON public.mafia_events USING btree (group_id);
+
+
+--
 -- Name: idx_payments_game_id; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -749,6 +869,13 @@ CREATE INDEX idx_santa_events_group_id ON public.santa_events USING btree (group
 --
 
 CREATE UNIQUE INDEX uq_group_members_user_group ON public.group_members USING btree (user_id, group_id);
+
+
+--
+-- Name: uq_mafia_participants_event_user; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_mafia_participants_event_user ON public.mafia_participants USING btree (event_id, user_id);
 
 
 --
@@ -897,6 +1024,38 @@ ALTER TABLE ONLY public.sport_locations
 
 
 --
+-- Name: mafia_events mafia_events_group_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.mafia_events
+    ADD CONSTRAINT mafia_events_group_id_fkey FOREIGN KEY (group_id) REFERENCES public.groups(id) ON DELETE CASCADE;
+
+
+--
+-- Name: mafia_events mafia_events_host_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.mafia_events
+    ADD CONSTRAINT mafia_events_host_id_fkey FOREIGN KEY (host_id) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: mafia_participants mafia_participants_event_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.mafia_participants
+    ADD CONSTRAINT mafia_participants_event_id_fkey FOREIGN KEY (event_id) REFERENCES public.mafia_events(id) ON DELETE CASCADE;
+
+
+--
+-- Name: mafia_participants mafia_participants_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.mafia_participants
+    ADD CONSTRAINT mafia_participants_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id);
+
+
+--
 -- Name: payments payments_confirmed_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1016,13 +1175,14 @@ INSERT INTO public.migrations VALUES (9, 1756000000000, 'AddGroupScopedSports175
 INSERT INTO public.migrations VALUES (10, 1757000000000, 'UniqueGuestPayments1757000000000');
 INSERT INTO public.migrations VALUES (11, 1758000000000, 'HardenSchema1758000000000');
 INSERT INTO public.migrations VALUES (12, 1759000000000, 'AddSecretSanta1759000000000');
+INSERT INTO public.migrations VALUES (13, 1760000000000, 'AddMafia1760000000000');
 
 
 --
 -- Name: migrations_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
-SELECT pg_catalog.setval('public.migrations_id_seq', 12, true);
+SELECT pg_catalog.setval('public.migrations_id_seq', 13, true);
 
 
 --

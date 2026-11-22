@@ -338,3 +338,151 @@ describe('NotificationService.notifySantaParticipation', () => {
     await quiet(() => failing.service.notifySantaParticipation(event, people[0], 'joined', people));
   });
 });
+
+describe('NotificationService.notifyMafiaDealt', () => {
+  const mk = (id: number, name: string): User => ({ id, telegram_id: 2000 + id, fullName: name }) as unknown as User;
+  const makeEvent = (extra: Record<string, unknown> = {}) => ({
+    id: 8, title: 'Night <1>', show_mafia_team: true, assign_seats: false,
+    group: { id: 1, telegram_chat_id: '-1001' }, host: mk(99, 'Host'), ...extra,
+  }) as never;
+  const players = [
+    { user: mk(1, 'Al <b>'), role: 'don', seat: 2, variant: 1 },
+    { user: mk(2, 'Bo & Co'), role: 'mafia', seat: 1, variant: 1 },
+    { user: mk(3, 'Cy'), role: 'civilian', seat: 3, variant: 2 },
+    { user: mk(4, 'Di'), role: 'commissar', seat: 4, variant: 1 },
+  ] as never;
+
+  test('group post names no role; every player gets a spoilered role with the seat', async () => {
+    const { service, sent } = makeFakes();
+
+    await quiet(() => service.notifyMafiaDealt(makeEvent(), 3, players));
+
+    const group = sent.filter((m) => m.chatId === -1001);
+    assert.equal(group.length, 1);
+    assert.ok(group[0].text.includes('партия №3'));
+    for (const word of ['Мафия', 'Дон', 'Комиссар', 'Мирный']) assert.ok(!group[0].text.includes(word));
+
+    const civilian = sent.find((m) => m.chatId === 2003)!;
+    assert.ok(civilian.text.includes('Ваша роль: <tg-spoiler>Мирный житель</tg-spoiler>'));
+    assert.ok(civilian.text.includes('Ваше место: №3'));
+    assert.ok(!civilian.text.includes('Ваша команда'));
+    assert.equal(civilian.extra?.parse_mode, 'HTML');
+  });
+
+  test('mafia players get teammates inside a spoiler, HTML-escaped; off when the setting is off', async () => {
+    const { service, sent } = makeFakes();
+    await quiet(() => service.notifyMafiaDealt(makeEvent(), 1, players));
+
+    const mafia = sent.find((m) => m.chatId === 2002)!;
+    assert.ok(mafia.text.includes('Ваша команда: <tg-spoiler>Al &lt;b&gt; (Дон)</tg-spoiler>'));
+
+    const off = makeFakes();
+    await quiet(() => off.service.notifyMafiaDealt(makeEvent({ show_mafia_team: false }), 1, players));
+    assert.ok(!off.sent.find((m) => m.chatId === 2002)!.text.includes('Ваша команда'));
+  });
+
+  test('the host gets the full layout, unspoilered and escaped, sorted by seat when seats are on', async () => {
+    const { service, sent } = makeFakes();
+    await quiet(() => service.notifyMafiaDealt(makeEvent({ assign_seats: true }), 2, players));
+
+    const host = sent.find((m) => m.chatId === 2099)!;
+    assert.ok(!host.text.includes('tg-spoiler'));
+    assert.ok(host.text.includes('Night &lt;1&gt;'));
+    const lines = host.text.split('\n').filter((l) => /^\d\. /.test(l));
+    assert.deepEqual(lines, ['1. Bo &amp; Co — Мафия', '2. Al &lt;b&gt; — Дон', '3. Cy — Мирный житель', '4. Di — Комиссар']);
+  });
+
+  test('without seats the layout follows the role order', async () => {
+    const { service, sent } = makeFakes();
+    const noSeats = (players as unknown as Array<Record<string, unknown>>).map((p) => ({ ...p, seat: null }));
+    await quiet(() => service.notifyMafiaDealt(makeEvent(), 1, noSeats as never));
+
+    const host = sent.find((m) => m.chatId === 2099)!;
+    const lines = host.text.split('\n').filter((l) => l.startsWith('• '));
+    assert.deepEqual(lines.map((l) => l.split(' — ')[1]), ['Мирный житель', 'Мафия', 'Дон', 'Комиссар']);
+  });
+
+  test('keeps going after a failed DM and never throws', async () => {
+    const sent: SentMessage[] = [];
+    const telegram = {
+      sendMessage: async (chatId: number, text: string, extra?: { parse_mode?: string }): Promise<void> => {
+        if (chatId === 2002) throw new Error('403 Forbidden');
+        sent.push({ chatId, text, extra });
+      },
+    };
+    const service = new NotificationService(telegram as never, {} as never, {} as never);
+
+    await quiet(() => service.notifyMafiaDealt(makeEvent(), 1, players));
+
+    assert.deepEqual(sent.map((m) => m.chatId).sort((x, y) => x - y), [-1001, 2001, 2003, 2004, 2099]);
+  });
+});
+
+describe('NotificationService mafia live card', () => {
+  const event = {
+    id: 8, title: 'Night', status: 'registration', max_players: 10, round: 0,
+    card_chat_id: '-1001', card_message_id: 55, group: { id: 1, telegram_chat_id: '-1001' },
+  } as never;
+  const people = [{ fullName: 'Al' }] as unknown as User[];
+
+  test('postMafiaCard sends the card and reports where it landed', async () => {
+    const telegram = { sendMessage: async (): Promise<{ message_id: number }> => ({ message_id: 77 }) };
+    const service = new NotificationService(telegram as never, {} as never, {} as never);
+    assert.deepEqual(await service.postMafiaCard(event, people), { chatId: -1001, messageId: 77 });
+  });
+
+  test('updateMafiaCard edits the stored message and swallows "not modified" / "not found"', async () => {
+    const edits: Array<[number, number]> = [];
+    const errors = ['Bad Request: message is not modified', 'Bad Request: message to edit not found'];
+    const telegram = {
+      editMessageText: async (chatId: number, messageId: number): Promise<void> => {
+        edits.push([chatId, messageId]);
+        const next = errors.shift();
+        if (next) throw new Error(next);
+      },
+    };
+    const service = new NotificationService(telegram as never, {} as never, {} as never);
+
+    await service.updateMafiaCard(event, people);
+    await service.updateMafiaCard(event, people);
+    await service.updateMafiaCard(event, people);
+
+    assert.deepEqual(edits, [[-1001, 55], [-1001, 55], [-1001, 55]]);
+  });
+
+  test('updateMafiaCard does nothing without a stored card', async () => {
+    let calls = 0;
+    const telegram = { editMessageText: async (): Promise<void> => { calls++; } };
+    const service = new NotificationService(telegram as never, {} as never, {} as never);
+    await service.updateMafiaCard({ ...(event as object), card_message_id: null } as never, people);
+    assert.equal(calls, 0);
+  });
+
+  test('removeMafiaCard deletes the card message', async () => {
+    const deleted: Array<[number, number]> = [];
+    let edits = 0;
+    const telegram = {
+      deleteMessage: async (chatId: number, messageId: number): Promise<void> => { deleted.push([chatId, messageId]); },
+      editMessageText: async (): Promise<void> => { edits++; },
+    };
+    const service = new NotificationService(telegram as never, {} as never, {} as never);
+    await service.removeMafiaCard(event);
+    assert.deepEqual(deleted, [[-1001, 55]]);
+    assert.equal(edits, 0);
+  });
+
+  test('removeMafiaCard falls back to a stub without buttons when deleting is refused', async () => {
+    const edits: Array<{ text: string; markup: unknown }> = [];
+    const telegram = {
+      deleteMessage: async (): Promise<void> => { throw new Error("Bad Request: message can't be deleted"); },
+      editMessageText: async (_c: number, _m: number, _i: undefined, text: string, extra: { reply_markup: unknown }): Promise<void> => {
+        edits.push({ text, markup: extra.reply_markup });
+      },
+    };
+    const service = new NotificationService(telegram as never, {} as never, {} as never);
+    await service.removeMafiaCard(event);
+    assert.equal(edits.length, 1);
+    assert.ok(edits[0].text.includes('отменён'));
+    assert.deepEqual(edits[0].markup, { inline_keyboard: [] });
+  });
+});

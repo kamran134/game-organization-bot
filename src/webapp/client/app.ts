@@ -24,8 +24,11 @@ import { renderSports } from './pages/sports.js';
 import { renderSantaList } from './pages/santaList.js';
 import { renderSantaCreate } from './pages/santaCreate.js';
 import { renderSantaEvent } from './pages/santaEvent.js';
+import { renderMafiaList } from './pages/mafiaList.js';
+import { renderMafiaCreate } from './pages/mafiaCreate.js';
+import { renderMafiaEvent } from './pages/mafiaEvent.js';
 import { escapeHtml, getErrorMessage } from './utils.js';
-import type { GameType, Nav, SantaDetailsDto, UserRoleDto } from './types.js';
+import type { GameType, Nav, MafiaDetailsDto, SantaDetailsDto, UserRoleDto } from './types.js';
 
 // ─── Telegram SDK ─────────────────────────────────────────────────────────────
 
@@ -56,7 +59,7 @@ setInitData(tg.initData);
 
 // ─── Group ID resolution ──────────────────────────────────────────────────────
 // start_param: "group_42" (home), "santas_42" (Santa list of group 42), "santa_7" (Santa event 7,
-// group resolved via the API). Fallback: URL ?group_id=42
+// group resolved via the API), "mafias_42" / "mafia_7" (same for Mafia evenings). Fallback: URL ?group_id=42
 
 const startParam = tg.initDataUnsafe?.start_param ?? '';
 const urlParams  = new URLSearchParams(window.location.search);
@@ -103,6 +106,15 @@ const nav: Nav = {
   goSantaCreate() {
     renderSantaCreate({ tg, groupId }, nav);
   },
+  goMafiaList() {
+    renderMafiaList({ tg, groupId }, nav);
+  },
+  goMafiaEvent(eventId: number) {
+    renderMafiaEvent({ tg, eventId }, nav);
+  },
+  goMafiaCreate() {
+    renderMafiaCreate({ tg, groupId }, nav);
+  },
 };
 
 // ─── Bootstrap ────────────────────────────────────────────────────────────────
@@ -120,6 +132,19 @@ async function init(): Promise<void> {
       const details = await apiFetch<SantaDetailsDto>(`/api/santa/${encodeURIComponent(String(eventId))}`);
       groupId = String(details.event.group_id);
       openStartPage = () => nav.goSantaEvent(eventId);
+    } catch (err) {
+      show(`<div class="error">❌ ${escapeHtml(getErrorMessage(err))}</div>`);
+      return;
+    }
+  } else if (startParam.startsWith('mafias_')) {
+    groupId = startParam.replace('mafias_', '');
+    openStartPage = () => nav.goMafiaList();
+  } else if (startParam.startsWith('mafia_')) {
+    const eventId = parseInt(startParam.replace('mafia_', ''), 10);
+    try {
+      const details = await apiFetch<MafiaDetailsDto>(`/api/mafia/${encodeURIComponent(String(eventId))}`);
+      groupId = String(details.event.group_id);
+      openStartPage = () => nav.goMafiaEvent(eventId);
     } catch (err) {
       show(`<div class="error">❌ ${escapeHtml(getErrorMessage(err))}</div>`);
       return;

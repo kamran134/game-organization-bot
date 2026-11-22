@@ -53,6 +53,23 @@ const KNOWN_ERRORS: Record<string, string> = {
   'Invalid exchange date': 'Некорректная дата обмена',
   'Wishlist is too long': 'Пожелания слишком длинные (до 1000 символов)',
   'Invalid wishlist': 'Некорректные пожелания',
+  'Host cannot play': 'Ведущий не играет',
+  'Event is full': 'Мест нет',
+  'Registration closed': 'Запись закрыта',
+  'Roles already dealt': 'Роли уже розданы',
+  'Roles not dealt': 'Роли ещё не розданы',
+  'Not enough players': 'Недостаточно игроков (нужно минимум 4)',
+  'Host only': 'Только для ведущего',
+  'Host or admin only': 'Только для ведущего или админа',
+  'Invalid max players': 'Число игроков должно быть от 4 до 30',
+  'Invalid date': 'Некорректная дата',
+  'Invalid place': 'Некорректное место',
+  'Place is too long': 'Место слишком длинное (до 200 символов)',
+  'Invalid roles': 'Некорректный набор ролей',
+  'Roles must add up to the number of players': 'Число ролей должно совпадать с числом игроков',
+  'At least one mafia is required': 'Нужна хотя бы одна мафия',
+  'Too many of a unique role': 'Эта роль может быть только одна',
+  'Mafia must be a minority': 'Мафия должна быть в меньшинстве',
 };
 
 /**
@@ -88,4 +105,15 @@ export function santaPersonName(p: { first_name?: string; last_name?: string; us
 export function formatSantaDate(date: string): string {
   const [y, m, d] = date.split('-');
   return `${d}.${m}.${y}`;
+}
+
+const MAFIA_STATUS_LABELS: Record<string, string> = {
+  registration: 'Запись идёт',
+  closed: 'Запись закрыта',
+  dealt: 'Роли розданы',
+  finished: 'Завершён',
+};
+
+export function mafiaStatusLabel(status: string): string {
+  return MAFIA_STATUS_LABELS[status] ?? status;
 }

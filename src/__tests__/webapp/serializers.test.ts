@@ -2,6 +2,7 @@ import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   serializeGame, serializeUser, serializeSantaEvent, serializeSantaParticipant, serializeSantaAssignment,
+  serializeMafiaEvent, serializeMafiaParticipant, serializeMafiaCard, serializeMafiaLayoutRow,
 } from '../../webapp/serializers';
 
 const user = {
@@ -98,6 +99,55 @@ describe('santa serializers', () => {
     const dto = serializeSantaAssignment({ receiver: user as any, wishlist: 'socks' });
     assert.deepEqual(Object.keys(dto).sort(), ['receiver', 'wishlist']);
     assert.deepEqual(Object.keys(dto.receiver as object).sort(), ['first_name', 'last_name', 'username']);
+    assert.ok(!JSON.stringify(dto).includes('telegram_id'));
+    assert.ok(!JSON.stringify(dto).includes('phone'));
+  });
+});
+
+describe('mafia serializers', () => {
+  const SECRET = ['role', 'card_variant', 'roles_config', 'card_chat_id', 'card_message_id', 'phone', 'telegram_id', '+994500000000', 'SECRET'];
+
+  function assertClean(value: unknown): void {
+    const json = JSON.stringify(value);
+    for (const word of SECRET) assert.ok(!json.includes(word), `leaked ${word}`);
+  }
+
+  test('participant exposes the public name and the seat, never the role', () => {
+    const dto = serializeMafiaParticipant({
+      id: 1, event_id: 2, user_id: 1, user, role: 'don', seat: 3, card_variant: 1,
+    } as any);
+    assert.deepEqual(Object.keys(dto).sort(), ['first_name', 'last_name', 'seat', 'user_id', 'username']);
+    assert.equal(dto.seat, 3);
+    assertClean(dto);
+  });
+
+  test('event drops everything outside the allow-list', () => {
+    const dto = serializeMafiaEvent({
+      id: 2, group_id: 1, title: 'Evening', description: null, starts_at: new Date(), place: 'Cafe',
+      status: 'dealt', host_id: 1, host: user, show_mafia_team: true, assign_seats: false, max_players: 10, round: 2,
+      roles_config: { mafia: 2 }, dealt_at: new Date(), card_chat_id: '-100', card_message_id: 5,
+      group: { invite_code: 'SECRET' }, created_at: new Date(),
+    } as any);
+    assert.deepEqual(
+      Object.keys(dto).sort(),
+      ['assign_seats', 'dealt_at', 'description', 'group_id', 'host', 'id', 'max_players', 'place', 'round', 'show_mafia_team', 'starts_at', 'status', 'title'],
+    );
+    assert.deepEqual(Object.keys(dto.host as object).sort(), ['first_name', 'last_name', 'username']);
+    assertClean(dto);
+  });
+
+  test('own card carries the role, but only names and roles of teammates', () => {
+    const dto = serializeMafiaCard({
+      round: 1, role: 'mafia' as never, seat: 2, variant: 1,
+      teammates: [{ name: 'Bob', role: 'don', seat: 3, extra: 'x' } as any],
+    });
+    assert.deepEqual(Object.keys(dto).sort(), ['role', 'round', 'seat', 'teammates', 'variant']);
+    assert.deepEqual(Object.keys((dto.teammates as object[])[0]).sort(), ['name', 'role', 'seat']);
+  });
+
+  test('layout row is the only place that pairs a person with a role', () => {
+    const dto = serializeMafiaLayoutRow({ user: user as any, role: 'doctor' as never, seat: 4 });
+    assert.deepEqual(Object.keys(dto).sort(), ['first_name', 'last_name', 'role', 'seat', 'user_id', 'username']);
     assert.ok(!JSON.stringify(dto).includes('telegram_id'));
     assert.ok(!JSON.stringify(dto).includes('phone'));
   });

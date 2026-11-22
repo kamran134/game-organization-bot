@@ -83,6 +83,9 @@ export interface Nav {
   goSantaList(): void;
   goSantaEvent(eventId: number): void;
   goSantaCreate(): void;
+  goMafiaList(): void;
+  goMafiaEvent(eventId: number): void;
+  goMafiaCreate(): void;
 }
 
 export type SantaStatus = 'registration' | 'drawn' | 'finished';
@@ -124,4 +127,68 @@ export interface SantaDetailsDto {
   me: { joined: boolean; wishlist: string | null };
   assignment: { receiver: SantaPersonDto; wishlist: string | null } | null;
   isAdmin: boolean;
+}
+
+// ─── Mafia ───────────────────────────────────────────────────────────────────
+
+export type MafiaStatus = 'registration' | 'closed' | 'dealt' | 'finished';
+export type MafiaRole = 'civilian' | 'mafia' | 'don' | 'commissar' | 'doctor' | 'maniac' | 'lover';
+export type MafiaRoleCounts = Record<MafiaRole, number>;
+
+export interface MafiaEventSummaryDto {
+  id: number;
+  title: string;
+  starts_at: string | null;
+  place: string | null;
+  status: MafiaStatus;
+  round: number;
+  max_players: number;
+  host: SantaPersonDto | null;
+  participants_count: number;
+  joined: boolean;
+  isHost: boolean;
+}
+
+export interface MafiaEventDto {
+  id: number;
+  group_id: number;
+  title: string;
+  description: string | null;
+  starts_at: string | null;
+  place: string | null;
+  status: MafiaStatus;
+  host: SantaPersonDto | null;
+  show_mafia_team: boolean;
+  assign_seats: boolean;
+  max_players: number;
+  round: number;
+  dealt_at: string | null;
+}
+
+export interface MafiaParticipantDto extends SantaParticipantDto {
+  seat: number | null;
+}
+
+export interface MafiaCardDto {
+  round: number;
+  role: MafiaRole;
+  seat: number | null;
+  variant: number;
+  teammates: Array<{ name: string; role: MafiaRole; seat: number | null }>;
+}
+
+export interface MafiaDetailsDto {
+  event: MafiaEventDto;
+  participants: MafiaParticipantDto[];
+  joined: boolean;
+  isHost: boolean;
+  canManage: boolean;
+  myCard: MafiaCardDto | null;
+  suggestedCounts: MafiaRoleCounts | null;
+  rolesConfig: MafiaRoleCounts | null;
+}
+
+export interface MafiaLayoutDto {
+  round: number;
+  players: Array<MafiaParticipantDto & { role: MafiaRole | null }>;
 }
