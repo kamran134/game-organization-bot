@@ -86,6 +86,7 @@ export interface Nav {
   goMafiaList(): void;
   goMafiaEvent(eventId: number): void;
   goMafiaCreate(): void;
+  goMafiaDeck(): void;
 }
 
 export type SantaStatus = 'registration' | 'drawn' | 'finished';

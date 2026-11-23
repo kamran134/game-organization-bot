@@ -183,4 +183,17 @@ describe('MAFIA_CARD_VARIANTS', () => {
     assert.deepEqual([...declared].filter((f) => !onDisk.has(f)), [], 'missing card images');
     assert.deepEqual([...onDisk].filter((f) => !declared.has(f)), [], 'images no deal can hand out');
   });
+
+  test('the client mirror of the counts matches this one', () => {
+    // The client bundle cannot import server code, so mafiaRoles.ts keeps its own copy.
+    // Read it as text rather than importing an ES module into these CommonJS tests.
+    const source = fs.readFileSync(path.join(__dirname, '../../webapp/client/mafiaRoles.ts'), 'utf8');
+    const block = /MAFIA_CARD_VARIANTS: Record<MafiaRole, number> = \{([^}]*)\}/.exec(source);
+    assert.ok(block, 'MAFIA_CARD_VARIANTS not found in the client mafiaRoles.ts');
+
+    const mirror: Record<string, number> = {};
+    for (const [, role, n] of block[1]!.matchAll(/(\w+):\s*(\d+)/g)) mirror[role!] = Number(n);
+
+    assert.deepEqual(mirror, { ...MAFIA_CARD_VARIANTS });
+  });
 });

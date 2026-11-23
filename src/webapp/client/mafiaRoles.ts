@@ -44,6 +44,21 @@ export const MAFIA_ROLE_TEAM: Record<MafiaRole, MafiaTeam> = {
   lover: 'town',
 };
 
+/**
+ * Number of card images per role in public/img/mafia/{role}-{variant}.webp.
+ * Mirrors MAFIA_CARD_VARIANTS in src/utils/mafiaDeal.ts; the guard test in
+ * src/__tests__/utils/mafiaDeal.test.ts keeps the two copies and the files on disk in step.
+ */
+export const MAFIA_CARD_VARIANTS: Record<MafiaRole, number> = {
+  civilian: 11,
+  mafia: 4,
+  don: 3,
+  commissar: 3,
+  doctor: 3,
+  maniac: 2,
+  lover: 3,
+};
+
 export const MAFIA_TEAM_NAME: Record<MafiaTeam, string> = {
   town: 'Мирные',
   mafia: 'Мафия',

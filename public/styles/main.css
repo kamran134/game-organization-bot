@@ -890,6 +890,76 @@ select.input {
 .mafia-face-seat { font-size: 14px; color: rgba(255, 255, 255, 0.8); }
 .mafia-face-mates { font-size: 14px; line-height: 1.4; }
 
+/* ── Mafia deck (the whole card collection) ── */
+.mafia-deck-intro {
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--tg-hint);
+  margin: 4px 0 18px;
+}
+.mafia-deck-section { margin-bottom: 22px; }
+.mafia-deck-role {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 0 2px;
+  font-size: 17px;
+  font-weight: 600;
+}
+.mafia-deck-team { font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; }
+.mafia-deck-count {
+  margin-left: auto;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--tg-hint);
+}
+.mafia-deck-desc {
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--tg-hint);
+  margin-bottom: 10px;
+}
+.mafia-deck-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: 10px;
+}
+.mafia-deck-tile {
+  position: relative;
+  padding: 0;
+  border: none;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #08080c;
+  aspect-ratio: 9 / 16;
+  cursor: pointer;
+}
+.mafia-deck-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center top;
+  display: block;
+}
+.mafia-deck-no {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  padding: 1px 7px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+}
+/* A deck card opens face up, so it must not carry the flip side's rotation. */
+.mafia-face-flat {
+  position: relative;
+  transform: none;
+  width: 100%;
+  height: 100%;
+}
+
 /* ── Tablet media query (≥ 600px) ── */
 @media (min-width: 600px) {
   .page { padding: 24px 32px 120px; }

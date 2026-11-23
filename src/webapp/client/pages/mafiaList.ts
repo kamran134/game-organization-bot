@@ -58,6 +58,7 @@ export async function renderMafiaList(ctx: MafiaListCtx, nav: Nav): Promise<void
     <div class="page" id="mafia-list-page">
       <h2 class="page-title">🎭 Мафия</h2>
       <button class="btn btn-primary btn-large" data-action="create">➕ Создать вечер</button>
+      <button class="btn btn-secondary" data-action="deck">🃏 Посмотреть колоду</button>
       ${body}
     </div>
   `);
@@ -67,6 +68,11 @@ export async function renderMafiaList(ctx: MafiaListCtx, nav: Nav): Promise<void
 
     if (target.closest('[data-action="create"]')) {
       nav.goMafiaCreate();
+      return;
+    }
+
+    if (target.closest('[data-action="deck"]')) {
+      nav.goMafiaDeck();
       return;
     }
 

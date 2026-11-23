@@ -27,6 +27,7 @@ import { renderSantaEvent } from './pages/santaEvent.js';
 import { renderMafiaList } from './pages/mafiaList.js';
 import { renderMafiaCreate } from './pages/mafiaCreate.js';
 import { renderMafiaEvent } from './pages/mafiaEvent.js';
+import { renderMafiaDeck } from './pages/mafiaDeck.js';
 import { escapeHtml, getErrorMessage } from './utils.js';
 import type { GameType, Nav, MafiaDetailsDto, SantaDetailsDto, UserRoleDto } from './types.js';
 
@@ -114,6 +115,9 @@ const nav: Nav = {
   },
   goMafiaCreate() {
     renderMafiaCreate({ tg, groupId }, nav);
+  },
+  goMafiaDeck() {
+    renderMafiaDeck({ tg }, nav);
   },
 };
 
