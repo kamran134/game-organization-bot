@@ -1,5 +1,7 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 import {
   MAFIA_MAX_PLAYERS,
   MAFIA_MIN_PLAYERS,
@@ -120,7 +122,8 @@ describe('dealRoles', () => {
     const result = dealRoles(ids(6), c, { assignSeats: false }, seeded(7));
     const civilians = [...result.values()].filter((d) => d.role === MafiaRole.CIVILIAN);
     assert.equal(civilians.length, 5);
-    assert.deepEqual(civilians.map((d) => d.variant).sort(), [1, 2, 3, 4, 5]);
+    assert.equal(new Set(civilians.map((d) => d.variant)).size, 5);
+    assert.ok(civilians.every((d) => d.variant <= MAFIA_CARD_VARIANTS[MafiaRole.CIVILIAN]));
   });
 
   test('variants stay within the role image count and wrap around when exhausted', () => {
@@ -128,9 +131,21 @@ describe('dealRoles', () => {
     for (const { role, variant } of result.values()) {
       assert.ok(variant >= 1 && variant <= MAFIA_CARD_VARIANTS[role], `${role} ${variant}`);
     }
-    const mafias = [...result.values()].filter((d) => d.role === MafiaRole.MAFIA);
-    assert.equal(mafias.length, 3);
-    assert.ok(mafias.every((d) => d.variant === 1));
+    // More players of one role than that role has images: the queue wraps, so every image is
+    // handed out before any of them repeats, and none repeats more often than it has to.
+    const images = MAFIA_CARD_VARIANTS[MafiaRole.CIVILIAN];
+    const civilians = images + 2;
+    const wrapped = dealRoles(
+      ids(civilians + 2),
+      counts({ mafia: 2, civilian: civilians }),
+      { assignSeats: false },
+      seeded(3),
+    );
+    const used = [...wrapped.values()].filter((d) => d.role === MafiaRole.CIVILIAN).map((d) => d.variant);
+    assert.equal(new Set(used).size, images);
+    for (const variant of new Set(used)) {
+      assert.ok(used.filter((v) => v === variant).length <= Math.ceil(civilians / images));
+    }
   });
 
   test('a seeded random makes the deal deterministic', () => {
@@ -151,5 +166,21 @@ describe('dealRoles', () => {
 
   test('rejects counts that do not fit the players', () => {
     assert.throws(() => dealRoles(ids(5), suggestRoleCounts(4), { assignSeats: false }), ValidationError);
+  });
+});
+
+describe('MAFIA_CARD_VARIANTS', () => {
+  const cardsDir = path.join(__dirname, '../../../public/img/mafia');
+
+  test('every declared variant has a card image, and no image is unreachable', () => {
+    const declared = new Set(
+      Object.entries(MAFIA_CARD_VARIANTS).flatMap(([role, n]) =>
+        Array.from({ length: n }, (_, i) => `${role}-${i + 1}.webp`),
+      ),
+    );
+    const onDisk = new Set(fs.readdirSync(cardsDir).filter((f) => f.endsWith('.webp')));
+
+    assert.deepEqual([...declared].filter((f) => !onDisk.has(f)), [], 'missing card images');
+    assert.deepEqual([...onDisk].filter((f) => !declared.has(f)), [], 'images no deal can hand out');
   });
 });

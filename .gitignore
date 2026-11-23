@@ -49,3 +49,5 @@ docker-compose.yml
 
 # MD files
 *.md
+# Scratch drop folder for new Mafia card art (source files, not shipped)
+.cards-in/
