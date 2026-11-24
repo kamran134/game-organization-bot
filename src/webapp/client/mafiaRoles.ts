@@ -51,11 +51,11 @@ export const MAFIA_ROLE_TEAM: Record<MafiaRole, MafiaTeam> = {
  */
 export const MAFIA_CARD_VARIANTS: Record<MafiaRole, number> = {
   civilian: 11,
-  mafia: 4,
-  don: 3,
-  commissar: 3,
+  mafia: 7,
+  don: 6,
+  commissar: 5,
   doctor: 3,
-  maniac: 2,
+  maniac: 3,
   lover: 3,
 };
 
