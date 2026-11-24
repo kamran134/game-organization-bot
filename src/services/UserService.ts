@@ -1,6 +1,14 @@
 import { Database } from '../database/Database';
 import { User } from '../models/User';
+import { Gender } from '../models/Gender';
 import { GameStatus } from '../models/Game';
+
+/** Profile fields a user (or an admin) may edit; an absent key is left untouched. */
+export interface UserProfilePatch {
+  first_name?: string;
+  last_name?: string | null;
+  gender?: Gender | null;
+}
 
 export interface TelegramUser {
   id: number;
@@ -44,7 +52,8 @@ export class UserService {
    * снять в любой момент, поэтому при каждом контакте с ботом приводим его к актуальному.
    *
    * first_name/last_name намеренно НЕ синхронизируются: их правит админ через веб-апп
-   * (см. updateUserName), автосинк затирал бы ручные правки.
+   * (см. updateUserName), автосинк затирал бы ручные правки. Пол Telegram не знает вовсе —
+   * его задаёт админ или сам игрок (см. updateUserGender).
    */
   async syncUsername(user: User, incomingUsername?: string): Promise<void> {
     const incoming = incomingUsername ?? null;
@@ -74,12 +83,29 @@ export class UserService {
     await userRepo.update(userId, { phone });
   }
 
+  /**
+   * Single write path for the editable profile fields. An absent key is left untouched,
+   * an empty / null `last_name` and a null `gender` clear the column.
+   */
+  async updateUserProfile(userId: number, patch: UserProfilePatch): Promise<void> {
+    const update: Record<string, unknown> = {};
+    if (patch.first_name !== undefined) update['first_name'] = patch.first_name;
+    // last_name is nullable in the DB, but the entity types it as string | undefined
+    if (patch.last_name !== undefined) update['last_name'] = patch.last_name || null;
+    if (patch.gender !== undefined) update['gender'] = patch.gender;
+    if (Object.keys(update).length === 0) return;
+
+    await this.db.getRepository(User).update(userId, update);
+  }
+
   /** `lastName`: undefined leaves it untouched, '' or null clears it. */
   async updateUserName(userId: number, firstName: string, lastName?: string | null): Promise<void> {
-    const userRepo = this.db.getRepository(User);
-    const lastNameUpdate = lastName === undefined ? undefined : (lastName || null);
-    // last_name is nullable in the DB, but the entity types it as string | undefined
-    await userRepo.update(userId, { first_name: firstName, last_name: lastNameUpdate as string | undefined });
+    await this.updateUserProfile(userId, { first_name: firstName, last_name: lastName });
+  }
+
+  /** `null` clears the gender; Telegram never supplies it, so nothing ever overwrites this value. */
+  async updateUserGender(userId: number, gender: Gender | null): Promise<void> {
+    await this.updateUserProfile(userId, { gender });
   }
 
   async getUserStats(userId: number): Promise<{

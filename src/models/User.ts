@@ -1,4 +1,5 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany } from 'typeorm';
+import { Gender } from './Gender';
 import { GroupMember } from './GroupMember';
 import { Game } from './Game';
 import { GameParticipant } from './GameParticipant';
@@ -24,6 +25,11 @@ export class User {
 
   @Column({ nullable: true })
   phone?: string;
+
+  // Opt-in and never synced from Telegram: an admin or the player sets it in the web app.
+  // type указан явно по той же причине, что и у username выше.
+  @Column({ type: 'varchar', length: 10, nullable: true })
+  gender?: Gender | null;
 
   @CreateDateColumn()
   created_at!: Date;
