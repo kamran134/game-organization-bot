@@ -16,6 +16,7 @@ import { createUserRouter } from './routes/user';
 import { createPaymentsRouter } from './routes/payments';
 import { createSantaRouter } from './routes/santa';
 import { createMafiaRouter } from './routes/mafia';
+import { staticCacheControl } from './staticCache';
 
 /** Origins allowed to call the API. */
 const ALLOWED_ORIGINS = [
@@ -96,9 +97,11 @@ export function createWebAppServer(db: Database) {
   const notificationService = new NotificationService(telegram, groupService, new JokeService());
   const lifecycleService = new GameLifecycleService(db, notificationService);
 
-  // Serve static files from /public
+  // Serve static files from /public (see staticCache.ts for why the headers matter)
   const publicDir = path.join(__dirname, '../../public');
-  app.use(express.static(publicDir));
+  app.use(express.static(publicDir, {
+    setHeaders: (res, filePath) => res.setHeader('Cache-Control', staticCacheControl(filePath)),
+  }));
 
   // API routes
   app.use('/api/games', createGamesRouter(db, notificationService, lifecycleService, canAccessGroup));
@@ -128,6 +131,8 @@ export function createWebAppServer(db: Database) {
 
   // Fallback to index.html (SPA)
   app.get('*', (_req, res) => {
+    // Same policy as the static middleware: the shell must never be served from a stale cache
+    res.setHeader('Cache-Control', 'no-cache');
     res.sendFile(path.join(publicDir, 'index.html'));
   });
 
