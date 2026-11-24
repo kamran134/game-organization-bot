@@ -537,6 +537,14 @@ select.input {
   margin-top: 16px;
 }
 
+/* Create buttons that live inside a section's list page */
+.section-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
 /* ── Game cards ── */
 .games-list { display: flex; flex-direction: column; gap: 12px; }
 

@@ -24,7 +24,7 @@ export async function renderCreateForm(ctx: CreateCtx, nav: Nav): Promise<void> 
   const { tg, groupId, type } = ctx;
 
   showLoader();
-  setBackButton(tg, nav.goHome);
+  setBackButton(tg, nav.goGamesList);
   hideMainButton(tg);
 
   try {
@@ -124,7 +124,7 @@ export async function renderCreateForm(ctx: CreateCtx, nav: Nav): Promise<void> 
         tg.MainButton.hideProgress();
         hideMainButton(tg);
         toast(isTraining ? '✅ Тренировка создана!' : '✅ Игра создана!');
-        setTimeout(() => nav.goHome(), 1500);
+        setTimeout(() => nav.goGamesList(), 1500);
       } catch (err) {
         tg.MainButton.hideProgress();
         toast(getErrorMessage(err), true);

@@ -22,6 +22,7 @@ import { renderCreateLocation } from './pages/createLocation.js';
 import { renderMembers } from './pages/members.js';
 import { renderProfile } from './pages/profile.js';
 import { renderSports } from './pages/sports.js';
+import { renderManage } from './pages/manage.js';
 import { renderSantaList } from './pages/santaList.js';
 import { renderSantaCreate } from './pages/santaCreate.js';
 import { renderSantaEvent } from './pages/santaEvent.js';
@@ -101,6 +102,9 @@ const nav: Nav = {
   },
   goSports() {
     renderSports({ tg, groupId }, nav);
+  },
+  goManage() {
+    renderManage({ tg, isAdmin: _isAdmin }, nav);
   },
   goSantaList() {
     renderSantaList({ tg, groupId, isAdmin: _isAdmin }, nav);

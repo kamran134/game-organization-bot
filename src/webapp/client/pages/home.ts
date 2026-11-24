@@ -7,7 +7,9 @@ interface HomeCtx {
 }
 
 /**
- * Renders the home screen.
+ * Renders the home screen: a list of sections, one per kind of activity.
+ * Creating anything happens inside the matching section, never from here —
+ * every section is "a list plus its own create button".
  */
 export function renderHome(ctx: HomeCtx, nav: Nav): void {
   const { tg, isAdmin } = ctx;
@@ -15,24 +17,18 @@ export function renderHome(ctx: HomeCtx, nav: Nav): void {
   hideMainButton(tg);
   hideBackButton(tg);
 
-  const adminButtons = isAdmin
-    ? `
-      <button class="btn btn-primary btn-large" data-action="create-game">🎮 Создать игру</button>
-      <button class="btn btn-secondary btn-large" data-action="create-training">🏃 Создать тренировку</button>
-      <button class="btn btn-outline btn-large" data-action="create-location">📍 Добавить площадку</button>
-      <button class="btn btn-outline btn-large" data-action="members">👥 Участники</button>
-      <button class="btn btn-outline btn-large" data-action="sports">🏅 Виды активности</button>
-    `
+  const manageSection = isAdmin
+    ? '<button class="btn btn-outline btn-large" data-action="manage">⚙️ Управление</button>'
     : '';
 
   show(`
     <div class="page">
       <h2 class="page-title">📋 Организатор игр</h2>
       <div class="home-actions">
-        ${adminButtons}
-        <button class="btn btn-outline btn-large" data-action="list-games">📅 Расписание</button>
-        <button class="btn btn-outline btn-large" data-action="santa">🎅 Тайный Санта</button>
+        <button class="btn btn-outline btn-large" data-action="sport">🏐 Спорт</button>
         <button class="btn btn-outline btn-large" data-action="mafia">🎭 Мафия</button>
+        <button class="btn btn-outline btn-large" data-action="santa">🎅 Тайный Санта</button>
+        ${manageSection}
         <button class="btn btn-outline btn-large" data-action="profile">👤 Мой профиль</button>
       </div>
     </div>
@@ -45,14 +41,10 @@ export function renderHome(ctx: HomeCtx, nav: Nav): void {
     if (!btn) return;
 
     const action = btn.dataset['action'];
-    if (action === 'create-game')     nav.goCreateForm('game');
-    if (action === 'create-training') nav.goCreateForm('training');
-    if (action === 'create-location') nav.goCreateLocation();
-    if (action === 'members')         nav.goMembers();
-    if (action === 'sports')          nav.goSports();
-    if (action === 'list-games')      nav.goGamesList();
-    if (action === 'santa')           nav.goSantaList();
-    if (action === 'mafia')           nav.goMafiaList();
-    if (action === 'profile')         nav.goProfile();
+    if (action === 'sport')   nav.goGamesList();
+    if (action === 'mafia')   nav.goMafiaList();
+    if (action === 'santa')   nav.goSantaList();
+    if (action === 'manage')  nav.goManage();
+    if (action === 'profile') nav.goProfile();
   });
 }

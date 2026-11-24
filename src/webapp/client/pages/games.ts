@@ -287,6 +287,13 @@ export async function renderGamesList(ctx: GamesCtx, nav: Nav): Promise<void> {
   // ── Full page render ───────────────────────────────────────────────────────
 
   function renderPage(activeTab: 'schedule' | 'payments'): void {
+    // The section owns its create buttons (same shape as the Mafia and Santa lists)
+    const createButtons = isAdmin ? `
+      <div class="section-actions">
+        <button class="btn btn-primary btn-large" data-action="create-game">➕ Создать игру</button>
+        <button class="btn btn-secondary btn-large" data-action="create-training">🏃 Создать тренировку</button>
+      </div>` : '';
+
     const tabBar = isAdmin ? `
       <div class="tabs-bar">
         <button class="tab-btn ${activeTab === 'schedule' ? 'tab-active' : ''}" data-tab="schedule">📅 Расписание</button>
@@ -317,12 +324,21 @@ export async function renderGamesList(ctx: GamesCtx, nav: Nav): Promise<void> {
 
     show(`
       <div class="page">
-        <h2 class="page-title">📅 Расписание</h2>
+        <h2 class="page-title">🏐 Спорт</h2>
+        ${createButtons}
         ${tabBar}
         ${schedulePanel}
         ${paymentsPanel}
       </div>
     `);
+
+    // Wire the section's create buttons
+    document.querySelector('.section-actions')?.addEventListener('click', (e) => {
+      const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-action]');
+      if (!btn) return;
+      if (btn.dataset['action'] === 'create-game')     nav.goCreateForm('game');
+      if (btn.dataset['action'] === 'create-training') nav.goCreateForm('training');
+    });
 
     // Wire schedule tab events
     document.getElementById('gamesList')?.addEventListener('click', handleScheduleClick);

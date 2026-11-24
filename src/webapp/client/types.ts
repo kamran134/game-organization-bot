@@ -87,6 +87,7 @@ export interface Nav {
   goMembers(): void;
   goProfile(): void;
   goSports(): void;
+  goManage(): void;
   goSantaList(): void;
   goSantaEvent(eventId: number): void;
   goSantaCreate(): void;

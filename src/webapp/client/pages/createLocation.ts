@@ -23,7 +23,7 @@ export async function renderCreateLocation(ctx: CreateLocationCtx, nav: Nav): Pr
   const { tg, groupId } = ctx;
 
   showLoader();
-  setBackButton(tg, nav.goHome);
+  setBackButton(tg, nav.goManage);
   hideMainButton(tg);
 
   try {
@@ -88,7 +88,7 @@ export async function renderCreateLocation(ctx: CreateLocationCtx, nav: Nav): Pr
         tg.MainButton.hideProgress();
         hideMainButton(tg);
         toast('✅ Площадка добавлена!');
-        setTimeout(() => nav.goHome(), 1500);
+        setTimeout(() => nav.goManage(), 1500);
       } catch (err) {
         tg.MainButton.hideProgress();
         toast(getErrorMessage(err), true);

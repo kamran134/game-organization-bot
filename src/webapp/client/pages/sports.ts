@@ -40,7 +40,7 @@ export async function renderSports(ctx: SportsCtx, nav: Nav): Promise<void> {
   const { tg, groupId } = ctx;
 
   hideMainButton(tg);
-  setBackButton(tg, () => nav.goHome());
+  setBackButton(tg, () => nav.goManage());
 
   showLoader();
 
