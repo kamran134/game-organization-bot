@@ -146,7 +146,8 @@ export function serializeMafiaEvent(event: MafiaEvent): Record<string, unknown> 
 }
 
 export function serializeMafiaParticipant(p: MafiaParticipant): Record<string, unknown> {
-  return { user_id: p.user_id, ...serializeSantaPerson(p.user), seat: p.seat ?? null };
+  // gender is not a secret (unlike the role): the host layout and the cards need it for role names
+  return { user_id: p.user_id, ...serializeSantaPerson(p.user), gender: p.user.gender ?? null, seat: p.seat ?? null };
 }
 
 /** The caller's own card: the only place a role reaches a player. */
@@ -154,6 +155,7 @@ export function serializeMafiaCard(card: MafiaCard): Record<string, unknown> {
   return {
     round: card.round,
     role: card.role,
+    gender: card.gender,
     seat: card.seat,
     variant: card.variant,
     teammates: card.teammates.map((t) => ({ name: t.name, role: t.role, seat: t.seat })),
@@ -162,5 +164,11 @@ export function serializeMafiaCard(card: MafiaCard): Record<string, unknown> {
 
 /** One row of the host's layout. */
 export function serializeMafiaLayoutRow(row: MafiaLayoutRow): Record<string, unknown> {
-  return { user_id: row.user.id, ...serializeSantaPerson(row.user), seat: row.seat, role: row.role };
+  return {
+    user_id: row.user.id,
+    ...serializeSantaPerson(row.user),
+    gender: row.user.gender ?? null,
+    seat: row.seat,
+    role: row.role,
+  };
 }

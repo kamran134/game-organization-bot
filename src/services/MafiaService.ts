@@ -2,6 +2,7 @@ import { EntityManager, In } from 'typeorm';
 import { Database } from '../database/Database';
 import { MafiaEvent, MafiaStatus } from '../models/MafiaEvent';
 import { MafiaParticipant } from '../models/MafiaParticipant';
+import { Gender } from '../models/Gender';
 import { MafiaRole } from '../models/MafiaRole';
 import { User } from '../models/User';
 import { ConflictError } from '../utils/errors';
@@ -46,6 +47,8 @@ export interface MafiaTeammate {
 export interface MafiaCard {
   round: number;
   role: MafiaRole;
+  /** The card owner's own gender: the client needs it for the role name on the card. */
+  gender: Gender | null;
   seat: number | null;
   variant: number;
   teammates: MafiaTeammate[];
@@ -192,7 +195,10 @@ export class MafiaService {
       const used = counts ?? (storedFits ? stored! : suggestRoleCounts(n));
       validateRoleCounts(used, n);
 
-      const dealt = dealRoles(participants.map((p) => p.user_id), used, { assignSeats: event.assign_seats });
+      const dealt = dealRoles(participants.map((p) => p.user_id), used, {
+        assignSeats: event.assign_seats,
+        genders: new Map(participants.map((p) => [p.user_id, p.user.gender ?? null])),
+      });
       for (const p of participants) {
         const d = dealt.get(p.user_id)!;
         p.role = d.role;
@@ -260,7 +266,7 @@ export class MafiaService {
     if (!event || event.status !== MafiaStatus.DEALT) return null;
 
     const repo = this.db.getRepository(MafiaParticipant);
-    const mine = await repo.findOne({ where: { event_id: eventId, user_id: userId } });
+    const mine = await repo.findOne({ where: { event_id: eventId, user_id: userId }, relations: ['user'] });
     if (!mine?.role || mine.card_variant == null) return null;
 
     let teammates: MafiaTeammate[] = [];
@@ -275,7 +281,14 @@ export class MafiaService {
         .map((p) => ({ name: p.user.fullName, role: p.role!, seat: p.seat ?? null }));
     }
 
-    return { round: event.round, role: mine.role, seat: mine.seat ?? null, variant: mine.card_variant, teammates };
+    return {
+      round: event.round,
+      role: mine.role,
+      gender: mine.user?.gender ?? null,
+      seat: mine.seat ?? null,
+      variant: mine.card_variant,
+      teammates,
+    };
   }
 
   /** Every player with the role; the caller must restrict this to the host. */

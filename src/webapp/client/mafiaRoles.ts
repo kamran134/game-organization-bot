@@ -3,7 +3,7 @@
  * Mirrors src/utils/mafiaDeal.ts: the client tsconfig cannot import server code, so this small map is duplicated.
  */
 
-import type { MafiaRole, MafiaRoleCounts } from './types.js';
+import type { Gender, MafiaRole, MafiaRoleCounts } from './types.js';
 
 export type MafiaTeam = 'town' | 'mafia' | 'solo';
 
@@ -21,8 +21,20 @@ export const MAFIA_ROLE_NAME: Record<MafiaRole, string> = {
   commissar: 'Комиссар',
   doctor: 'Доктор',
   maniac: 'Маньяк',
+  lover: 'Любовник',
+};
+
+/** Roles whose name has a feminine form; the rest fall back to MAFIA_ROLE_NAME. */
+export const MAFIA_ROLE_NAME_FEMALE: Partial<Record<MafiaRole, string>> = {
+  civilian: 'Мирная жительница',
+  maniac: 'Маньячка',
   lover: 'Любовница',
 };
+
+/** Role name for a player: the feminine form only for a known female player. */
+export function mafiaRoleName(role: MafiaRole, gender?: Gender | null): string {
+  return (gender === 'female' ? MAFIA_ROLE_NAME_FEMALE[role] : undefined) ?? MAFIA_ROLE_NAME[role];
+}
 
 export const MAFIA_ROLE_DESCRIPTION: Record<MafiaRole, string> = {
   civilian: 'Днём ищите мафию и голосуйте. Ночью спите.',
@@ -57,6 +69,23 @@ export const MAFIA_CARD_VARIANTS: Record<MafiaRole, number> = {
   doctor: 3,
   maniac: 3,
   lover: 3,
+};
+
+/** Gender of the character on a card; 'neutral' fits any player. */
+export type CardGender = 'male' | 'female' | 'neutral';
+
+/**
+ * Gender of the character drawn on each card, index = variant - 1.
+ * Mirrors MAFIA_CARD_GENDER in src/utils/mafiaDeal.ts (same guard test as the counts above).
+ */
+export const MAFIA_CARD_GENDER: Record<MafiaRole, readonly CardGender[]> = {
+  civilian: ['female', 'male', 'male', 'female', 'female', 'male', 'male', 'female', 'female', 'male'],
+  mafia: ['male', 'female', 'male', 'female', 'male', 'male', 'male'],
+  don: ['male', 'male', 'female', 'male', 'female', 'female'],
+  commissar: ['male', 'male', 'male', 'female', 'female'],
+  doctor: ['male', 'female', 'male'],
+  maniac: ['neutral', 'male', 'female'],
+  lover: ['female', 'female', 'female'],
 };
 
 export const MAFIA_TEAM_NAME: Record<MafiaTeam, string> = {

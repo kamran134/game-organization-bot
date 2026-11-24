@@ -17,7 +17,7 @@ import { MafiaEvent } from '../models/MafiaEvent';
 import { isMessageGone, isMessageNotModified } from '../bot/utils/telegramErrors';
 import { MafiaRole } from '../models/MafiaRole';
 import { formatMafiaCard, mafiaButton } from '../bot/ui/MafiaMessageBuilder';
-import { MAFIA_ROLE_NAME, MAFIA_ROLE_ORDER, isMafiaTeamRole } from '../utils/mafiaDeal';
+import { MAFIA_ROLE_ORDER, isMafiaTeamRole, mafiaRoleName } from '../utils/mafiaDeal';
 import type { MafiaDealtPlayer } from './MafiaService';
 
 /** Where the action that triggered the notification came from; the web variants carry a participants list. */
@@ -360,7 +360,7 @@ export class NotificationService {
       for (const player of players) {
         const lines = [
           `🎭 <b>${escapeHtml(event.title)}</b> — партия №${round}`,
-          `Ваша роль: <tg-spoiler>${MAFIA_ROLE_NAME[player.role]}</tg-spoiler>`,
+          `Ваша роль: <tg-spoiler>${mafiaRoleName(player.role, player.user.gender)}</tg-spoiler>`,
         ];
         if (player.seat !== null) lines.push(`Ваше место: №${player.seat}`);
         if (event.show_mafia_team && isMafiaTeamRole(player.role)) {
@@ -389,7 +389,7 @@ export class NotificationService {
           ? (a.seat ?? 0) - (b.seat ?? 0)
           : roleIndex(a.role) - roleIndex(b.role));
         const rows = sorted.map((p) =>
-          `${p.seat !== null ? `${p.seat}. ` : '• '}${escapeHtml(p.user.fullName)} — ${MAFIA_ROLE_NAME[p.role]}`);
+          `${p.seat !== null ? `${p.seat}. ` : '• '}${escapeHtml(p.user.fullName)} — ${mafiaRoleName(p.role, p.user.gender)}`);
         try {
           await this.telegram.sendMessage(
             Number(event.host.telegram_id),

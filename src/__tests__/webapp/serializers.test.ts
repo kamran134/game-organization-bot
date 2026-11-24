@@ -116,7 +116,7 @@ describe('mafia serializers', () => {
     const dto = serializeMafiaParticipant({
       id: 1, event_id: 2, user_id: 1, user, role: 'don', seat: 3, card_variant: 1,
     } as any);
-    assert.deepEqual(Object.keys(dto).sort(), ['first_name', 'last_name', 'seat', 'user_id', 'username']);
+    assert.deepEqual(Object.keys(dto).sort(), ['first_name', 'gender', 'last_name', 'seat', 'user_id', 'username']);
     assert.equal(dto.seat, 3);
     assertClean(dto);
   });
@@ -138,16 +138,16 @@ describe('mafia serializers', () => {
 
   test('own card carries the role, but only names and roles of teammates', () => {
     const dto = serializeMafiaCard({
-      round: 1, role: 'mafia' as never, seat: 2, variant: 1,
+      round: 1, role: 'mafia' as never, gender: null, seat: 2, variant: 1,
       teammates: [{ name: 'Bob', role: 'don', seat: 3, extra: 'x' } as any],
     });
-    assert.deepEqual(Object.keys(dto).sort(), ['role', 'round', 'seat', 'teammates', 'variant']);
+    assert.deepEqual(Object.keys(dto).sort(), ['gender', 'role', 'round', 'seat', 'teammates', 'variant']);
     assert.deepEqual(Object.keys((dto.teammates as object[])[0]).sort(), ['name', 'role', 'seat']);
   });
 
   test('layout row is the only place that pairs a person with a role', () => {
     const dto = serializeMafiaLayoutRow({ user: user as any, role: 'doctor' as never, seat: 4 });
-    assert.deepEqual(Object.keys(dto).sort(), ['first_name', 'last_name', 'role', 'seat', 'user_id', 'username']);
+    assert.deepEqual(Object.keys(dto).sort(), ['first_name', 'gender', 'last_name', 'role', 'seat', 'user_id', 'username']);
     assert.ok(!JSON.stringify(dto).includes('telegram_id'));
     assert.ok(!JSON.stringify(dto).includes('phone'));
   });

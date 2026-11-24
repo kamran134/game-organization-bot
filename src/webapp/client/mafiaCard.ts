@@ -1,12 +1,12 @@
 import { escapeHtml } from './utils.js';
 import {
   MAFIA_ROLE_DESCRIPTION,
-  MAFIA_ROLE_NAME,
   MAFIA_ROLE_TEAM,
   MAFIA_TEAM_COLOR,
   MAFIA_TEAM_NAME,
+  mafiaRoleName,
 } from './mafiaRoles.js';
-import type { MafiaCardDto, MafiaRole } from './types.js';
+import type { Gender, MafiaCardDto, MafiaRole } from './types.js';
 
 /** Path of a role's card art; the deck grid and the full-screen card share it. */
 export function mafiaCardImageUrl(role: MafiaRole, variant: number): string {
@@ -18,6 +18,8 @@ interface FaceOptions {
   kicker: string;
   seat?: number | null;
   teammates?: MafiaCardDto['teammates'];
+  /** Gender of the player holding the card; the deck preview has no player, so the base name is used. */
+  gender?: Gender | null;
 }
 
 /** Inner markup of a card face: artwork, gradient and the text block over it. */
@@ -32,7 +34,7 @@ function renderFace(role: MafiaRole, variant: number, options: FaceOptions): str
     <div class="mafia-face-shade"></div>
     <div class="mafia-face-text">
       <div class="mafia-face-team" style="color:${accent}">${escapeHtml(options.kicker)}</div>
-      <div class="mafia-face-role">${escapeHtml(MAFIA_ROLE_NAME[role])}</div>
+      <div class="mafia-face-role">${escapeHtml(mafiaRoleName(role, options.gender))}</div>
       <div class="mafia-face-desc">${escapeHtml(MAFIA_ROLE_DESCRIPTION[role])}</div>
       ${options.seat != null ? `<div class="mafia-face-seat">Место №${escapeHtml(String(options.seat))}</div>` : ''}
       ${mates ? `<div class="mafia-face-mates" style="color:${accent}">Ваша команда: ${mates}</div>` : ''}
@@ -81,7 +83,7 @@ export function openMafiaCard(card: MafiaCardDto): void {
           </div>
         </div>
         <div class="mafia-side mafia-face">
-          ${renderFace(card.role, card.variant, { kicker, seat: card.seat, teammates: card.teammates })}
+          ${renderFace(card.role, card.variant, { kicker, seat: card.seat, teammates: card.teammates, gender: card.gender })}
         </div>
       </div>
     </div>

@@ -6,6 +6,7 @@ import {
   MAFIA_MIN_PLAYERS,
   MAFIA_ROLE_NAME,
   MAFIA_ROLE_ORDER,
+  mafiaRoleName,
   MAFIA_ROLE_TEAM,
   MAFIA_TEAM_COLOR,
   validateCounts,
@@ -144,7 +145,7 @@ function renderLayoutSection(d: MafiaDetailsDto, open: boolean, layout: MafiaLay
     body = sorted.map((p) => {
       const role: MafiaRole | null = p.role;
       const badge = role
-        ? `<span class="mafia-badge" style="background:${MAFIA_TEAM_COLOR[MAFIA_ROLE_TEAM[role]]}33;color:${MAFIA_TEAM_COLOR[MAFIA_ROLE_TEAM[role]]}">${escapeHtml(MAFIA_ROLE_NAME[role])}</span>`
+        ? `<span class="mafia-badge" style="background:${MAFIA_TEAM_COLOR[MAFIA_ROLE_TEAM[role]]}33;color:${MAFIA_TEAM_COLOR[MAFIA_ROLE_TEAM[role]]}">${escapeHtml(mafiaRoleName(role, p.gender))}</span>`
         : '';
       return `
         <div class="member-row">
