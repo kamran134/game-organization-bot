@@ -50,7 +50,7 @@ export const MAFIA_ROLE_TEAM: Record<MafiaRole, MafiaTeam> = {
  * src/__tests__/utils/mafiaDeal.test.ts keeps the two copies and the files on disk in step.
  */
 export const MAFIA_CARD_VARIANTS: Record<MafiaRole, number> = {
-  civilian: 11,
+  civilian: 10,
   mafia: 7,
   don: 6,
   commissar: 5,

@@ -58,7 +58,7 @@ export const MAFIA_TEAM_NAME: Record<MafiaTeam, string> = {
 
 /** Number of card images per role in public/img/mafia/{role}-{variant}.webp. */
 export const MAFIA_CARD_VARIANTS: Record<MafiaRole, number> = {
-  [MafiaRole.CIVILIAN]: 11,
+  [MafiaRole.CIVILIAN]: 10,
   [MafiaRole.MAFIA]: 7,
   [MafiaRole.DON]: 6,
   [MafiaRole.COMMISSAR]: 5,
