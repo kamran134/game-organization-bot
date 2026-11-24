@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
+import fs from 'fs';
 import type { Request, Response, NextFunction } from 'express';
 import { Telegram } from 'telegraf';
 import { Database } from '../database/Database';
@@ -17,6 +18,7 @@ import { createPaymentsRouter } from './routes/payments';
 import { createSantaRouter } from './routes/santa';
 import { createMafiaRouter } from './routes/mafia';
 import { staticCacheControl } from './staticCache';
+import { VERSIONED_ASSET_MAX_AGE_SECONDS, buildAssetVersion, versionShell } from './assetVersion';
 
 /** Origins allowed to call the API. */
 const ALLOWED_ORIGINS = [
@@ -99,7 +101,23 @@ export function createWebAppServer(db: Database) {
 
   // Serve static files from /public (see staticCache.ts for why the headers matter)
   const publicDir = path.join(__dirname, '../../public');
+
+  // The shell is built once: it is tiny, and rereading it per request buys nothing
+  const assetVersion = buildAssetVersion(publicDir);
+  const shellHtml = versionShell(fs.readFileSync(path.join(publicDir, 'index.html'), 'utf8'), assetVersion);
+
+  // Versioned copies of the client (see assetVersion.ts): the URL names one build, so it can be
+  // cached as hard as the browser likes. Any version is served — a client holding an older shell
+  // keeps working until it reloads.
+  app.use('/b/:version', express.static(publicDir, {
+    immutable: true,
+    maxAge: VERSIONED_ASSET_MAX_AGE_SECONDS * 1000,
+  }));
+
+  // `index: false`: a request for / must reach the shell route below, which points it at the
+  // current build, instead of being answered here with the raw index.html
   app.use(express.static(publicDir, {
+    index: false,
     setHeaders: (res, filePath) => res.setHeader('Cache-Control', staticCacheControl(filePath)),
   }));
 
@@ -129,11 +147,11 @@ export function createWebAppServer(db: Database) {
     }
   });
 
-  // Fallback to index.html (SPA)
+  // Fallback to the shell (SPA)
   app.get('*', (_req, res) => {
-    // Same policy as the static middleware: the shell must never be served from a stale cache
+    // The shell must never come from a stale cache: it is what points at the current build
     res.setHeader('Cache-Control', 'no-cache');
-    res.sendFile(path.join(publicDir, 'index.html'));
+    res.type('html').send(shellHtml);
   });
 
   // Final error handler: JSON only, no stack traces or internal messages
