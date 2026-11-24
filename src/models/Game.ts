@@ -79,6 +79,10 @@ export class Game {
   @Column({ type: 'integer', nullable: true })
   registration_lock_hours?: number;
 
+  /** Number of teams the roster is split into; null = not split yet. */
+  @Column({ type: 'smallint', nullable: true })
+  team_count?: number | null;
+
   @CreateDateColumn()
   created_at!: Date;
 

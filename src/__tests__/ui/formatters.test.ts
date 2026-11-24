@@ -6,6 +6,9 @@ import {
   formatParticipantsList,
   formatMention,
   formatMembersMentions,
+  formatTeamsInline,
+  formatTeamsList,
+  participantName,
 } from '../../bot/ui/formatters';
 import { GroupMember } from '../../models/GroupMember';
 
@@ -129,5 +132,87 @@ describe('formatMembersMentions', () => {
 
   test('returns an empty string for an empty list', () => {
     assert.equal(formatMembersMentions([]), '');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// participantName / team formatters
+// ---------------------------------------------------------------------------
+function teamPlayer(
+  status: ParticipationStatus,
+  name: string,
+  team: number | null,
+  kind: 'user' | 'guest' = 'user',
+): GameParticipant {
+  const p = makeParticipant(status, kind === 'guest' ? { guest_name: name } : { first_name: name });
+  p.team = team;
+  return p;
+}
+
+const identity = (s: string): string => s;
+
+describe('participantName', () => {
+  test('joins the user name or falls back to the guest name', () => {
+    const p = makeParticipant(ParticipationStatus.CONFIRMED, { first_name: 'Ivan' });
+    p.user!.last_name = 'Petrov';
+    assert.equal(participantName(p), 'Ivan Petrov');
+    assert.equal(participantName(makeParticipant(ParticipationStatus.GUEST, { guest_name: 'Bob' })), 'Bob');
+    const nameless = new GameParticipant();
+    assert.equal(participantName(nameless), 'Гость');
+  });
+});
+
+describe('formatTeamsInline', () => {
+  const players = [
+    teamPlayer(ParticipationStatus.CONFIRMED, 'Ann', 1),
+    teamPlayer(ParticipationStatus.GUEST, 'Bob', 1, 'guest'),
+    teamPlayer(ParticipationStatus.CONFIRMED, 'Cat', 3),
+    teamPlayer(ParticipationStatus.CONFIRMED, 'Dan', null),
+    teamPlayer(ParticipationStatus.MAYBE, 'Eve', 1),
+  ];
+
+  test('prints one line per non-empty team and a block for players without a team', () => {
+    assert.equal(
+      formatTeamsInline(players, 3, identity),
+      '🔴 Команда 1: Ann, Bob\n🟢 Команда 3: Cat\n⚪ Без команды: Dan',
+    );
+  });
+
+  test('skips empty teams and the unassigned block when nobody is left', () => {
+    const split = [teamPlayer(ParticipationStatus.CONFIRMED, 'Ann', 2)];
+    assert.equal(formatTeamsInline(split, 2, identity), '🔵 Команда 2: Ann');
+  });
+
+  test('never lists a maybe player', () => {
+    assert.ok(!formatTeamsInline(players, 3, identity).includes('Eve'));
+  });
+
+  test('escapes names with the given escaper', () => {
+    const split = [teamPlayer(ParticipationStatus.CONFIRMED, 'a_b', 1)];
+    assert.equal(formatTeamsInline(split, 2, (s) => s.replace('_', '\\_')), '🔴 Команда 1: a\\_b');
+  });
+});
+
+describe('formatTeamsList', () => {
+  test('prints a numbered list per team separated by blank lines', () => {
+    const players = [
+      teamPlayer(ParticipationStatus.CONFIRMED, 'Ann', 1),
+      teamPlayer(ParticipationStatus.CONFIRMED, 'Bob', 2),
+      teamPlayer(ParticipationStatus.GUEST, 'Cat', 1, 'guest'),
+      teamPlayer(ParticipationStatus.CONFIRMED, 'Dan', null),
+    ];
+    assert.equal(
+      formatTeamsList(players, 2, identity),
+      '🔴 Команда 1:\n1. Ann\n2. Cat\n\n🔵 Команда 2:\n1. Bob\n\n⚪ Без команды:\n1. Dan',
+    );
+  });
+
+  test('does not print an empty team', () => {
+    const players = [teamPlayer(ParticipationStatus.CONFIRMED, 'Ann', 2)];
+    assert.ok(!formatTeamsList(players, 3, identity).includes('Команда 1'));
+  });
+
+  test('returns an empty string without players', () => {
+    assert.equal(formatTeamsList([], 2, identity), '');
   });
 });

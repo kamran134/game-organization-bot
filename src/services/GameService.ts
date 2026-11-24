@@ -3,6 +3,28 @@ import { Game, GameStatus } from '../models/Game';
 import { GameType } from '../models/GameType';
 import { GameParticipant, ParticipationStatus } from '../models/GameParticipant';
 import { MoreThanOrEqual } from 'typeorm';
+import { TeamCandidate, MAX_TEAM_COUNT, splitIntoTeams, validateTeamCount } from '../utils/gameTeams';
+import { ValidationError } from '../utils/errors';
+
+/** Whether a participant may be put into a team: confirmed players and guests, never `maybe`. */
+function canJoinTeam(participant: Pick<GameParticipant, 'participation_status'>): boolean {
+  return (
+    participant.participation_status === ParticipationStatus.CONFIRMED ||
+    participant.participation_status === ParticipationStatus.GUEST
+  );
+}
+
+/** Candidates for a team place (confirmed + guest), ordered by priority, then join time, then id. */
+export function teamCandidateOrder(participants: GameParticipant[]): GameParticipant[] {
+  return participants
+    .filter(canJoinTeam)
+    .sort((a, b) => {
+      const byPriority = a.getPriority() - b.getPriority();
+      if (byPriority !== 0) return byPriority;
+      const byJoinTime = a.joined_at.getTime() - b.joined_at.getTime();
+      return byJoinTime !== 0 ? byJoinTime : a.id - b.id;
+    });
+}
 
 export interface CreateGameData {
   group_id: number;
@@ -114,6 +136,7 @@ export class GameService {
         // Update existing participation
         existing.participation_status = status;
         existing.updated_at = new Date();
+        if (status === ParticipationStatus.MAYBE) existing.team = null;
         if (guestName) existing.guest_name = guestName;
         await participantRepo.save(existing);
       } else {
@@ -136,6 +159,7 @@ export class GameService {
         if (existing) {
           existing.participation_status = status;
           existing.updated_at = new Date();
+          if (status === ParticipationStatus.MAYBE) existing.team = null;
           if (guestName) existing.guest_name = guestName;
           await participantRepo.save(existing);
         }
@@ -223,5 +247,65 @@ export class GameService {
       throw new Error('Guest participant not found');
     }
     await participantRepo.remove(participant);
+  }
+
+  /**
+   * Splits the confirmed players and guests into `teamCount` teams (gender-balanced), replacing any
+   * earlier split. Everyone else — `maybe` included — ends up without a team.
+   */
+  async assignTeams(gameId: number, teamCount: number): Promise<void> {
+    validateTeamCount(teamCount);
+    await this.db.dataSource.transaction(async (manager) => {
+      // Lock without relations: Postgres rejects FOR UPDATE over an outer join
+      const game = await manager.getRepository(Game).findOne({
+        where: { id: gameId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!game) throw new ValidationError('Game not found');
+
+      const participantRepo = manager.getRepository(GameParticipant);
+      const participants = await participantRepo.find({ where: { game_id: gameId }, relations: ['user'] });
+      const candidates = teamCandidateOrder(participants);
+      const teamCandidates: TeamCandidate[] = candidates.map((p) => ({
+        participant_id: p.id,
+        gender: p.user?.gender ?? null,
+      }));
+      const assignment = splitIntoTeams(teamCandidates, teamCount);
+
+      for (const p of participants) p.team = assignment.get(p.id) ?? null;
+      await participantRepo.save(participants);
+
+      game.team_count = teamCount;
+      await manager.getRepository(Game).save(game);
+    });
+  }
+
+  /** Manual correction of one player; `team = null` takes the player out of their team. */
+  async setParticipantTeam(gameId: number, participantId: number, team: number | null): Promise<void> {
+    const gameRepo = this.db.getRepository(Game);
+    const participantRepo = this.db.getRepository(GameParticipant);
+
+    const game = await gameRepo.findOne({ where: { id: gameId }, select: { id: true, team_count: true } });
+    if (!game) throw new ValidationError('Game not found');
+
+    const participant = await participantRepo.findOne({ where: { id: participantId, game_id: gameId } });
+    if (!participant || !canJoinTeam(participant)) {
+      throw new ValidationError('Participant cannot be put in a team');
+    }
+    if (!game.team_count) throw new ValidationError('Teams are not split yet');
+    if (team !== null && (!Number.isInteger(team) || team < 1 || team > Math.min(game.team_count, MAX_TEAM_COUNT))) {
+      throw new ValidationError('Invalid team');
+    }
+
+    participant.team = team;
+    await participantRepo.save(participant);
+  }
+
+  /** Drops the whole split: nobody has a team and the game is no longer divided. */
+  async clearTeams(gameId: number): Promise<void> {
+    await this.db.dataSource.transaction(async (manager) => {
+      await manager.getRepository(GameParticipant).update({ game_id: gameId }, { team: null });
+      await manager.getRepository(Game).update({ id: gameId }, { team_count: null });
+    });
   }
 }

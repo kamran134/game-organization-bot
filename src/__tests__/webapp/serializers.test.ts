@@ -57,6 +57,22 @@ describe('webapp serializers', () => {
     assert.equal(dto.participants[1].user, undefined);
   });
 
+  test('serializeGame exposes the team split and each participant team', () => {
+    const game = makeGame();
+    game.team_count = 3;
+    game.participants[0].team = 2;
+    const dto = serializeGame(game) as any;
+    assert.equal(dto.team_count, 3);
+    assert.equal(dto.participants[0].team, 2);
+  });
+
+  test('team and team_count are null when the game is not split', () => {
+    const dto = serializeGame(makeGame()) as any;
+    assert.equal(dto.team_count, null);
+    assert.equal(dto.participants[0].team, null);
+    assert.equal(dto.participants[1].team, null);
+  });
+
   test('relations that were not loaded stay absent', () => {
     const game = makeGame();
     delete game.group;

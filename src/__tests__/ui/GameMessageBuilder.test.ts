@@ -66,6 +66,30 @@ describe('GameMessageBuilder.formatGameCard', () => {
     assert.doesNotMatch(GameMessageBuilder.formatGameCard(g), /Открыть на карте/);
   });
 
+  test('shows the rosters when the game is split into teams', () => {
+    const ann = makeParticipant(ParticipationStatus.CONFIRMED);
+    ann.user = { first_name: 'Ann', last_name: 'A_B' } as any;
+    ann.team = 1;
+    const bob = makeParticipant(ParticipationStatus.GUEST);
+    bob.guest_name = 'Bob';
+    bob.team = 2;
+    const cat = makeParticipant(ParticipationStatus.CONFIRMED);
+    cat.user = { first_name: 'Cat' } as any;
+    const result = GameMessageBuilder.formatGameCard(makeGame({ team_count: 2, participants: [ann, bob, cat] }));
+    assert.match(result, /🅰️ Составы:/);
+    assert.match(result, /🔴 Команда 1: Ann A\\_B/);
+    assert.match(result, /🔵 Команда 2: Bob/);
+    assert.match(result, /⚪ Без команды: Cat/);
+  });
+
+  test('shows no rosters when the game is not split', () => {
+    const ann = makeParticipant(ParticipationStatus.CONFIRMED);
+    ann.team = 1;
+    const result = GameMessageBuilder.formatGameCard(makeGame({ participants: [ann] }));
+    assert.doesNotMatch(result, /Составы/);
+    assert.doesNotMatch(result, /Команда/);
+  });
+
   test('shows maybeCount in participants line', () => {
     const g = makeGame({
       participants: [makeParticipant(ParticipationStatus.MAYBE)],

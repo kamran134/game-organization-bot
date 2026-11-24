@@ -8,7 +8,7 @@ import { GameType } from '../models/GameType';
 import { ParticipationStatus, countCertainPlayers } from '../models/GameParticipant';
 import { GameMessageBuilder } from '../bot/ui/GameMessageBuilder';
 import { KeyboardBuilder } from '../bot/ui/KeyboardBuilder';
-import { formatDate, formatMembersMentions, formatMention } from '../bot/ui/formatters';
+import { formatDate, formatMembersMentions, formatMention, formatTeamsList } from '../bot/ui/formatters';
 import { escapeHtml } from '../utils/helpers';
 import { SantaEvent } from '../models/SantaEvent';
 import { formatSantaCard, formatSantaDate, santaButton } from '../bot/ui/SantaMessageBuilder';
@@ -137,6 +137,29 @@ export class NotificationService {
       );
     } catch (error) {
       console.error('Failed to send delete notification to group:', error);
+    }
+  }
+
+  /** `game` must be loaded with group and participants (with users). */
+  async notifyTeamsAssigned(game: Game): Promise<void> {
+    try {
+      const chatId = this.chatIdOf(game.group, game.id);
+      if (chatId === null || !game.team_count) return;
+
+      const teams = formatTeamsList(game.participants ?? [], game.team_count, escapeHtml);
+      if (!teams) return;
+
+      const sportName = game.sport ? `${game.sport.emoji} ${game.sport.name}` : 'Игра';
+      const dateStr = new Date(game.game_date).toLocaleString('ru-RU', {
+        day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit',
+      });
+      await this.telegram.sendMessage(
+        chatId,
+        `🅰️ Составы на игру\n${escapeHtml(sportName)} — ${dateStr}\n\n${teams}`,
+        { parse_mode: 'HTML' },
+      );
+    } catch (error) {
+      console.error('Failed to send teams to group:', error);
     }
   }
 

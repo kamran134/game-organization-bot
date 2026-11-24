@@ -1,6 +1,6 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { GameService } from '../../services/GameService';
+import { GameService, teamCandidateOrder } from '../../services/GameService';
 import { GameParticipant, ParticipationStatus } from '../../models/GameParticipant';
 import { Game } from '../../models/Game';
 import { GameStatus } from '../../models/Game';
@@ -120,5 +120,34 @@ describe('GameService.getParticipantsByStatus', () => {
     const service = makeService(makeGame(10, []));
     const result = await service.getParticipantsByStatus(1);
     assert.deepEqual(result, { confirmed: [], maybe: [], guests: [], waiting: [] });
+  });
+});
+
+describe('teamCandidateOrder', () => {
+  test('keeps only confirmed players and guests', () => {
+    const confirmed = makeParticipant(1, ParticipationStatus.CONFIRMED);
+    const maybe = makeParticipant(2, ParticipationStatus.MAYBE);
+    const guest = makeParticipant(3, ParticipationStatus.GUEST);
+    assert.deepEqual(teamCandidateOrder([maybe, guest, confirmed]).map((p) => p.id), [1, 3]);
+  });
+
+  test('orders by priority, then join time, then id', () => {
+    const lateConfirmed = makeParticipant(1, ParticipationStatus.CONFIRMED, 100);
+    const earlyConfirmed = makeParticipant(2, ParticipationStatus.CONFIRMED, 5000);
+    const guest = makeParticipant(3, ParticipationStatus.GUEST, 9000);
+    const sameTimeHigherId = makeParticipant(5, ParticipationStatus.CONFIRMED, 100);
+    sameTimeHigherId.joined_at = lateConfirmed.joined_at;
+    const sameTimeLowerId = makeParticipant(4, ParticipationStatus.CONFIRMED, 100);
+    sameTimeLowerId.joined_at = lateConfirmed.joined_at;
+
+    const ordered = teamCandidateOrder([guest, sameTimeHigherId, lateConfirmed, sameTimeLowerId, earlyConfirmed]);
+    assert.deepEqual(ordered.map((p) => p.id), [2, 1, 4, 5, 3]);
+  });
+
+  test('does not mutate the input and returns an empty list for no candidates', () => {
+    const input = [makeParticipant(1, ParticipationStatus.MAYBE)];
+    assert.deepEqual(teamCandidateOrder(input), []);
+    assert.equal(input.length, 1);
+    assert.deepEqual(teamCandidateOrder([]), []);
   });
 });

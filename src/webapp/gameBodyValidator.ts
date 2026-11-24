@@ -1,4 +1,5 @@
 import { ValidationError } from '../utils/errors';
+import { MAX_TEAM_COUNT, validateTeamCount } from '../utils/gameTeams';
 
 /** 999 is the "unlimited" sentinel used for trainings (see UNLIMITED_PARTICIPANTS in creationConfig). */
 export const MAX_PARTICIPANTS_LIMIT = 999;
@@ -142,4 +143,26 @@ export function parseGameBody(body: unknown, mode: GameBodyMode): ParsedGameBody
   }
 
   return result;
+}
+
+const DEFAULT_TEAM_COUNT = 2;
+
+/** POST /api/games/:id/teams: `{ team_count }`, an integer in 2..4; defaults to 2 when absent. */
+export function parseTeamCountBody(body: unknown): number {
+  const raw = (body ?? {}) as Record<string, unknown>;
+  const value = raw['team_count'];
+  if (value === undefined || value === null) return DEFAULT_TEAM_COUNT;
+  validateTeamCount(value);
+  return value;
+}
+
+/** PUT /api/games/:id/teams/:participantId: `{ team }`, null (take out of the team) or an integer in 1..4. */
+export function parseTeamAssignmentBody(body: unknown): number | null {
+  const raw = (body ?? {}) as Record<string, unknown>;
+  const value = raw['team'];
+  if (value === null) return null;
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 1 || value > MAX_TEAM_COUNT) {
+    throw new ValidationError('Invalid team');
+  }
+  return value;
 }

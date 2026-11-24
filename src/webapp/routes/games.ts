@@ -14,7 +14,7 @@ import { verifyTelegramInitData } from '../middleware/telegramAuth';
 import { requireUser, currentUser } from '../middleware/requireUser';
 import { GroupAccessChecker } from '../access';
 import { serializeGame } from '../serializers';
-import { parseGameBody } from '../gameBodyValidator';
+import { parseGameBody, parseTeamAssignmentBody, parseTeamCountBody } from '../gameBodyValidator';
 import { NotificationService } from '../../services/NotificationService';
 import { GameLifecycleService } from '../../services/GameLifecycleService';
 import { rejectionForStatus } from '../../utils/gameStatusGuard';
@@ -56,6 +56,21 @@ export function createGamesRouter(
     const rejection = rejectionForStatus(info.status);
     if (rejection) { res.status(409).json({ error: rejection.webError }); return false; }
     return true;
+  }
+
+  /**
+   * Admin check for the team routes: the game must still be editable and be a game (trainings have no teams).
+   * Sends the error response and returns null otherwise.
+   */
+  async function loadGameForTeams(gameId: number, user: User, res: Response): Promise<Game | null> {
+    if (!(await requireEditableGameAdmin(gameId, user, res))) return null;
+    const game = await gameService.getGameById(gameId);
+    if (!game) { res.status(404).json({ error: 'Game not found' }); return null; }
+    if (game.type !== GameType.GAME) {
+      res.status(400).json({ error: 'Teams are only for games' });
+      return null;
+    }
+    return game;
   }
 
   /** The sport must be a base sport or belong to the group, and be active. */
@@ -431,6 +446,86 @@ export function createGamesRouter(
     } catch (error) {
       console.error('Error removing guest:', error);
       res.status(500).json({ error: 'Failed to remove guest' });
+    }
+  });
+
+  // ---- Teams (admin only) ----
+
+  // POST /api/games/:id/teams/publish — post the rosters into the group chat
+  // (declared before the /:participantId routes so that "publish" is never read as an id)
+  router.post('/:id/teams/publish', async (req: AuthRequest, res: Response): Promise<void> => {
+    const gameId = parseInt(req.params.id);
+    if (!gameId) { res.status(400).json({ error: 'Invalid game id' }); return; }
+    try {
+      const game = await loadGameForTeams(gameId, currentUser(req), res);
+      if (!game) return;
+      if (!game.team_count) {
+        res.status(400).json({ error: 'Teams are not split yet' });
+        return;
+      }
+
+      await notifications.notifyTeamsAssigned(game);
+      res.json({ message: 'Teams published' });
+    } catch (error) {
+      console.error('Error publishing teams:', error);
+      res.status(500).json({ error: 'Failed to publish teams' });
+    }
+  });
+
+  // POST /api/games/:id/teams — (re)split the confirmed players and guests into teams
+  router.post('/:id/teams', async (req: AuthRequest, res: Response): Promise<void> => {
+    const gameId = parseInt(req.params.id);
+    if (!gameId) { res.status(400).json({ error: 'Invalid game id' }); return; }
+    try {
+      if (!(await loadGameForTeams(gameId, currentUser(req), res))) return;
+
+      await gameService.assignTeams(gameId, parseTeamCountBody(req.body));
+
+      const updated = await gameService.getGameById(gameId);
+      if (!updated) { res.status(404).json({ error: 'Game not found' }); return; }
+      res.json(serializeGame(updated));
+    } catch (error) {
+      if (error instanceof ValidationError) {
+        res.status(400).json({ error: error.message });
+        return;
+      }
+      console.error('Error splitting teams:', error);
+      res.status(500).json({ error: 'Failed to split teams' });
+    }
+  });
+
+  // PUT /api/games/:id/teams/:participantId — move one player to another team (team = null takes them out)
+  router.put('/:id/teams/:participantId', async (req: AuthRequest, res: Response): Promise<void> => {
+    const gameId = parseInt(req.params.id);
+    const participantId = parseInt(req.params.participantId);
+    if (!gameId || !participantId) { res.status(400).json({ error: 'Invalid ids' }); return; }
+    try {
+      if (!(await loadGameForTeams(gameId, currentUser(req), res))) return;
+
+      await gameService.setParticipantTeam(gameId, participantId, parseTeamAssignmentBody(req.body));
+      res.json({ message: 'Team updated' });
+    } catch (error) {
+      if (error instanceof ValidationError) {
+        res.status(400).json({ error: error.message });
+        return;
+      }
+      console.error('Error updating team:', error);
+      res.status(500).json({ error: 'Failed to update team' });
+    }
+  });
+
+  // DELETE /api/games/:id/teams — drop the whole split
+  router.delete('/:id/teams', async (req: AuthRequest, res: Response): Promise<void> => {
+    const gameId = parseInt(req.params.id);
+    if (!gameId) { res.status(400).json({ error: 'Invalid game id' }); return; }
+    try {
+      if (!(await loadGameForTeams(gameId, currentUser(req), res))) return;
+
+      await gameService.clearTeams(gameId);
+      res.json({ message: 'Teams cleared' });
+    } catch (error) {
+      console.error('Error clearing teams:', error);
+      res.status(500).json({ error: 'Failed to clear teams' });
     }
   });
 

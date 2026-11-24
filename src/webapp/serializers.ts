@@ -61,6 +61,7 @@ function serializeParticipant(p: GameParticipant): Record<string, unknown> {
     participation_status: p.participation_status,
     guest_name: p.guest_name,
     position: p.position,
+    team: p.team ?? null,
     joined_at: p.joined_at,
     user: p.user ? serializeUser(p.user) : undefined,
   };
@@ -81,6 +82,7 @@ export function serializeGame(game: Game): Record<string, unknown> {
     type: game.type,
     notes: game.notes,
     registration_lock_hours: game.registration_lock_hours,
+    team_count: game.team_count ?? null,
     group: game.group ? serializeGroup(game.group) : undefined,
     creator: game.creator ? serializeUser(game.creator) : undefined,
     sport: game.sport ? serializeSport(game.sport) : undefined,

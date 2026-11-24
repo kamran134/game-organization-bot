@@ -40,6 +40,10 @@ export class GameParticipant {
   @Column({ nullable: true })
   position?: number;
 
+  /** 1-based team number; null = not assigned. */
+  @Column({ type: 'smallint', nullable: true })
+  team?: number | null;
+
   @CreateDateColumn()
   joined_at!: Date;
 

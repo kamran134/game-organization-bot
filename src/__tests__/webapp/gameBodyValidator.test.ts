@@ -1,6 +1,6 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseGameBody } from '../../webapp/gameBodyValidator';
+import { parseGameBody, parseTeamAssignmentBody, parseTeamCountBody } from '../../webapp/gameBodyValidator';
 import { ValidationError } from '../../utils/errors';
 
 const valid = {
@@ -108,5 +108,38 @@ describe('parseGameBody (update)', () => {
     rejects({ min_participants: 10, max_participants: 5 }, 'update');
     rejects({ game_date: 'x' }, 'update');
     rejects({ sport_id: '12abc' }, 'update');
+  });
+});
+
+describe('parseTeamCountBody', () => {
+  test('accepts 2..4', () => {
+    for (const n of [2, 3, 4]) assert.equal(parseTeamCountBody({ team_count: n }), n);
+  });
+
+  test('defaults to 2 when the field is absent', () => {
+    assert.equal(parseTeamCountBody({}), 2);
+    assert.equal(parseTeamCountBody(undefined), 2);
+    assert.equal(parseTeamCountBody({ team_count: null }), 2);
+  });
+
+  test('rejects out-of-range, fractional and non-numeric values', () => {
+    for (const bad of [0, 1, 5, 2.5, '2', 'abc', true]) {
+      assert.throws(() => parseTeamCountBody({ team_count: bad }), ValidationError);
+    }
+  });
+});
+
+describe('parseTeamAssignmentBody', () => {
+  test('accepts 1..4 and null', () => {
+    for (const n of [1, 2, 3, 4]) assert.equal(parseTeamAssignmentBody({ team: n }), n);
+    assert.equal(parseTeamAssignmentBody({ team: null }), null);
+  });
+
+  test('rejects out-of-range, fractional, string and missing values', () => {
+    for (const bad of [0, 5, -1, 2.5, '2', undefined]) {
+      assert.throws(() => parseTeamAssignmentBody({ team: bad }), ValidationError);
+    }
+    assert.throws(() => parseTeamAssignmentBody({}), ValidationError);
+    assert.throws(() => parseTeamAssignmentBody(undefined), ValidationError);
   });
 });

@@ -1,10 +1,18 @@
-import { GameParticipant } from '../../models/GameParticipant';
+import { GameParticipant, ParticipationStatus } from '../../models/GameParticipant';
 import { User } from '../../models/User';
 import { GroupMember } from '../../models/GroupMember';
 import { escapeHtml } from '../../utils/helpers';
+import { groupByTeam, teamLabel } from '../../utils/gameTeams';
 
 // Single source of truth for date formatting lives in helpers.ts
 export { formatDate } from '../../utils/helpers';
+
+/** Имя участника: пользователь или гость. */
+export function participantName(p: GameParticipant): string {
+  return p.user
+    ? [p.user.first_name, p.user.last_name].filter(Boolean).join(' ')
+    : p.guest_name || 'Гость';
+}
 
 /**
  * Форматирование списка участников с группировкой по статусу
@@ -20,10 +28,7 @@ export function formatParticipantsList(participants: GameParticipant[]): string 
   if (confirmed.length > 0) {
     text += '✅ Точно идут:\n';
     confirmed.forEach((p, idx) => {
-      const name = p.user
-        ? [p.user.first_name, p.user.last_name].filter(Boolean).join(' ')
-        : p.guest_name || 'Гость';
-      text += `${idx + 1}. ${name}\n`;
+      text += `${idx + 1}. ${participantName(p)}\n`;
     });
     text += '\n';
   }
@@ -31,10 +36,7 @@ export function formatParticipantsList(participants: GameParticipant[]): string 
   if (maybe.length > 0) {
     text += '❓ Возможно придут:\n';
     maybe.forEach((p, idx) => {
-      const name = p.user
-        ? [p.user.first_name, p.user.last_name].filter(Boolean).join(' ')
-        : p.guest_name || 'Гость';
-      text += `${idx + 1}. ${name}\n`;
+      text += `${idx + 1}. ${participantName(p)}\n`;
     });
     text += '\n';
   }
@@ -89,4 +91,43 @@ export function formatMembersMentions(members: GroupMember[]): string {
     .filter((m) => m.user)
     .map((m) => formatMention(m.user))
     .join(' ');
+}
+
+const NO_TEAM_LABEL = '⚪ Без команды';
+
+/** Titled name groups in display order: non-empty teams first, then the players without a team. */
+function teamGroups(
+  participants: GameParticipant[],
+  teamCount: number,
+  escape: (s: string) => string,
+): Array<{ title: string; names: string[] }> {
+  const players = participants.filter(
+    (p) => p.participation_status === ParticipationStatus.CONFIRMED || p.participation_status === ParticipationStatus.GUEST,
+  );
+  const { teams, unassigned } = groupByTeam(players, (p) => p.team, teamCount);
+  const groups = teams.map((members, i) => ({ title: teamLabel(i + 1), names: members.map((p) => escape(participantName(p))) }));
+  groups.push({ title: NO_TEAM_LABEL, names: unassigned.map((p) => escape(participantName(p))) });
+  return groups.filter((g) => g.names.length > 0);
+}
+
+/** Компактно, для карточки игры: по строке на команду, имена через запятую. */
+export function formatTeamsInline(
+  participants: GameParticipant[],
+  teamCount: number,
+  escape: (s: string) => string,
+): string {
+  return teamGroups(participants, teamCount, escape)
+    .map((g) => `${g.title}: ${g.names.join(', ')}`)
+    .join('\n');
+}
+
+/** Нумерованный список по командам — для сообщения «составы» в чат. */
+export function formatTeamsList(
+  participants: GameParticipant[],
+  teamCount: number,
+  escape: (s: string) => string,
+): string {
+  return teamGroups(participants, teamCount, escape)
+    .map((g) => `${g.title}:\n${g.names.map((name, i) => `${i + 1}. ${name}`).join('\n')}`)
+    .join('\n\n');
 }

@@ -486,3 +486,51 @@ describe('NotificationService mafia live card', () => {
     assert.deepEqual(edits[0].markup, { inline_keyboard: [] });
   });
 });
+
+describe('NotificationService.notifyTeamsAssigned', () => {
+  function gameWithTeams(chatId: number | string | null, teamCount: number | null = 2): Game {
+    const game = makeGame(chatId);
+    game.team_count = teamCount;
+    game.participants = [
+      { participation_status: ParticipationStatus.CONFIRMED, team: 1, user: { first_name: 'Ivan <b>', last_name: 'Petrov' }, joined_at: new Date() },
+      { participation_status: ParticipationStatus.GUEST, team: 2, guest_name: 'Guest & Co', joined_at: new Date() },
+      { participation_status: ParticipationStatus.CONFIRMED, team: null, user: { first_name: 'Lonely' }, joined_at: new Date() },
+      { participation_status: ParticipationStatus.MAYBE, team: 1, user: { first_name: 'Maybe' }, joined_at: new Date() },
+    ] as never;
+    return game;
+  }
+
+  test('posts the rosters into the group chat as escaped HTML', async () => {
+    const { service, sent } = makeFakes();
+
+    await service.notifyTeamsAssigned(gameWithTeams('-1001'));
+
+    assert.equal(sent.length, 1);
+    assert.equal(sent[0].chatId, -1001);
+    assert.equal(sent[0].extra?.parse_mode, 'HTML');
+    const text = sent[0].text;
+    assert.ok(text.includes('Составы на игру'));
+    assert.ok(text.includes('⚽ Футбол'));
+    assert.ok(text.includes('🔴 Команда 1:\n1. Ivan &lt;b&gt; Petrov'));
+    assert.ok(text.includes('🔵 Команда 2:\n1. Guest &amp; Co'));
+    assert.ok(text.includes('⚪ Без команды:\n1. Lonely'));
+    assert.ok(!text.includes('Maybe'));
+  });
+
+  test('sends nothing when the game is not split into teams', async () => {
+    const { service, sent } = makeFakes();
+    await service.notifyTeamsAssigned(gameWithTeams('-1001', null));
+    assert.equal(sent.length, 0);
+  });
+
+  test('sends nothing when the group has no chat', async () => {
+    const { service, sent } = makeFakes();
+    await quiet(() => service.notifyTeamsAssigned(gameWithTeams(null)));
+    assert.equal(sent.length, 0);
+  });
+
+  test('swallows a Telegram failure', async () => {
+    const { service } = makeFakes({ sendFails: true });
+    await quiet(() => service.notifyTeamsAssigned(gameWithTeams('-1001')));
+  });
+});

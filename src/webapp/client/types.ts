@@ -18,6 +18,8 @@ export interface ParticipantDto {
   id?: number;
   participation_status: 'confirmed' | 'maybe' | 'guest';
   guest_name?: string;
+  /** 1-based team number; null / absent = not assigned. */
+  team?: number | null;
   user?: {
     telegram_id: number | string;
     first_name?: string;
@@ -39,6 +41,8 @@ export interface GameDto {
   sport?: SportDto;
   location?: LocationDto;
   participants?: ParticipantDto[];
+  /** Number of teams the roster is split into; null / absent = not split yet. */
+  team_count?: number | null;
 }
 
 export interface UserRoleDto {

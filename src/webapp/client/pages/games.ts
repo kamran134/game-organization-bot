@@ -23,7 +23,51 @@ function participantName(p: ParticipantDto): string {
   return p.guest_name || 'Гость';
 }
 
-function renderParticipantsList(participants: ParticipantDto[] | undefined, gameId: number, isAdmin: boolean): string {
+/** Team colours, index = team number - 1. Mirrors TEAM_EMOJI in src/utils/gameTeams.ts. */
+const TEAM_EMOJI = ['🔴', '🔵', '🟢', '🟡'];
+const MIN_TEAM_COUNT = 2;
+const MAX_TEAM_COUNT = 4;
+const NO_TEAM_TITLE = '⚪ Без команды';
+
+function teamTitle(team: number): string {
+  return `${TEAM_EMOJI[team - 1] ?? ''} Команда ${team}`.trim();
+}
+
+function renderTeamSelect(p: ParticipantDto, gid: string, teamCount: number): string {
+  const options = ['<option value="">—</option>'];
+  for (let t = 1; t <= teamCount; t++) {
+    options.push(`<option value="${t}"${p.team === t ? ' selected' : ''}>${t}</option>`);
+  }
+  return `<select class="team-select" data-action="set-team" data-game-id="${gid}" data-participant-id="${p.id}" title="Команда">${options.join('')}</select>`;
+}
+
+function renderParticipantRow(
+  p: ParticipantDto,
+  index: number,
+  gid: string,
+  isAdmin: boolean,
+  teamCount: number | null,
+): string {
+  const isGuest = p.participation_status === 'guest';
+  const canPickTeam = isAdmin && teamCount !== null && p.id != null && p.participation_status !== 'maybe';
+  return `<div class="participant-row">` +
+    `<span class="participant-num">${index + 1}.</span>` +
+    `<span class="participant-name">${escapeHtml(participantName(p))}</span>` +
+    (isGuest ? `<span class="participant-badge guest-badge">гость</span>` : '') +
+    (canPickTeam ? renderTeamSelect(p, gid, teamCount) : '') +
+    (isGuest && isAdmin && p.id != null ? `
+      <button class="btn-icon" data-action="edit-guest" data-game-id="${gid}" data-participant-id="${p.id}" data-guest-name="${escapeHtml(p.guest_name ?? '')}" title="Редактировать">✏️</button>
+      <button class="btn-icon" data-action="delete-guest" data-game-id="${gid}" data-participant-id="${p.id}" title="Удалить">🗑</button>
+    ` : '') +
+  `</div>`;
+}
+
+function renderParticipantsList(
+  participants: ParticipantDto[] | undefined,
+  gameId: number,
+  isAdmin: boolean,
+  teamCount?: number | null,
+): string {
   if (!participants || participants.length === 0) {
     return '<div class="participants-empty">Пока никто не записался</div>';
   }
@@ -31,40 +75,58 @@ function renderParticipantsList(participants: ParticipantDto[] | undefined, game
   const maybe     = participants.filter((p) => p.participation_status === 'maybe');
   const guests    = participants.filter((p) => p.participation_status === 'guest');
   const gid       = escapeHtml(String(gameId));
+  const teams     = teamCount ?? null;
+  const rows = (list: ParticipantDto[]): string =>
+    list.map((p, i) => renderParticipantRow(p, i, gid, isAdmin, teams)).join('');
   let html = '';
-  if (confirmed.length) {
-    html += `<div class="participants-group-title">✅ Точно идут:</div>`;
-    html += confirmed.map((p, i) =>
-      `<div class="participant-row">` +
-        `<span class="participant-num">${i + 1}.</span>` +
-        `<span class="participant-name">${escapeHtml(participantName(p))}</span>` +
-      `</div>`
-    ).join('');
+
+  if (teams !== null) {
+    // Split into teams: confirmed players and guests are shown by team instead of by status
+    const players = [...confirmed, ...guests];
+    const unassigned = players.filter((p) => !p.team || p.team < 1 || p.team > teams);
+    for (let t = 1; t <= teams; t++) {
+      const members = players.filter((p) => p.team === t);
+      html += `<div class="participants-group-title team-group-title">${teamTitle(t)} (${members.length})</div>`;
+      html += rows(members);
+    }
+    if (unassigned.length) {
+      html += `<div class="participants-group-title team-group-title">${NO_TEAM_TITLE} (${unassigned.length})</div>`;
+      html += rows(unassigned);
+    }
+  } else {
+    if (confirmed.length) {
+      html += `<div class="participants-group-title">✅ Точно идут:</div>`;
+      html += rows(confirmed);
+    }
   }
   if (maybe.length) {
     html += `<div class="participants-group-title">❓ Не точно:</div>`;
-    html += maybe.map((p, i) =>
-      `<div class="participant-row">` +
-        `<span class="participant-num">${i + 1}.</span>` +
-        `<span class="participant-name">${escapeHtml(participantName(p))}</span>` +
-      `</div>`
-    ).join('');
+    html += rows(maybe);
   }
-  if (guests.length) {
+  if (teams === null && guests.length) {
     html += `<div class="participants-group-title">👤 Гости:</div>`;
-    html += guests.map((p, i) =>
-      `<div class="participant-row">` +
-        `<span class="participant-num">${i + 1}.</span>` +
-        `<span class="participant-name">${escapeHtml(participantName(p))}</span>` +
-        `<span class="participant-badge guest-badge">гость</span>` +
-        (isAdmin && p.id != null ? `
-          <button class="btn-icon" data-action="edit-guest" data-game-id="${gid}" data-participant-id="${p.id}" data-guest-name="${escapeHtml(p.guest_name ?? '')}" title="Редактировать">✏️</button>
-          <button class="btn-icon" data-action="delete-guest" data-game-id="${gid}" data-participant-id="${p.id}" title="Удалить">🗑</button>
-        ` : '') +
-      `</div>`
-    ).join('');
+    html += rows(guests);
   }
   return html;
+}
+
+function renderTeamsPanel(g: GameDto, gid: string): string {
+  const selected = g.team_count ?? MIN_TEAM_COUNT;
+  const options: string[] = [];
+  for (let n = MIN_TEAM_COUNT; n <= MAX_TEAM_COUNT; n++) {
+    options.push(`<option value="${n}"${n === selected ? ' selected' : ''}>${n}</option>`);
+  }
+  return `
+      <div class="teams-panel hidden" id="teams-panel-${gid}">
+        <label class="teams-panel-label" for="team-count-${gid}">Команд:</label>
+        <select class="team-select" id="team-count-${gid}">${options.join('')}</select>
+        <div class="teams-panel-actions">
+          <button class="btn btn-primary" data-action="split-teams" data-game-id="${gid}">Разбить</button>
+          ${g.team_count ? `
+          <button class="btn btn-secondary" data-action="reset-teams" data-game-id="${gid}">Сбросить</button>
+          <button class="btn btn-secondary" data-action="publish-teams" data-game-id="${gid}">Отправить в чат</button>` : ''}
+        </div>
+      </div>`;
 }
 
 function paymentPersonName(p: PaymentPersonDto): string {
@@ -218,7 +280,7 @@ function renderCard(g: GameDto, myTelegramId: number, isAdmin: boolean): string 
         👥 Участники (${totalCount})
       </button>
       <div class="participants-list hidden" id="participants-${gid}">
-        ${renderParticipantsList(g.participants, g.id, isAdmin)}
+        ${renderParticipantsList(g.participants, g.id, isAdmin, g.type === 'training' ? null : g.team_count)}
       </div>
       ${isAdmin ? `
       <div class="game-admin-actions">
@@ -226,8 +288,10 @@ function renderCard(g: GameDto, myTelegramId: number, isAdmin: boolean): string 
         <button class="btn btn-danger"    data-action="cancel-game" data-game-id="${gid}">🚫 Отменить</button>
         <button class="btn btn-guest"     data-action="add-guest"   data-game-id="${gid}">👤 Добавить гостя</button>
         ${g.type !== 'training' ? `<button class="btn btn-money" data-action="toggle-payments" data-game-id="${gid}">💰 Оплата</button>` : ''}
+        ${g.type !== 'training' ? `<button class="btn btn-secondary" data-action="toggle-teams" data-game-id="${gid}">🅰️ Команды</button>` : ''}
         <button class="btn btn-danger"    data-action="delete-game" data-game-id="${gid}">🗑 Удалить</button>
       </div>
+      ${g.type !== 'training' ? renderTeamsPanel(g, gid) : ''}
       <div class="guest-form hidden" id="guest-form-${gid}">
         <div class="guest-form-inner">
           <input class="guest-input" id="guest-first-${gid}"  type="text" placeholder="Имя *" maxlength="50" />
@@ -342,6 +406,7 @@ export async function renderGamesList(ctx: GamesCtx, nav: Nav): Promise<void> {
 
     // Wire schedule tab events
     document.getElementById('gamesList')?.addEventListener('click', handleScheduleClick);
+    document.getElementById('gamesList')?.addEventListener('change', handleScheduleChange);
 
     // Wire tab switching
     document.querySelector('.tabs-bar')?.addEventListener('click', (e) => {
@@ -443,7 +508,32 @@ export async function renderGamesList(ctx: GamesCtx, nav: Nav): Promise<void> {
     }
   }
 
-  // ── Schedule tab event handler ─────────────────────────────────────────────
+  // ── Schedule tab event handlers ────────────────────────────────────────────
+
+  async function reloadSchedule(): Promise<void> {
+    games = await apiFetch<GameDto[]>(`/api/games?group_id=${encodeURIComponent(groupId)}`);
+    renderPage('schedule');
+  }
+
+  /** Admin moves a player to another team (or out of the teams) through the per-row <select>. */
+  async function handleScheduleChange(e: Event): Promise<void> {
+    const select = (e.target as HTMLElement).closest<HTMLSelectElement>('select[data-action="set-team"]');
+    if (!select || select.disabled) return;
+
+    const { gameId, participantId } = select.dataset;
+    select.disabled = true;
+    try {
+      await apiFetch(`/api/games/${encodeURIComponent(gameId!)}/teams/${encodeURIComponent(participantId!)}`, {
+        method: 'PUT',
+        body: JSON.stringify({ team: select.value === '' ? null : parseInt(select.value) }),
+      });
+      toast('🅰️ Команда изменена');
+      await reloadSchedule();
+    } catch (err) {
+      select.disabled = false;
+      toast(getErrorMessage(err), true);
+    }
+  }
 
   async function handleScheduleClick(e: MouseEvent): Promise<void> {
     const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-action]');
@@ -453,12 +543,65 @@ export async function renderGamesList(ctx: GamesCtx, nav: Nav): Promise<void> {
     const gameId = btn.dataset['gameId']!;
     const origText = btn.textContent;
 
+    // The team <select> is handled by the change delegate; a click on it must not touch the element
+    if (action === 'set-team') return;
+
     // Toggle participants list — no API call needed
     if (action === 'toggle-participants') {
       const panel = document.getElementById(`participants-${gameId}`)!;
       const nowHidden = panel.classList.toggle('hidden');
       const count = btn.textContent!.match(/\((\d+)\)/)?.[1] ?? '';
       btn.textContent = nowHidden ? `👥 Участники (${count})` : `👥 Участники (${count}) ▲`;
+      return;
+    }
+
+    // Toggle the team management panel — no API call needed
+    if (action === 'toggle-teams') {
+      document.getElementById(`teams-panel-${gameId}`)?.classList.toggle('hidden');
+      return;
+    }
+
+    if (action === 'split-teams') {
+      const countSelect = document.getElementById(`team-count-${gameId}`) as HTMLSelectElement;
+      btn.disabled = true;
+      try {
+        await apiFetch(`/api/games/${encodeURIComponent(gameId)}/teams`, {
+          method: 'POST',
+          body: JSON.stringify({ team_count: parseInt(countSelect.value) }),
+        });
+        toast('🅰️ Составы готовы');
+        await reloadSchedule();
+      } catch (err) {
+        btn.disabled = false;
+        toast(getErrorMessage(err), true);
+      }
+      return;
+    }
+
+    if (action === 'reset-teams') {
+      if (!window.confirm('Сбросить составы?')) return;
+      btn.disabled = true;
+      try {
+        await apiFetch(`/api/games/${encodeURIComponent(gameId)}/teams`, { method: 'DELETE' });
+        toast('🅰️ Составы сброшены');
+        await reloadSchedule();
+      } catch (err) {
+        btn.disabled = false;
+        toast(getErrorMessage(err), true);
+      }
+      return;
+    }
+
+    if (action === 'publish-teams') {
+      btn.disabled = true;
+      try {
+        await apiFetch(`/api/games/${encodeURIComponent(gameId)}/teams/publish`, { method: 'POST' });
+        toast('📨 Составы отправлены в чат');
+      } catch (err) {
+        toast(getErrorMessage(err), true);
+      } finally {
+        btn.disabled = false;
+      }
       return;
     }
 

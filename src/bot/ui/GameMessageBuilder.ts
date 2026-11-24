@@ -1,6 +1,6 @@
 import { Game } from '../../models/Game';
 import { CreationState } from '../../utils/CreationState';
-import { formatDate, formatParticipantsList } from './formatters';
+import { formatDate, formatParticipantsList, formatTeamsInline } from './formatters';
 import { escapeMarkdownV1, escapeMarkdownUrl } from '../../utils/helpers';
 import { KeyboardBuilder } from './KeyboardBuilder';
 
@@ -47,6 +47,12 @@ export class GameMessageBuilder {
     if (game.cost) {
       text += `💰 Стоимость: ${game.cost} ${CURRENCY}\n`;
     }
+
+    if (game.team_count) {
+      const teams = formatTeamsInline(game.participants ?? [], game.team_count, escapeMarkdownV1);
+      if (teams) text += `\n🅰️ Составы:\n${teams}\n`;
+    }
+
     if (game.notes) {
       text += `\n📝 Заметки: ${escapeMarkdownV1(game.notes)}`;
     }
