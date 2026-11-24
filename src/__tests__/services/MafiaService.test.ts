@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { MafiaService } from '../../services/MafiaService';
 import { MafiaEvent, MafiaStatus } from '../../models/MafiaEvent';
 import { MafiaParticipant } from '../../models/MafiaParticipant';
+import { MafiaLogEntry, MafiaLogPhase, MafiaLogType } from '../../models/MafiaLogEntry';
+import { MafiaRole } from '../../models/MafiaRole';
 import { ConflictError, ValidationError } from '../../utils/errors';
 
 type Row = Record<string, any>;
@@ -49,7 +51,31 @@ function makeService(status: MafiaStatus, participantRows: Row[], eventOverrides
     },
   };
 
-  const repos = new Map<unknown, unknown>([[MafiaEvent, eventRepo], [MafiaParticipant, participantRepo]]);
+  const logEntries: Row[] = [];
+  let nextLogId = 1;
+  const logRepo = {
+    create: (data: Row) => ({ ...data }),
+    save: async (row: Row) => {
+      row['id'] = nextLogId++;
+      row['created_at'] = new Date(2026, 0, 1, 0, 0, row['id']);
+      logEntries.push(row);
+      return row;
+    },
+    findOne: async (opts: any) => logEntries.find((e) => matches(e, opts?.where ?? {})) ?? null,
+    find: async (opts: any) =>
+      logEntries
+        .filter((e) => matches(e, opts?.where ?? {}))
+        .sort((a, b) => a['cycle'] - b['cycle'] || a['id'] - b['id'])
+        .map((e) => ({ ...e, target: participants.find((p) => p.user_id === e['target_user_id'])?.user ?? null })),
+    delete: async (id: number) => {
+      const i = logEntries.findIndex((e) => e['id'] === id);
+      if (i >= 0) logEntries.splice(i, 1);
+    },
+  };
+
+  const repos = new Map<unknown, unknown>([
+    [MafiaEvent, eventRepo], [MafiaParticipant, participantRepo], [MafiaLogEntry, logRepo],
+  ]);
   const db = {
     getRepository: (entity: unknown) => repos.get(entity),
     dataSource: {
@@ -57,7 +83,7 @@ function makeService(status: MafiaStatus, participantRows: Row[], eventOverrides
         cb({ getRepository: (entity: unknown) => repos.get(entity) }),
     },
   };
-  return { service: new MafiaService(db as never), event, participants, locks, reads };
+  return { service: new MafiaService(db as never), event, participants, locks, reads, logEntries };
 }
 
 function player(id: number, extra: Row = {}): Row {
@@ -291,5 +317,102 @@ describe('MafiaService.getLayout', () => {
     ]);
     const rows = await service.getLayout(1);
     assert.deepEqual(rows.map((r) => [r.user.id, r.role, r.seat]), [[1, 'don', 2], [2, 'civilian', 1]]);
+  });
+});
+
+describe('MafiaService game log', () => {
+  const dealt = (extra: Row = {}) => makeService(MafiaStatus.DEALT, [
+    player(1, { role: MafiaRole.MAFIA }),
+    player(2, { role: MafiaRole.COMMISSAR }),
+    player(3, { role: MafiaRole.CIVILIAN }),
+    player(4, { role: MafiaRole.CIVILIAN }),
+  ], { round: 2, ...extra });
+
+  const input = (type: MafiaLogType, phase: MafiaLogPhase, target: number | null, cycle = 1, note: string | null = null) =>
+    ({ cycle, phase, type, target_user_id: target, note });
+
+  test('addLogEntry stamps the current round and takes a shared lock', async () => {
+    const { service, logEntries, locks } = dealt();
+    await service.addLogEntry(1, input(MafiaLogType.KILL, MafiaLogPhase.NIGHT, 3));
+    assert.equal(logEntries.length, 1);
+    assert.equal(logEntries[0]!['round'], 2);
+    assert.equal(logEntries[0]!['event_id'], 1);
+    assert.deepEqual(locks, ['pessimistic_read']);
+  });
+
+  test('addLogEntry is allowed only while roles are dealt', async () => {
+    for (const status of [MafiaStatus.REGISTRATION, MafiaStatus.CLOSED, MafiaStatus.FINISHED]) {
+      const { service, logEntries } = makeService(status, players(4));
+      await assert.rejects(() => service.addLogEntry(1, input(MafiaLogType.KILL, MafiaLogPhase.NIGHT, 1)), ConflictError, status);
+      assert.equal(logEntries.length, 0);
+    }
+  });
+
+  test('addLogEntry rejects a target who does not play this evening, but a note needs none', async () => {
+    const { service, logEntries } = dealt();
+    await assert.rejects(
+      () => service.addLogEntry(1, input(MafiaLogType.LYNCH, MafiaLogPhase.DAY, 99)),
+      /Target is not a participant/,
+    );
+    assert.equal(logEntries.length, 0);
+
+    await service.addLogEntry(1, input(MafiaLogType.NOTE, MafiaLogPhase.DAY, null, 1, 'argument'));
+    assert.equal(logEntries.length, 1);
+    assert.equal(logEntries[0]!['note'], 'argument');
+  });
+
+  test('getLog derives who is dead and the team counts', async () => {
+    const { service } = dealt();
+    await service.addLogEntry(1, input(MafiaLogType.KILL, MafiaLogPhase.NIGHT, 3));
+    await service.addLogEntry(1, input(MafiaLogType.KILL, MafiaLogPhase.NIGHT, 2));
+    await service.addLogEntry(1, input(MafiaLogType.HEAL, MafiaLogPhase.NIGHT, 2));
+    await service.addLogEntry(1, input(MafiaLogType.LYNCH, MafiaLogPhase.DAY, 1));
+
+    const log = await service.getLog(1);
+    assert.equal(log.round, 2);
+    assert.equal(log.entries.length, 4);
+    assert.deepEqual(log.state.dead, [1, 3]);
+    assert.deepEqual(log.state.alive, [2, 4]);
+    assert.deepEqual(log.state.counts, { alive: 2, mafia: 0, town: 2, solo: 0 });
+    assert.equal(log.state.outcome, 'town');
+  });
+
+  test('getLog shows only the current round', async () => {
+    const { service, logEntries } = dealt();
+    logEntries.push({ id: 50, event_id: 1, round: 1, cycle: 1, phase: 'night', type: 'kill', target_user_id: 3 });
+    await service.addLogEntry(1, input(MafiaLogType.NOTE, MafiaLogPhase.NIGHT, null, 1, 'fresh'));
+
+    const log = await service.getLog(1);
+    assert.equal(log.entries.length, 1);
+    assert.deepEqual(log.state.dead, []);
+  });
+
+  test('getLog orders the entries by cycle and puts the found role on check entries only', async () => {
+    const { service } = dealt();
+    await service.addLogEntry(1, input(MafiaLogType.KILL, MafiaLogPhase.NIGHT, 3, 2));
+    await service.addLogEntry(1, input(MafiaLogType.CHECK, MafiaLogPhase.NIGHT, 1, 1));
+    await service.addLogEntry(1, input(MafiaLogType.BLOCK, MafiaLogPhase.NIGHT, 1, 1));
+
+    const log = await service.getLog(1);
+    assert.deepEqual(log.entries.map((e) => e.entry.cycle), [1, 1, 2]);
+    assert.deepEqual(log.entries.map((e) => e.targetRole), [MafiaRole.MAFIA, null, null]);
+    assert.equal(log.entries[0]!.target?.id, 1);
+  });
+
+  test('deleteLogEntry removes the entry and the state follows', async () => {
+    const { service, logEntries } = dealt();
+    await service.addLogEntry(1, input(MafiaLogType.KILL, MafiaLogPhase.NIGHT, 3));
+    await service.deleteLogEntry(1, logEntries[0]!['id']);
+    assert.equal(logEntries.length, 0);
+    assert.deepEqual((await service.getLog(1)).state.dead, []);
+  });
+
+  test('deleteLogEntry rejects an unknown entry and an entry of another evening', async () => {
+    const { service, logEntries } = dealt();
+    await assert.rejects(() => service.deleteLogEntry(1, 404), /Log entry not found/);
+
+    logEntries.push({ id: 7, event_id: 2, round: 1, cycle: 1, phase: 'night', type: 'kill', target_user_id: 3 });
+    await assert.rejects(() => service.deleteLogEntry(1, 7), ConflictError);
+    assert.equal(logEntries.length, 1);
   });
 });

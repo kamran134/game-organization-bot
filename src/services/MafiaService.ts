@@ -2,6 +2,7 @@ import { EntityManager, In } from 'typeorm';
 import { Database } from '../database/Database';
 import { MafiaEvent, MafiaStatus } from '../models/MafiaEvent';
 import { MafiaParticipant } from '../models/MafiaParticipant';
+import { MafiaLogEntry, MafiaLogPhase, MafiaLogType } from '../models/MafiaLogEntry';
 import { Gender } from '../models/Gender';
 import { MafiaRole } from '../models/MafiaRole';
 import { User } from '../models/User';
@@ -14,6 +15,7 @@ import {
   suggestRoleCounts,
   validateRoleCounts,
 } from '../utils/mafiaDeal';
+import { MafiaLogState, summarizeLog } from '../utils/mafiaLog';
 
 export interface MafiaEventInput {
   title: string;
@@ -58,6 +60,29 @@ export interface MafiaLayoutRow {
   user: User;
   role: MafiaRole | null;
   seat: number | null;
+}
+
+/** A validated log entry to add (see parseMafiaLogBody). */
+export interface MafiaLogEntryInput {
+  cycle: number;
+  phase: MafiaLogPhase;
+  type: MafiaLogType;
+  target_user_id: number | null;
+  note: string | null;
+}
+
+export interface MafiaLogEntryView {
+  entry: MafiaLogEntry;
+  target: User | null;
+  /** Set for `check` entries only: the role the commissar found. Never stored, derived on read. */
+  targetRole: MafiaRole | null;
+}
+
+/** The host's log of the current game with the state derived from it. */
+export interface MafiaLogView {
+  round: number;
+  entries: MafiaLogEntryView[];
+  state: MafiaLogState;
 }
 
 export class MafiaService {
@@ -295,6 +320,69 @@ export class MafiaService {
   async getLayout(eventId: number): Promise<MafiaLayoutRow[]> {
     const participants = await this.getParticipants(eventId);
     return participants.map((p) => ({ user: p.user, role: p.role ?? null, seat: p.seat ?? null }));
+  }
+
+  /** Appends a line to the log of the current game; only while roles are dealt. */
+  async addLogEntry(eventId: number, input: MafiaLogEntryInput): Promise<void> {
+    await this.db.dataSource.transaction(async (manager) => {
+      const event = await this.lockEvent(manager, eventId, 'pessimistic_read', [MafiaStatus.DEALT]);
+
+      if (input.target_user_id != null) {
+        const target = await manager.getRepository(MafiaParticipant).findOne({
+          where: { event_id: eventId, user_id: input.target_user_id },
+        });
+        if (!target) throw new ConflictError('Target is not a participant');
+      }
+
+      const repo = manager.getRepository(MafiaLogEntry);
+      await repo.save(repo.create({
+        event_id: eventId,
+        round: event.round,
+        cycle: input.cycle,
+        phase: input.phase,
+        type: input.type,
+        target_user_id: input.target_user_id,
+        note: input.note,
+      }));
+    });
+  }
+
+  async deleteLogEntry(eventId: number, entryId: number): Promise<void> {
+    const repo = this.db.getRepository(MafiaLogEntry);
+    const entry = await repo.findOne({ where: { id: entryId } });
+    if (!entry || entry.event_id !== eventId) throw new ConflictError('Log entry not found');
+    await repo.delete(entry.id);
+  }
+
+  /**
+   * The log of the current game plus the alive / dead state derived from it. Carries roles
+   * (the state counts teams, `check` entries show the found role): the caller must restrict this to the host.
+   */
+  async getLog(eventId: number): Promise<MafiaLogView> {
+    const event = await this.db.getRepository(MafiaEvent).findOne({ where: { id: eventId } });
+    if (!event) throw new ConflictError('Event not found');
+
+    const [entries, participants] = await Promise.all([
+      this.db.getRepository(MafiaLogEntry).find({
+        where: { event_id: eventId, round: event.round },
+        relations: ['target'],
+        order: { cycle: 'ASC', created_at: 'ASC', id: 'ASC' },
+      }),
+      this.getParticipants(eventId),
+    ]);
+
+    const roleByUser = new Map(participants.map((p) => [p.user_id, p.role ?? null]));
+    return {
+      round: event.round,
+      entries: entries.map((entry) => ({
+        entry,
+        target: entry.target ?? null,
+        targetRole: entry.type === MafiaLogType.CHECK && entry.target_user_id != null
+          ? roleByUser.get(entry.target_user_id) ?? null
+          : null,
+      })),
+      state: summarizeLog(entries, participants.map((p) => ({ user_id: p.user_id, role: p.role ?? null }))),
+    };
   }
 
   private async removeFromRegistration(

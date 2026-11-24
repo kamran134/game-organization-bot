@@ -1,10 +1,13 @@
 import { ValidationError } from '../utils/errors';
+import { MafiaLogPhase, MafiaLogType } from '../models/MafiaLogEntry';
 import { MAFIA_MAX_PLAYERS, MAFIA_MIN_PLAYERS, MAFIA_ROLE_ORDER, RoleCounts } from '../utils/mafiaDeal';
 
 const MAX_TITLE_LENGTH = 100;
 const MAX_DESCRIPTION_LENGTH = 500;
 const MAX_PLACE_LENGTH = 200;
 const DEFAULT_MAX_PLAYERS = 10;
+const MAX_LOG_NOTE_LENGTH = 500;
+const MAX_LOG_CYCLE = 50;
 
 /** Fields of POST /api/mafia already validated; empty optional values are null. */
 export interface ParsedMafiaEventBody {
@@ -95,4 +98,54 @@ export function parseRoleCountsBody(body: unknown): RoleCounts | undefined {
     result[role] = value;
   }
   return result;
+}
+
+/** Fields of POST /api/mafia/:id/log already validated. */
+export interface ParsedMafiaLogBody {
+  cycle: number;
+  phase: MafiaLogPhase;
+  type: MafiaLogType;
+  target_user_id: number | null;
+  note: string | null;
+}
+
+/** The phase each entry type can happen in; a note belongs to either. */
+const LOG_PHASES: Record<MafiaLogType, MafiaLogPhase[]> = {
+  [MafiaLogType.KILL]: [MafiaLogPhase.NIGHT],
+  [MafiaLogType.HEAL]: [MafiaLogPhase.NIGHT],
+  [MafiaLogType.CHECK]: [MafiaLogPhase.NIGHT],
+  [MafiaLogType.BLOCK]: [MafiaLogPhase.NIGHT],
+  [MafiaLogType.LYNCH]: [MafiaLogPhase.DAY],
+  [MafiaLogType.NOTE]: [MafiaLogPhase.NIGHT, MafiaLogPhase.DAY],
+};
+
+/** Validates the body of POST /api/mafia/:id/log. Throws ValidationError (message is safe to show). */
+export function parseMafiaLogBody(body: unknown): ParsedMafiaLogBody {
+  const raw = (body ?? {}) as Record<string, unknown>;
+
+  const cycle = raw['cycle'];
+  if (typeof cycle !== 'number' || !Number.isInteger(cycle) || cycle < 1 || cycle > MAX_LOG_CYCLE) {
+    throw new ValidationError('Invalid cycle');
+  }
+
+  const type = Object.values(MafiaLogType).find((t) => t === raw['type']);
+  if (!type) throw new ValidationError('Invalid entry type');
+  const phase = Object.values(MafiaLogPhase).find((p) => p === raw['phase']);
+  if (!phase) throw new ValidationError('Invalid phase');
+  if (!LOG_PHASES[type].includes(phase)) throw new ValidationError('Invalid phase for this entry');
+
+  const rawTarget = raw['target_user_id'];
+  let target: number | null = null;
+  if (rawTarget !== undefined && rawTarget !== null) {
+    if (typeof rawTarget !== 'number' || !Number.isInteger(rawTarget) || rawTarget < 1) {
+      throw new ValidationError('Target is required');
+    }
+    target = rawTarget;
+  }
+  if (type !== MafiaLogType.NOTE && target === null) throw new ValidationError('Target is required');
+
+  const note = optionalText(raw['note'], MAX_LOG_NOTE_LENGTH, 'Invalid note', 'Note is too long');
+  if (type === MafiaLogType.NOTE && note === null) throw new ValidationError('Note is required');
+
+  return { cycle, phase, type, target_user_id: target, note };
 }

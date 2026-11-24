@@ -14,6 +14,7 @@ import { HardenSchema1758000000000 } from './migrations/1758000000000-HardenSche
 import { AddSecretSanta1759000000000 } from './migrations/1759000000000-AddSecretSanta';
 import { AddMafia1760000000000 } from './migrations/1760000000000-AddMafia';
 import { AddUserGender1761000000000 } from './migrations/1761000000000-AddUserGender';
+import { AddMafiaLog1762000000000 } from './migrations/1762000000000-AddMafiaLog';
 import { getDbConnectionConfig } from './Database';
 
 dotenv.config({ path: path.resolve(process.cwd(), process.env.NODE_ENV === 'production' ? '.env.prod' : '.env.dev') });
@@ -21,7 +22,7 @@ dotenv.config({ path: path.resolve(process.cwd(), process.env.NODE_ENV === 'prod
 const AppDataSource = new DataSource({
   ...getDbConnectionConfig(),
   entities: [],
-  migrations: [AddGameTypeColumn1707649200000, MakeUserIdNullable1738000000000, AddRegistrationLockHours1745500000000, AddPaymentsTable1748000000000, FixPaymentsTableSchema1748100000000, AddGroupMemberIsActive1755000000000, AddGroupScopedSports1756000000000, UniqueGuestPayments1757000000000, HardenSchema1758000000000, AddSecretSanta1759000000000, AddMafia1760000000000, AddUserGender1761000000000],
+  migrations: [AddGameTypeColumn1707649200000, MakeUserIdNullable1738000000000, AddRegistrationLockHours1745500000000, AddPaymentsTable1748000000000, FixPaymentsTableSchema1748100000000, AddGroupMemberIsActive1755000000000, AddGroupScopedSports1756000000000, UniqueGuestPayments1757000000000, HardenSchema1758000000000, AddSecretSanta1759000000000, AddMafia1760000000000, AddUserGender1761000000000, AddMafiaLog1762000000000],
   synchronize: false,
   logging: true,
   migrationsRun: false,

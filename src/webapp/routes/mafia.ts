@@ -14,9 +14,10 @@ import {
   serializeMafiaParticipant,
   serializeMafiaCard,
   serializeMafiaLayoutRow,
+  serializeMafiaLog,
   serializeSantaPerson,
 } from '../serializers';
-import { parseMafiaEventBody, parseRoleCountsBody } from '../mafiaBodyValidator';
+import { parseMafiaEventBody, parseMafiaLogBody, parseRoleCountsBody } from '../mafiaBodyValidator';
 import { ConflictError, ValidationError } from '../../utils/errors';
 import { suggestRoleCounts } from '../../utils/mafiaDeal';
 import { refreshMafiaCard } from '../../services/mafiaCard';
@@ -172,6 +173,47 @@ export function createMafiaRouter(
       res.json({ round: event.round, players: rows.map(serializeMafiaLayoutRow) });
     } catch (error) {
       fail(res, error, 'get layout');
+    }
+  });
+
+  // GET /api/mafia/:id/log — the host's game log with the derived alive / dead state (carries roles)
+  router.get('/:id/log', async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const event = await loadEvent(req, res, 'host');
+      if (!event) return;
+
+      res.json(serializeMafiaLog(await mafiaService.getLog(event.id)));
+    } catch (error) {
+      fail(res, error, 'get log');
+    }
+  });
+
+  // POST /api/mafia/:id/log — add a line; answers with the fresh log
+  router.post('/:id/log', async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const event = await loadEvent(req, res, 'host');
+      if (!event) return;
+
+      await mafiaService.addLogEntry(event.id, parseMafiaLogBody(req.body));
+      res.status(201).json(serializeMafiaLog(await mafiaService.getLog(event.id)));
+    } catch (error) {
+      fail(res, error, 'add log entry');
+    }
+  });
+
+  // DELETE /api/mafia/:id/log/:entryId — answers with the fresh log
+  router.delete('/:id/log/:entryId', async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const event = await loadEvent(req, res, 'host');
+      if (!event) return;
+
+      const entryId = parseId(req.params.entryId);
+      if (!entryId) { res.status(400).json({ error: 'Invalid entry id' }); return; }
+
+      await mafiaService.deleteLogEntry(event.id, entryId);
+      res.json(serializeMafiaLog(await mafiaService.getLog(event.id)));
+    } catch (error) {
+      fail(res, error, 'delete log entry');
     }
   });
 

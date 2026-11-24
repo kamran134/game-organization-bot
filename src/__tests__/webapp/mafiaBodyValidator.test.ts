@@ -1,6 +1,6 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseMafiaEventBody, parseRoleCountsBody } from '../../webapp/mafiaBodyValidator';
+import { parseMafiaEventBody, parseMafiaLogBody, parseRoleCountsBody } from '../../webapp/mafiaBodyValidator';
 import { ValidationError } from '../../utils/errors';
 
 describe('parseMafiaEventBody', () => {
@@ -88,5 +88,83 @@ describe('parseRoleCountsBody', () => {
     for (const counts of [missing, { ...full, witch: 1 }, { ...full, mafia: 1.5 }, { ...full, mafia: -1 }, { ...full, mafia: '1' }, [], 'x']) {
       assert.throws(() => parseRoleCountsBody({ counts }), ValidationError);
     }
+  });
+});
+
+describe('parseMafiaLogBody', () => {
+  test('accepts every valid type / phase pair', () => {
+    for (const type of ['kill', 'heal', 'check', 'block']) {
+      assert.deepEqual(parseMafiaLogBody({ cycle: 1, phase: 'night', type, target_user_id: 5 }), {
+        cycle: 1, phase: 'night', type, target_user_id: 5, note: null,
+      });
+    }
+    assert.equal(parseMafiaLogBody({ cycle: 3, phase: 'day', type: 'lynch', target_user_id: 5 }).phase, 'day');
+    for (const phase of ['night', 'day']) {
+      assert.equal(parseMafiaLogBody({ cycle: 1, phase, type: 'note', note: 'text' }).type, 'note');
+    }
+  });
+
+  test('rejects every forbidden type / phase pair', () => {
+    for (const type of ['kill', 'heal', 'check', 'block']) {
+      assert.throws(
+        () => parseMafiaLogBody({ cycle: 1, phase: 'day', type, target_user_id: 5 }),
+        /Invalid phase for this entry/,
+        type,
+      );
+    }
+    assert.throws(
+      () => parseMafiaLogBody({ cycle: 1, phase: 'night', type: 'lynch', target_user_id: 5 }),
+      /Invalid phase for this entry/,
+    );
+  });
+
+  test('rejects unknown or missing type and phase', () => {
+    assert.throws(() => parseMafiaLogBody({ cycle: 1, phase: 'night', type: 'poison', target_user_id: 5 }), /Invalid entry type/);
+    assert.throws(() => parseMafiaLogBody({ cycle: 1, phase: 'night', target_user_id: 5 }), /Invalid entry type/);
+    assert.throws(() => parseMafiaLogBody({ cycle: 1, phase: 'dusk', type: 'kill', target_user_id: 5 }), /Invalid phase/);
+    assert.throws(() => parseMafiaLogBody({ cycle: 1, type: 'kill', target_user_id: 5 }), /Invalid phase/);
+  });
+
+  test('requires a target for everything except a note', () => {
+    for (const [type, phase] of [['kill', 'night'], ['heal', 'night'], ['check', 'night'], ['block', 'night'], ['lynch', 'day']]) {
+      assert.throws(() => parseMafiaLogBody({ cycle: 1, phase, type }), /Target is required/, type);
+      assert.throws(() => parseMafiaLogBody({ cycle: 1, phase, type, target_user_id: null }), /Target is required/, type);
+    }
+  });
+
+  test('rejects a malformed target', () => {
+    for (const target of [0, -1, 1.5, '5', true, {}]) {
+      assert.throws(
+        () => parseMafiaLogBody({ cycle: 1, phase: 'night', type: 'kill', target_user_id: target }),
+        ValidationError,
+        String(target),
+      );
+    }
+  });
+
+  test('a note needs non-empty text of at most 500 characters', () => {
+    assert.throws(() => parseMafiaLogBody({ cycle: 1, phase: 'day', type: 'note' }), /Note is required/);
+    assert.throws(() => parseMafiaLogBody({ cycle: 1, phase: 'day', type: 'note', note: '   ' }), /Note is required/);
+    assert.throws(() => parseMafiaLogBody({ cycle: 1, phase: 'day', type: 'note', note: 'a'.repeat(501) }), /Note is too long/);
+    assert.throws(() => parseMafiaLogBody({ cycle: 1, phase: 'day', type: 'note', note: 5 }), ValidationError);
+    assert.equal(parseMafiaLogBody({ cycle: 1, phase: 'day', type: 'note', note: ` ${'a'.repeat(500)} ` }).note?.length, 500);
+  });
+
+  test('a note may point at a player, other types may carry an optional note', () => {
+    assert.equal(parseMafiaLogBody({ cycle: 1, phase: 'day', type: 'note', note: 'x', target_user_id: 4 }).target_user_id, 4);
+    assert.equal(parseMafiaLogBody({ cycle: 1, phase: 'night', type: 'kill', target_user_id: 4, note: ' saved ' }).note, 'saved');
+    assert.throws(
+      () => parseMafiaLogBody({ cycle: 1, phase: 'night', type: 'kill', target_user_id: 4, note: 'a'.repeat(501) }),
+      /Note is too long/,
+    );
+  });
+
+  test('cycle must be an integer from 1 to 50', () => {
+    const base = { phase: 'night', type: 'kill', target_user_id: 5 };
+    for (const cycle of [0, 51, -1, 1.5, '1', null, undefined]) {
+      assert.throws(() => parseMafiaLogBody({ ...base, cycle }), /Invalid cycle/, String(cycle));
+    }
+    assert.equal(parseMafiaLogBody({ ...base, cycle: 50 }).cycle, 50);
+    assert.throws(() => parseMafiaLogBody(null), /Invalid cycle/);
   });
 });

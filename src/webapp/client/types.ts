@@ -204,3 +204,33 @@ export interface MafiaLayoutDto {
   round: number;
   players: Array<MafiaParticipantDto & { role: MafiaRole | null }>;
 }
+
+export type MafiaLogPhase = 'night' | 'day';
+export type MafiaLogType = 'kill' | 'heal' | 'check' | 'block' | 'lynch' | 'note';
+
+export interface MafiaLogEntryDto {
+  id: number;
+  cycle: number;
+  phase: MafiaLogPhase;
+  type: MafiaLogType;
+  target_user_id: number | null;
+  target: { first_name?: string; last_name?: string | null; username?: string | null; gender?: Gender | null } | null;
+  /** Only set for `check` entries. */
+  target_role: MafiaRole | null;
+  note: string | null;
+  created_at: string;
+}
+
+export interface MafiaLogStateDto {
+  alive: number[];
+  dead: number[];
+  counts: { alive: number; mafia: number; town: number; solo: number };
+  /** Hint only: the host finishes the evening manually. */
+  outcome: 'town' | 'mafia' | null;
+}
+
+export interface MafiaLogDto {
+  round: number;
+  entries: MafiaLogEntryDto[];
+  state: MafiaLogStateDto;
+}

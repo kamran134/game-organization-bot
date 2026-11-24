@@ -11,7 +11,36 @@ import {
   MAFIA_TEAM_COLOR,
   validateCounts,
 } from '../mafiaRoles.js';
-import type { MafiaDetailsDto, MafiaLayoutDto, MafiaRole, MafiaRoleCounts, Nav } from '../types.js';
+import type {
+  MafiaDetailsDto,
+  MafiaLayoutDto,
+  MafiaLogDto,
+  MafiaLogEntryDto,
+  MafiaLogPhase,
+  MafiaLogType,
+  MafiaRole,
+  MafiaRoleCounts,
+  Nav,
+} from '../types.js';
+
+/** An open quick-action: waiting for the host to pick a player (or type a note). */
+interface LogPicker {
+  cycle: number;
+  phase: MafiaLogPhase;
+  type: MafiaLogType;
+}
+
+const LOG_TYPE_ICON: Record<MafiaLogType, string> = {
+  kill: '🔪', heal: '💉', check: '🔍', block: '💔', lynch: '🗳', note: '📝',
+};
+const LOG_TYPE_LABEL: Record<MafiaLogType, string> = {
+  kill: 'Убит', heal: 'Вылечен', check: 'Проверен', block: 'Заблокирован', lynch: 'Повешен', note: 'Заметка',
+};
+const LOG_PHASE_TYPES: Record<MafiaLogPhase, MafiaLogType[]> = {
+  night: ['kill', 'heal', 'check', 'block', 'note'],
+  day: ['lynch', 'note'],
+};
+const LOG_NOTE_MAX = 500;
 
 interface MafiaEventCtx {
   tg: TelegramWebApp;
@@ -65,7 +94,7 @@ function renderPlayerActions(d: MafiaDetailsDto): string {
   return parts.join('');
 }
 
-function renderParticipants(d: MafiaDetailsDto): string {
+function renderParticipants(d: MafiaDetailsDto, dead: ReadonlySet<number>): string {
   const canRemove = d.canManage && (d.event.status === 'registration' || d.event.status === 'closed');
   const showSeats = d.event.status === 'dealt' && d.event.assign_seats;
   const list = showSeats
@@ -73,9 +102,9 @@ function renderParticipants(d: MafiaDetailsDto): string {
     : d.participants;
 
   const rows = list.map((p) => `
-    <div class="member-row">
+    <div class="member-row${dead.has(p.user_id) ? ' mafia-dead' : ''}">
       ${showSeats && p.seat !== null ? `<span class="mafia-seat">№${escapeHtml(p.seat)}</span>` : ''}
-      <span class="member-name">${escapeHtml(santaPersonName(p))}</span>
+      <span class="member-name">${dead.has(p.user_id) ? '💀 ' : ''}${escapeHtml(santaPersonName(p))}</span>
       ${p.username ? `<span class="member-hint">@${escapeHtml(p.username)}</span>` : ''}
       ${canRemove
         ? `<button class="btn-icon" data-action="remove-participant" data-user-id="${escapeHtml(String(p.user_id))}" title="Убрать из вечера">✕</button>`
@@ -134,7 +163,12 @@ function renderManagePanel(d: MafiaDetailsDto, counts: MafiaRoleCounts | null): 
   return `<div class="santa-admin">${parts.join('')}</div>`;
 }
 
-function renderLayoutSection(d: MafiaDetailsDto, open: boolean, layout: MafiaLayoutDto | null): string {
+function renderLayoutSection(
+  d: MafiaDetailsDto,
+  open: boolean,
+  layout: MafiaLayoutDto | null,
+  dead: ReadonlySet<number>,
+): string {
   if (!d.isHost || d.event.round === 0 || d.event.status !== 'dealt') return '';
 
   let body = '';
@@ -147,10 +181,11 @@ function renderLayoutSection(d: MafiaDetailsDto, open: boolean, layout: MafiaLay
       const badge = role
         ? `<span class="mafia-badge" style="background:${MAFIA_TEAM_COLOR[MAFIA_ROLE_TEAM[role]]}33;color:${MAFIA_TEAM_COLOR[MAFIA_ROLE_TEAM[role]]}">${escapeHtml(mafiaRoleName(role, p.gender))}</span>`
         : '';
+      const isDead = dead.has(p.user_id);
       return `
-        <div class="member-row">
+        <div class="member-row${isDead ? ' mafia-dead' : ''}">
           ${p.seat !== null ? `<span class="mafia-seat">№${escapeHtml(p.seat)}</span>` : ''}
-          <span class="member-name">${escapeHtml(santaPersonName(p))}</span>
+          <span class="member-name">${isDead ? '💀 ' : ''}${escapeHtml(santaPersonName(p))}</span>
           ${badge}
         </div>`;
     }).join('');
@@ -162,6 +197,103 @@ function renderLayoutSection(d: MafiaDetailsDto, open: boolean, layout: MafiaLay
       ${body}
     </div>
   `;
+}
+
+function renderLogEntry(entry: MafiaLogEntryDto): string {
+  const icon = LOG_TYPE_ICON[entry.type];
+  let text: string;
+  if (entry.type === 'note') {
+    text = escapeHtml(entry.note ?? '');
+  } else {
+    const t = entry.target;
+    const name = t
+      ? santaPersonName({ first_name: t.first_name, last_name: t.last_name ?? undefined, username: t.username })
+      : '—';
+    text = `${escapeHtml(LOG_TYPE_LABEL[entry.type])} <b>${escapeHtml(name)}</b>`;
+    if (entry.type === 'check' && entry.target_role) {
+      const role = entry.target_role;
+      text += ` — <span style="color:${MAFIA_TEAM_COLOR[MAFIA_ROLE_TEAM[role]]}">${escapeHtml(mafiaRoleName(role, t?.gender))}</span>`;
+    } else if (entry.note) {
+      text += ` — ${escapeHtml(entry.note)}`;
+    }
+  }
+  return `
+    <div class="mafia-log-entry">
+      <span>${icon}</span>
+      <span class="mafia-log-entry-text">${text}</span>
+      <button class="btn-icon" data-action="log-delete" data-entry-id="${escapeHtml(String(entry.id))}" title="Удалить запись">✕</button>
+    </div>`;
+}
+
+function renderLogPicker(d: MafiaDetailsDto, log: MafiaLogDto, picker: LogPicker): string {
+  const title = `${LOG_TYPE_ICON[picker.type]} ${LOG_TYPE_LABEL[picker.type]}`;
+  if (picker.type === 'note') {
+    return `
+      <div class="mafia-log-picker">
+        <div class="mafia-log-picker-title">${title}</div>
+        <textarea id="mafia-log-note" class="field mafia-log-note" maxlength="${LOG_NOTE_MAX}" placeholder="Текст заметки"></textarea>
+        <button class="btn btn-primary" data-action="log-save-note">Сохранить</button>
+        <button class="btn btn-secondary" data-action="log-cancel">Отмена</button>
+      </div>`;
+  }
+  const alive = new Set(log.state.alive);
+  const buttons = d.participants
+    .filter((p) => alive.has(p.user_id))
+    .map((p) => `<button class="mafia-log-action" data-action="log-pick" data-user-id="${escapeHtml(String(p.user_id))}">${p.seat !== null && d.event.assign_seats ? `№${escapeHtml(p.seat)} ` : ''}${escapeHtml(santaPersonName(p))}</button>`)
+    .join('');
+  return `
+    <div class="mafia-log-picker">
+      <div class="mafia-log-picker-title">${title} — кто?</div>
+      <div class="mafia-log-actions">${buttons || '<span class="santa-hint">Живых игроков нет</span>'}</div>
+      <button class="btn btn-secondary" data-action="log-cancel">Отмена</button>
+    </div>`;
+}
+
+function renderLogSection(
+  d: MafiaDetailsDto,
+  log: MafiaLogDto | null,
+  localCycles: number,
+  picker: LogPicker | null,
+): string {
+  if (!log || !d.isHost || d.event.status !== 'dealt') return '';
+  const { counts, outcome } = log.state;
+  const maxCycle = log.entries.reduce((acc, e) => Math.max(acc, e.cycle), 1);
+  const cycles = Math.max(maxCycle, localCycles);
+
+  const stateParts = [`Живых ${counts.alive}`, `🔴 Мафия ${counts.mafia}`, `🔵 Мирные ${counts.town}`];
+  if (counts.solo > 0) stateParts.push(`🟣 Одиночки ${counts.solo}`);
+  const outcomeHint = outcome
+    ? `<div class="santa-hint mafia-log-outcome">${outcome === 'town' ? 'Мирные побеждают' : 'Мафия побеждает'} — это только подсказка, вечер завершаете вы сами</div>`
+    : '';
+
+  const phases: MafiaLogPhase[] = ['night', 'day'];
+  const blocks: string[] = [];
+  for (let cycle = 1; cycle <= cycles; cycle++) {
+    const phaseBlocks = phases.map((phase) => {
+      const entries = log.entries.filter((e) => e.cycle === cycle && e.phase === phase);
+      const actions = LOG_PHASE_TYPES[phase].map((type) =>
+        `<button class="mafia-log-action" data-action="log-start" data-cycle="${cycle}" data-phase="${phase}" data-type="${type}">${LOG_TYPE_ICON[type]} ${LOG_TYPE_LABEL[type]}</button>`,
+      ).join('');
+      const open = picker && picker.cycle === cycle && picker.phase === phase
+        ? renderLogPicker(d, log, picker)
+        : '';
+      return `
+        <div class="mafia-log-phase">${phase === 'night' ? '🌙 Ночь' : '☀️ День'} ${cycle}</div>
+        <div class="mafia-log-actions">${actions}</div>
+        ${open}
+        ${entries.map(renderLogEntry).join('')}`;
+    }).join('');
+    blocks.push(`<div class="mafia-log-cycle">${phaseBlocks}</div>`);
+  }
+
+  return `
+    <div class="mafia-log">
+      <h3 class="santa-section-title">📓 Журнал</h3>
+      <div class="mafia-log-state">${stateParts.join(' · ')}</div>
+      ${outcomeHint}
+      ${blocks.join('')}
+      <button class="btn btn-outline" data-action="log-add-cycle">+ Круг</button>
+    </div>`;
 }
 
 /**
@@ -188,14 +320,33 @@ export async function renderMafiaEvent(ctx: MafiaEventCtx, nav: Nav): Promise<vo
   // The layout stays collapsed on every page load and after every change
   let layoutOpen = false;
   let layout: MafiaLayoutDto | null = null;
+  // Host log: loaded only for the host of a dealt evening; null means "no panel"
+  let log: MafiaLogDto | null = null;
+  let logCycles = 1;
+  let logPicker: LogPicker | null = null;
+
+  /** Loads the host log; a failure must not break the page, it just renders without the panel. */
+  async function loadLog(): Promise<void> {
+    logCycles = 1;
+    logPicker = null;
+    log = null;
+    if (!details.isHost || details.event.status !== 'dealt') return;
+    try {
+      log = await apiFetch<MafiaLogDto>(`${url}/log`);
+    } catch (err) {
+      toast(getErrorMessage(err), true);
+    }
+  }
 
   function render(): void {
+    const dead: ReadonlySet<number> = new Set(log?.state.dead ?? []);
     show(`
       <div class="page" id="mafia-event-page">
         ${renderHeader(details)}
         ${renderPlayerActions(details)}
-        ${renderParticipants(details)}
-        ${renderLayoutSection(details, layoutOpen, layout)}
+        ${renderParticipants(details, dead)}
+        ${renderLayoutSection(details, layoutOpen, layout, dead)}
+        ${renderLogSection(details, log, logCycles, logPicker)}
         ${renderManagePanel(details, counts)}
       </div>
     `);
@@ -207,7 +358,26 @@ export async function renderMafiaEvent(ctx: MafiaEventCtx, nav: Nav): Promise<vo
     counts = initialCounts(details);
     layoutOpen = false;
     layout = null;
+    await loadLog();
     render();
+  }
+
+  /** Sends a log mutation; the response is already the fresh log, so no full reload is needed. */
+  async function mutateLog(btn: HTMLButtonElement, request: () => Promise<MafiaLogDto>): Promise<void> {
+    btn.disabled = true;
+    try {
+      log = await request();
+      logPicker = null;
+      render();
+    } catch (err) {
+      btn.disabled = false;
+      toast(getErrorMessage(err), true);
+    }
+  }
+
+  function postLog(btn: HTMLButtonElement, picker: LogPicker, extra: { target_user_id?: number; note?: string }): Promise<void> {
+    const body = { cycle: picker.cycle, phase: picker.phase, type: picker.type, ...extra };
+    return mutateLog(btn, () => apiFetch<MafiaLogDto>(`${url}/log`, { method: 'POST', body: JSON.stringify(body) }));
   }
 
   /** Runs a mutation with the button disabled; on success shows the toast and refreshes the page. */
@@ -269,6 +439,53 @@ export async function renderMafiaEvent(ctx: MafiaEventCtx, nav: Nav): Promise<vo
           toast(getErrorMessage(err), true);
         }
         render();
+        return;
+      }
+
+      if (action === 'log-start') {
+        logPicker = {
+          cycle: Number(btn.dataset['cycle']),
+          phase: btn.dataset['phase'] as MafiaLogPhase,
+          type: btn.dataset['type'] as MafiaLogType,
+        };
+        render();
+        return;
+      }
+
+      if (action === 'log-cancel') {
+        logPicker = null;
+        render();
+        return;
+      }
+
+      if (action === 'log-add-cycle') {
+        const maxCycle = (log?.entries ?? []).reduce((acc, en) => Math.max(acc, en.cycle), 1);
+        logCycles = Math.max(maxCycle, logCycles) + 1;
+        render();
+        return;
+      }
+
+      if (action === 'log-pick') {
+        if (!logPicker) return;
+        await postLog(btn, logPicker, { target_user_id: Number(btn.dataset['userId']) });
+        return;
+      }
+
+      if (action === 'log-save-note') {
+        if (!logPicker) return;
+        const field = document.getElementById('mafia-log-note') as HTMLTextAreaElement | null;
+        const note = (field?.value ?? '').trim();
+        if (!note) {
+          toast('Введите текст заметки', true);
+          return;
+        }
+        await postLog(btn, logPicker, { note });
+        return;
+      }
+
+      if (action === 'log-delete') {
+        const entryId = btn.dataset['entryId']!;
+        await mutateLog(btn, () => apiFetch<MafiaLogDto>(`${url}/log/${encodeURIComponent(entryId)}`, { method: 'DELETE' }));
         return;
       }
 
@@ -337,5 +554,6 @@ export async function renderMafiaEvent(ctx: MafiaEventCtx, nav: Nav): Promise<vo
     });
   }
 
+  await loadLog();
   render();
 }

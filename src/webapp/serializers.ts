@@ -8,7 +8,7 @@ import { SantaEvent } from '../models/SantaEvent';
 import { SantaParticipant } from '../models/SantaParticipant';
 import { MafiaEvent } from '../models/MafiaEvent';
 import { MafiaParticipant } from '../models/MafiaParticipant';
-import type { MafiaCard, MafiaLayoutRow } from '../services/MafiaService';
+import type { MafiaCard, MafiaLayoutRow, MafiaLogEntryView, MafiaLogView } from '../services/MafiaService';
 
 // Response DTOs: expose only what the client reads, never raw entities
 // (users carry `phone`, groups carry `invite_code`).
@@ -170,5 +170,33 @@ export function serializeMafiaLayoutRow(row: MafiaLayoutRow): Record<string, unk
     gender: row.user.gender ?? null,
     seat: row.seat,
     role: row.role,
+  };
+}
+
+/**
+ * One line of the host's log. `target_role` (found by a `check`) is a secret: log responses
+ * go to the host only, like the layout.
+ */
+export function serializeMafiaLogEntry(view: MafiaLogEntryView): Record<string, unknown> {
+  const { entry, target } = view;
+  return {
+    id: entry.id,
+    cycle: entry.cycle,
+    phase: entry.phase,
+    type: entry.type,
+    target_user_id: entry.target_user_id ?? null,
+    target: target ? { ...serializeSantaPerson(target), gender: target.gender ?? null } : null,
+    target_role: view.targetRole,
+    note: entry.note ?? null,
+    created_at: entry.created_at,
+  };
+}
+
+/** The whole host log: the current game's entries and the alive / dead state derived from them. */
+export function serializeMafiaLog(log: MafiaLogView): Record<string, unknown> {
+  return {
+    round: log.round,
+    entries: log.entries.map(serializeMafiaLogEntry),
+    state: log.state,
   };
 }
