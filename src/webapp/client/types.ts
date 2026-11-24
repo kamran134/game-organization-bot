@@ -64,12 +64,18 @@ export interface PaymentsDto {
 /** Alias – training payments endpoint returns the same shape. */
 export type TrainingPaymentsDto = PaymentsDto;
 
+export type Gender = 'male' | 'female';
+
 export interface MemberDto {
   id: number;
   first_name?: string;
   last_name?: string;
-  username?: string;
+  username?: string | null;
+  gender?: Gender | null;
 }
+
+/** The caller's own profile: only the gender is editable here, the rest is set by an admin. */
+export type MyProfileDto = MemberDto;
 
 /** Shared navigation object passed to every page renderer. */
 export interface Nav {
@@ -79,6 +85,7 @@ export interface Nav {
   goEditGame(gameId: number): void;
   goCreateLocation(): void;
   goMembers(): void;
+  goProfile(): void;
   goSports(): void;
   goSantaList(): void;
   goSantaEvent(eventId: number): void;
@@ -167,12 +174,15 @@ export interface MafiaEventDto {
 }
 
 export interface MafiaParticipantDto extends SantaParticipantDto {
+  gender?: Gender | null;
   seat: number | null;
 }
 
 export interface MafiaCardDto {
   round: number;
   role: MafiaRole;
+  /** The card owner's own gender — the role name on the card follows it. */
+  gender?: Gender | null;
   seat: number | null;
   variant: number;
   teammates: Array<{ name: string; role: MafiaRole; seat: number | null }>;

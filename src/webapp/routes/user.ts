@@ -5,6 +5,9 @@ import { UserService } from '../../services/UserService';
 import { GroupService } from '../../services/GroupService';
 import { verifyTelegramInitData } from '../middleware/telegramAuth';
 import { requireUser, currentUser } from '../middleware/requireUser';
+import { parseFirstNameField, parseGenderField, parseLastNameField } from '../userBodyValidator';
+import { ValidationError } from '../../utils/errors';
+import { User } from '../../models/User';
 
 export function createUserRouter(db: Database): Router {
   const router = Router();
@@ -12,6 +15,27 @@ export function createUserRouter(db: Database): Router {
   const groupService = new GroupService(db);
 
   router.use(verifyTelegramInitData, requireUser(userService));
+
+  /** Profile fields the web app reads; `phone` and `telegram_id` stay on the server. */
+  function serializeProfile(user: User): Record<string, unknown> {
+    return {
+      id: user.id,
+      first_name: user.first_name,
+      last_name: user.last_name,
+      username: user.username ?? null,
+      gender: user.gender ?? null,
+    };
+  }
+
+  /** 400 with the message for a rejected body, 500 (logged) for anything else. */
+  function fail(res: Response, error: unknown, label: string): void {
+    if (error instanceof ValidationError) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
+    console.error(`${label}:`, error);
+    res.status(500).json({ error: label });
+  }
 
   // GET /api/user/role?group_id=X — returns isAdmin flag for current user.
   // Deliberately open to non-members: they simply get isAdmin: false.
@@ -50,58 +74,77 @@ export function createUserRouter(db: Database): Router {
       }
 
       const members = await groupService.getGroupMembers(groupId);
-      res.json(members.map(m => ({
-        id: m.user.id,
-        first_name: m.user.first_name,
-        last_name: m.user.last_name,
-        username: m.user.username,
-      })));
+      res.json(members.map(m => serializeProfile(m.user)));
     } catch (error) {
       console.error('Error fetching members:', error);
       res.status(500).json({ error: 'Failed to fetch members' });
     }
   });
 
-  // PATCH /api/user/:id/name?group_id=X — update user name (admin only)
-  router.patch('/:id/name', async (req: AuthRequest, res: Response): Promise<void> => {
+  // GET /api/user/me — the caller's own profile (any logged-in user)
+  router.get('/me', async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      res.json(serializeProfile(currentUser(req)));
+    } catch (error) {
+      fail(res, error, 'Failed to fetch profile');
+    }
+  });
+
+  // PATCH /api/user/me — the caller changes their own gender and nothing else
+  router.patch('/me', async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const gender = parseGenderField(req.body?.gender);
+      if (gender === undefined) {
+        res.status(400).json({ error: 'gender is required' });
+        return;
+      }
+
+      const user = currentUser(req);
+      await userService.updateUserGender(user.id, gender);
+      user.gender = gender;
+
+      res.json(serializeProfile(user));
+    } catch (error) {
+      fail(res, error, 'Failed to update profile');
+    }
+  });
+
+  // PATCH /api/user/:id/profile?group_id=X — update a member's name and gender (admin only)
+  router.patch('/:id/profile', async (req: AuthRequest, res: Response): Promise<void> => {
     const targetUserId = parseInt(req.params.id);
     const groupId = parseInt(req.query.group_id as string);
-    const { first_name, last_name } = req.body ?? {};
 
     if (!groupId || !targetUserId) {
       res.status(400).json({ error: 'group_id and user id are required' });
       return;
     }
 
-    if (!first_name || typeof first_name !== 'string' || !first_name.trim()) {
-      res.status(400).json({ error: 'first_name is required' });
-      return;
-    }
-
     try {
+      const body = req.body ?? {};
+      // Empty string clears last_name; an absent field leaves it untouched
+      const patch = {
+        first_name: parseFirstNameField(body.first_name),
+        last_name: parseLastNameField(body.last_name),
+        gender: parseGenderField(body.gender),
+      };
+
       const isAdmin = await groupService.isUserAdmin(currentUser(req).id, groupId);
       if (!isAdmin) {
         res.status(403).json({ error: 'Admin only' });
         return;
       }
 
-      // An admin may only rename people of their own group, not any user in the system
+      // An admin may only edit people of their own group, not any user in the system
       if (!(await groupService.isUserMember(targetUserId, groupId))) {
         res.status(404).json({ error: 'Member not found' });
         return;
       }
 
-      // Empty string clears last_name; absent leaves it untouched
-      await userService.updateUserName(
-        targetUserId,
-        first_name.trim(),
-        typeof last_name === 'string' ? last_name.trim() : undefined,
-      );
+      await userService.updateUserProfile(targetUserId, patch);
 
       res.json({ ok: true });
     } catch (error) {
-      console.error('Error updating user name:', error);
-      res.status(500).json({ error: 'Failed to update name' });
+      fail(res, error, 'Failed to update profile');
     }
   });
 

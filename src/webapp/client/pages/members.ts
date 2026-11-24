@@ -1,6 +1,13 @@
 import { show, showLoader, toast, setBackButton, hideMainButton, type TelegramWebApp } from '../ui.js';
 import { apiFetch } from '../api.js';
 import { escapeHtml, getErrorMessage } from '../utils.js';
+import {
+  bindGenderPicker,
+  genderIcon,
+  readGenderPicker,
+  renderGenderPicker,
+  setGenderPicker,
+} from '../genderPicker.js';
 import type { MemberDto, Nav } from '../types.js';
 
 interface MembersCtx {
@@ -23,17 +30,19 @@ function renderMembersList(members: MemberDto[], groupId: string): string {
     const hint = m.username ? `<span class="member-hint">@${escapeHtml(m.username)}</span>` : '';
     const firstName = escapeHtml(m.first_name ?? '');
     const lastName  = escapeHtml(m.last_name  ?? '');
+    const icon = genderIcon(m.gender);
 
     return `
       <div class="member-row" id="member-row-${uid}">
         <span class="member-name">${name}</span>
+        ${icon ? `<span class="member-gender">${escapeHtml(icon)}</span>` : ''}
         ${hint}
         <button class="btn-icon"
           data-action="edit-member"
           data-user-id="${uid}"
           data-first-name="${firstName}"
           data-last-name="${lastName}"
-          title="Редактировать имя">✏️</button>
+          title="Редактировать участника">✏️</button>
         <button class="btn-icon"
           data-action="remove-member"
           data-user-id="${uid}"
@@ -44,6 +53,7 @@ function renderMembersList(members: MemberDto[], groupId: string): string {
         <div class="guest-form-inner">
           <input class="guest-input" id="member-first-${uid}" placeholder="Имя" value="${firstName}">
           <input class="guest-input" id="member-last-${uid}"  placeholder="Фамилия" value="${lastName}">
+          ${renderGenderPicker(`member-gender-${uid}`, m.gender)}
           <div class="guest-form-actions">
             <button class="btn btn-primary"   data-action="save-member"   data-user-id="${uid}" data-group-id="${escapeHtml(groupId)}">Сохранить</button>
             <button class="btn btn-secondary" data-action="cancel-member" data-user-id="${uid}">Отмена</button>
@@ -79,6 +89,7 @@ export async function renderMembers(ctx: MembersCtx, nav: Nav): Promise<void> {
         </div>
       </div>
     `);
+    for (const m of members) bindGenderPicker(`member-gender-${m.id}`);
     attachHandlers();
   }
 
@@ -95,6 +106,7 @@ export async function renderMembers(ctx: MembersCtx, nav: Nav): Promise<void> {
         const firstInput = document.getElementById(`member-first-${userId}`) as HTMLInputElement;
         firstInput.value = btn.dataset['firstName'] ?? '';
         (document.getElementById(`member-last-${userId}`) as HTMLInputElement).value = btn.dataset['lastName'] ?? '';
+        setGenderPicker(`member-gender-${userId}`, members.find(x => x.id === parseInt(userId))?.gender);
         form.classList.remove('hidden');
         firstInput.focus();
         return;
@@ -131,6 +143,7 @@ export async function renderMembers(ctx: MembersCtx, nav: Nav): Promise<void> {
         const gid = btn.dataset['groupId']!;
         const firstName = (document.getElementById(`member-first-${userId}`) as HTMLInputElement).value.trim();
         const lastName  = (document.getElementById(`member-last-${userId}`)  as HTMLInputElement).value.trim();
+        const gender    = readGenderPicker(`member-gender-${userId}`);
 
         if (!firstName) {
           toast('Введите имя', true);
@@ -141,18 +154,19 @@ export async function renderMembers(ctx: MembersCtx, nav: Nav): Promise<void> {
         btn.textContent = '…';
 
         try {
-          await apiFetch(`/api/user/${encodeURIComponent(userId)}/name?group_id=${encodeURIComponent(gid)}`, {
+          await apiFetch(`/api/user/${encodeURIComponent(userId)}/profile?group_id=${encodeURIComponent(gid)}`, {
             method: 'PATCH',
-            body: JSON.stringify({ first_name: firstName, last_name: lastName }),
+            body: JSON.stringify({ first_name: firstName, last_name: lastName, gender }),
           });
 
           const m = members.find(x => x.id === parseInt(userId));
           if (m) {
             m.first_name = firstName;
             m.last_name  = lastName || undefined;
+            m.gender     = gender;
           }
 
-          toast('✅ Имя обновлено');
+          toast('✅ Участник обновлён');
           render();
         } catch (err) {
           btn.disabled = false;

@@ -20,6 +20,7 @@ import { renderCreateForm } from './pages/create.js';
 import { renderEditGame } from './pages/edit.js';
 import { renderCreateLocation } from './pages/createLocation.js';
 import { renderMembers } from './pages/members.js';
+import { renderProfile } from './pages/profile.js';
 import { renderSports } from './pages/sports.js';
 import { renderSantaList } from './pages/santaList.js';
 import { renderSantaCreate } from './pages/santaCreate.js';
@@ -94,6 +95,9 @@ const nav: Nav = {
   },
   goMembers() {
     renderMembers({ tg, groupId }, nav);
+  },
+  goProfile() {
+    renderProfile({ tg }, nav);
   },
   goSports() {
     renderSports({ tg, groupId }, nav);

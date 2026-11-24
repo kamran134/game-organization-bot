@@ -33,6 +33,7 @@ export function renderHome(ctx: HomeCtx, nav: Nav): void {
         <button class="btn btn-outline btn-large" data-action="list-games">📅 Расписание</button>
         <button class="btn btn-outline btn-large" data-action="santa">🎅 Тайный Санта</button>
         <button class="btn btn-outline btn-large" data-action="mafia">🎭 Мафия</button>
+        <button class="btn btn-outline btn-large" data-action="profile">👤 Мой профиль</button>
       </div>
     </div>
   `);
@@ -52,5 +53,6 @@ export function renderHome(ctx: HomeCtx, nav: Nav): void {
     if (action === 'list-games')      nav.goGamesList();
     if (action === 'santa')           nav.goSantaList();
     if (action === 'mafia')           nav.goMafiaList();
+    if (action === 'profile')         nav.goProfile();
   });
 }
