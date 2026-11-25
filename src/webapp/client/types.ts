@@ -99,6 +99,11 @@ export interface Nav {
   goMafiaEvent(eventId: number): void;
   goMafiaCreate(): void;
   goMafiaDeck(): void;
+  goSpyList(): void;
+  goSpyEvent(eventId: number): void;
+  goSpyCreate(): void;
+  goSpyLocations(): void;
+  goSpyStats(): void;
 }
 
 export type SantaStatus = 'registration' | 'drawn' | 'finished';
@@ -237,4 +242,157 @@ export interface MafiaLogDto {
   round: number;
   entries: MafiaLogEntryDto[];
   state: MafiaLogStateDto;
+}
+
+// ─── Spy ─────────────────────────────────────────────────────────────────────
+
+export type SpyStatus = 'registration' | 'closed' | 'in_progress' | 'finished';
+export type SpyRoundStatus = 'in_progress' | 'voting' | 'finished';
+export type SpyRole = 'civilian' | 'spy' | 'double_agent' | 'mr_white';
+export type SpyOutcome = 'town' | 'spies' | 'aborted';
+export type SpyOutcomeReason = 'vote_hit' | 'vote_miss' | 'guess_correct' | 'guess_wrong' | 'manual';
+
+export interface SpyLocationDto {
+  id: number;
+  name: string;
+  pack: string;
+  /** null = a global location, shared by every group. */
+  group_id: number | null;
+  is_active: boolean;
+}
+
+export interface SpyPackDto {
+  id: string;
+  title: string;
+  emoji: string;
+  adult: boolean;
+}
+
+export interface SpyEventSummaryDto {
+  id: number;
+  title: string;
+  starts_at: string | null;
+  place: string | null;
+  status: SpyStatus;
+  round: number;
+  max_players: number;
+  host: SantaPersonDto | null;
+  participants_count: number;
+  joined: boolean;
+  isHost: boolean;
+}
+
+export interface SpyEventDto {
+  id: number;
+  group_id: number;
+  title: string;
+  description: string | null;
+  starts_at: string | null;
+  place: string | null;
+  status: SpyStatus;
+  host_id: number | null;
+  host: SantaPersonDto | null;
+  max_players: number;
+  /** null = chosen automatically from the number of players. */
+  spy_count: number | null;
+  double_agent: boolean;
+  mr_white: boolean;
+  packs: string[];
+  /** null = no turn timer. */
+  turn_seconds: number | null;
+  /** null = the spy never gets a hint. */
+  hint_after_cycles: number | null;
+  round: number;
+}
+
+export interface SpyParticipantDto extends SantaParticipantDto {
+  is_active: boolean;
+}
+
+export interface SpyRoundPlayerDto extends SantaParticipantDto {
+  is_eliminated: boolean;
+  /** Present only once the round is finished. */
+  role?: SpyRole;
+}
+
+export interface SpyRoundDto {
+  id: number;
+  number: number;
+  status: SpyRoundStatus;
+  cycle: number;
+  turn_order: number[];
+  current_user_id: number | null;
+  deadline: string | null;
+  started_at: string;
+  finished_at: string | null;
+  players: SpyRoundPlayerDto[];
+  // The reveal: absent from the response until the round is finished.
+  location_name?: string;
+  location_pack?: string;
+  outcome?: SpyOutcome | null;
+  outcome_reason?: SpyOutcomeReason | null;
+  guess?: string | null;
+  guessed_by?: number | null;
+}
+
+export interface SpyCardDto {
+  round: number;
+  role: SpyRole;
+  /** null for the spy and for Mr. White. */
+  location: string | null;
+  /** The pack title, once the spy has earned a hint. */
+  hint: string | null;
+  cycle: number;
+  current_user_id: number | null;
+  is_my_turn: boolean;
+  deadline: string | null;
+}
+
+export interface SpyVotingStateDto {
+  round_id: number;
+  ballot: number;
+  voter_ids: number[];
+  counts: Array<{ user_id: number; votes: number }>;
+  leaders: number[];
+  /** Set for the runoff ballot: only these players may be voted for. */
+  candidate_ids: number[] | null;
+}
+
+export interface SpyLimitsDto {
+  min_players: number;
+  max_players: number;
+  turn_seconds: { min: number; max: number };
+  hint_cycles: { min: number; max: number };
+}
+
+/** GET /api/spy/meta: what the create form and the settings panel need before any event exists. */
+export interface SpyMetaDto {
+  packs: SpyPackDto[];
+  limits: SpyLimitsDto;
+}
+
+export interface SpyDetailsDto {
+  event: SpyEventDto;
+  /** The caller, so the screen knows whom not to offer as a vote candidate. */
+  me: { userId: number };
+  participants: SpyParticipantDto[];
+  joined: boolean;
+  isHost: boolean;
+  canManage: boolean;
+  myCard: SpyCardDto | null;
+  round: SpyRoundDto | null;
+  votingState: SpyVotingStateDto | null;
+  suggestedSpyCount: number;
+  packs: SpyPackDto[];
+}
+
+export interface SpyStatsRowDto extends SantaParticipantDto {
+  rounds: number;
+  wins: number;
+  spy_rounds: number;
+  spy_wins: number;
+  exposed: number;
+  guessed: number;
+  /** A fraction 0..1. */
+  win_rate: number;
 }

@@ -1081,3 +1081,47 @@ select.input {
 }
 
 .teams-panel .team-select { margin-left: 0; }
+
+/* ── Spy ── */
+#spy-event-page .field, #spy-event-page .btn { margin-bottom: 10px; }
+#spy-event-page .member-row { margin-bottom: 6px; }
+.spy-adult { font-size: 11px; font-weight: 600; color: #d32f2f; }
+.spy-card, .spy-turn, .spy-reveal, .spy-voting, .spy-guess {
+  background: var(--tg-secondary);
+  border-radius: var(--radius);
+  padding: 14px;
+  margin-bottom: 12px;
+}
+.spy-card-title { font-size: 24px; font-weight: 700; margin-bottom: 8px; }
+.spy-card-text { font-size: 14px; color: var(--tg-hint); margin-bottom: 10px; }
+.spy-card-hint { font-size: 14px; font-weight: 600; }
+.spy-hold {
+  display: flex; align-items: center; justify-content: center;
+  min-height: 56px; padding: 10px; border: 2px dashed var(--tg-hint); border-radius: var(--radius);
+  text-align: center; cursor: pointer;
+  user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; touch-action: none;
+}
+.spy-hold-label { font-size: 14px; color: var(--tg-hint); }
+.spy-hold-value { font-size: 22px; font-weight: 700; }
+.spy-turn-name { font-size: 18px; font-weight: 600; margin: 4px 0 8px; }
+.spy-deadline { font-size: 15px; font-weight: 600; margin-bottom: 8px; }
+.spy-banner { padding: 8px 10px; margin-bottom: 8px; border-radius: 8px; background: rgba(255, 152, 0, 0.18); color: #e65100; font-size: 14px; }
+.spy-outcome { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+.spy-location { margin: 8px 0; font-size: 16px; }
+.spy-links { display: flex; gap: 8px; margin-top: 16px; }
+.spy-links .btn { flex: 1; }
+.spy-role-spy { background: rgba(211, 47, 47, 0.18); color: #d32f2f; }
+.spy-role-double_agent { background: rgba(255, 152, 0, 0.18); color: #e65100; }
+.spy-role-mr_white { background: rgba(127, 127, 127, 0.25); color: var(--tg-hint); }
+.spy-role-civilian { background: rgba(38, 120, 182, 0.18); color: var(--tg-link); }
+.santa-badge-in_progress { background: rgba(38, 120, 182, 0.18); color: var(--tg-link); }
+.spy-pack { margin-bottom: 6px; }
+.spy-pack summary { cursor: pointer; padding: 6px 0; }
+.spy-pack-items { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 0 8px; }
+.spy-chip { padding: 2px 8px; border-radius: 8px; background: var(--tg-secondary); font-size: 13px; }
+.spy-stats-wrap { overflow-x: auto; }
+.spy-stats { width: 100%; border-collapse: collapse; font-size: 13px; }
+.spy-stats th, .spy-stats td { padding: 6px 4px; text-align: center; }
+.spy-stats th { color: var(--tg-hint); font-weight: 600; }
+.spy-stats th:first-child, .spy-stats-name { text-align: left; }
+.spy-stats tbody tr:nth-child(odd) { background: var(--tg-secondary); }

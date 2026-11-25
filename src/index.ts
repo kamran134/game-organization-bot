@@ -5,6 +5,8 @@ import { Database } from './database/Database';
 import { SportService } from './services/SportService';
 import { startWebAppServer } from './webapp/server';
 import { startGameLifecycleJob } from './services/GameLifecycleJob';
+import { startSpyTurnJob } from './services/SpyTurnJob';
+import { createSpyTurnTimeoutHandler } from './services/spyTurnTimeouts';
 
 /** Docker sends SIGKILL 10s after SIGTERM; finish well before that. */
 const SHUTDOWN_TIMEOUT_MS = 8000;
@@ -54,6 +56,11 @@ async function main() {
     // Auto-cancel games short of players and auto-complete finished ones
     const stopLifecycleJob = startGameLifecycleJob(bot.gameLifecycleService);
 
+    // Pass the turn of Spy rounds whose timer ran out and tell the group
+    const stopSpyTurnJob = startSpyTurnJob(bot.spyService, {
+      onTimeouts: createSpyTurnTimeoutHandler(bot.spyService, bot.notificationService),
+    });
+
     let shuttingDown = false;
     const shutdown = async (signal: string): Promise<void> => {
       if (shuttingDown) return;
@@ -67,6 +74,7 @@ async function main() {
 
       try {
         stopLifecycleJob();
+        stopSpyTurnJob();
         bot.stop(signal);
         await new Promise<void>((resolve) => {
           httpServer.close(() => resolve());

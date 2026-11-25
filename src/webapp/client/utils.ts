@@ -69,6 +69,30 @@ const KNOWN_ERRORS: Record<string, string> = {
   'Roles must add up to the number of players': 'Число ролей должно совпадать с числом игроков',
   'At least one mafia is required': 'Нужна хотя бы одна мафия',
   'Too many of a unique role': 'Эта роль может быть только одна',
+  'Only group admins can manage locations': 'Локациями управляют только админы группы',
+  'Global locations cannot be changed': 'Общие локации менять нельзя',
+  'Location already exists': 'Такая локация уже есть',
+  'Name is required': 'Введите название',
+  'Name is too long': 'Название слишком длинное (до 100 символов)',
+  'No locations to play': 'В выбранных пакетах нет локаций',
+  'Not your turn': 'Сейчас не ваш ход',
+  'Cannot vote for yourself': 'За себя голосовать нельзя',
+  'Vote for one of the leaders': 'Голосуйте за одного из лидеров',
+  'Only a living spy can guess': 'Угадывать может только живой шпион',
+  'Guess is required': 'Введите название локации',
+  'Guess is too long': 'Слишком длинный ответ',
+  'Invalid spy count': 'Некорректное число шпионов',
+  'Invalid turn time': 'Таймер хода: от 15 до 300 секунд',
+  'Invalid hint cycles': 'Подсказка: после 1-10 кругов',
+  'Invalid packs': 'Выберите хотя бы один пакет локаций',
+  'Fewer places than joined players': 'Мест меньше, чем уже записалось игроков',
+  'Round is not finished': 'Партия ещё не завершена',
+  'Round in progress': 'Идёт партия: сейчас это недоступно',
+  'Registration is open': 'Набор ещё открыт',
+  'Wrong round state': 'Партия сейчас в другом состоянии',
+  'Round finished': 'Партия уже завершена',
+  'No round': 'Партия ещё не начата',
+  'Not in the round': 'Вы не участвуете в этой партии',
   'Mafia must be a minority': 'Мафия должна быть в меньшинстве',
 };
 
@@ -116,4 +140,15 @@ const MAFIA_STATUS_LABELS: Record<string, string> = {
 
 export function mafiaStatusLabel(status: string): string {
   return MAFIA_STATUS_LABELS[status] ?? status;
+}
+
+const SPY_STATUS_LABELS: Record<string, string> = {
+  registration: 'Запись идёт',
+  closed: 'Запись закрыта',
+  in_progress: 'Идёт игра',
+  finished: 'Завершён',
+};
+
+export function spyStatusLabel(status: string): string {
+  return SPY_STATUS_LABELS[status] ?? status;
 }

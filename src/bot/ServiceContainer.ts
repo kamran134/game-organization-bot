@@ -10,6 +10,7 @@ import { NotificationService } from '../services/NotificationService';
 import { GameLifecycleService } from '../services/GameLifecycleService';
 import { SantaService } from '../services/SantaService';
 import { MafiaService } from '../services/MafiaService';
+import { SpyService } from '../services/SpyService';
 import { Telegram } from 'telegraf';
 import { CreationStateManager } from '../utils/CreationState';
 import { LocationCreationStateManager } from '../utils/LocationCreationState';
@@ -36,6 +37,7 @@ export class ServiceContainer {
   readonly gameLifecycleService: GameLifecycleService;
   readonly santaService: SantaService;
   readonly mafiaService: MafiaService;
+  readonly spyService: SpyService;
 
   // State managers
   readonly creationStates: CreationStateManager;
@@ -63,6 +65,7 @@ export class ServiceContainer {
     this.gameLifecycleService = new GameLifecycleService(db, this.notificationService);
     this.santaService = new SantaService(db);
     this.mafiaService = new MafiaService(db);
+    this.spyService = new SpyService(db);
 
     // ── State managers ────────────────────────────────────────────────────────
     this.creationStates = new CreationStateManager();

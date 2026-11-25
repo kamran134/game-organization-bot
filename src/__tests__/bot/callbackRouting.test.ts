@@ -7,6 +7,7 @@ import { CreationHandler } from '../../bot/handlers/CreationHandler';
 import { GamesFilterHandler } from '../../bot/handlers/GamesFilterHandler';
 import { LocationCreationHandler } from '../../bot/handlers/LocationCreationHandler';
 import { LocationEditHandler } from '../../bot/handlers/LocationEditHandler';
+import { SpyActionsHandler } from '../../bot/handlers/SpyActionsHandler';
 
 type ActionPattern = string | RegExp;
 
@@ -36,6 +37,7 @@ function collectPatterns(): ActionPattern[] {
   new LocationCreationHandler({} as never).register(fakeBot);
   new LocationEditHandler({} as never).register(fakeBot);
   new GamesFilterHandler({} as never).register(fakeBot);
+  new SpyActionsHandler({ spyService: {} } as never).register(fakeBot);
   return collected;
 }
 
@@ -100,6 +102,13 @@ describe('callback routing', () => {
     ['confirm_training_5', '^confirm_(game|training)_(#)$'],
     ['cancel_game_5', '^cancel_(game|training)_(#)$'],
     ['cancel_training_5', '^cancel_(game|training)_(#)$'],
+    ['spy_join_5', '^spy_join_(#)$'],
+    ['spy_leave_5', '^spy_leave_(#)$'],
+    ['spy_close_5', '^spy_close_(#)$'],
+    ['spy_start_5', '^spy_start_(#)$'],
+    ['spy_next_5', '^spy_next_(#)$'],
+    ['spy_voting_5', '^spy_voting_(#)$'],
+    ['spy_vote_5_7', '^spy_vote_(#)_(#)$'],
   ];
 
   for (const [callbackData, expectedSource] of routes) {
@@ -127,5 +136,12 @@ describe('callback routing', () => {
       (p) => p instanceof RegExp && p.source.includes('remove_member') && !p.source.includes('confirm') && !p.source.includes('cancel')
     );
     assert.equal(removeHandlers.length, 1);
+  });
+
+  test('"spy_voting_<id>" and "spy_vote_<id>_<id>" are never taken for one another', () => {
+    assert.equal(firstMatch('spy_voting_5'), '^spy_voting_(#)$');
+    assert.equal(firstMatch('spy_vote_5_7'), '^spy_vote_(#)_(#)$');
+    assert.equal(firstMatch('spy_vote_5'), undefined);
+    assert.equal(firstMatch('spy_voting_5_7'), undefined);
   });
 });

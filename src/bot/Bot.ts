@@ -14,6 +14,7 @@ import {
   AppCommand,
   SantaCommand,
   MafiaCommand,
+  SpyCommand,
   PlayersCommand,
   PaymentsCommand,
   TrainingPaymentsCommand,
@@ -30,6 +31,7 @@ import {
   GameActionsHandler,
   GroupActionsHandler,
   MafiaActionsHandler,
+  SpyActionsHandler,
 } from './handlers';
 import { LocationCreationHandler } from './handlers/LocationCreationHandler';
 import { LocationEditHandler } from './handlers/LocationEditHandler';
@@ -37,6 +39,8 @@ import { CreationHandler } from './handlers/CreationHandler';
 import { GamesFilterHandler } from './handlers/GamesFilterHandler';
 import { ServiceContainer } from './ServiceContainer';
 import { GameLifecycleService } from '../services/GameLifecycleService';
+import { SpyService } from '../services/SpyService';
+import { NotificationService } from '../services/NotificationService';
 import { isWizardInput } from './utils/wizardInput';
 
 export class Bot {
@@ -70,6 +74,16 @@ export class Bot {
     return this.container.gameLifecycleService;
   }
 
+  /** Exposed so the process entry point can run the Spy turn timer. */
+  get spyService(): SpyService {
+    return this.container.spyService;
+  }
+
+  /** Exposed so the process entry point can announce Spy turn changes. */
+  get notificationService(): NotificationService {
+    return this.container.notificationService;
+  }
+
   private initializeCommands(): (CommandHandler | AddLocationCommand | ListLocationsCommand | EditLocationCommand | NewTrainingCommand | TrainingsCommand | PaymentsCommand | TrainingPaymentsCommand)[] {
     const c = this.container;
 
@@ -98,6 +112,7 @@ export class Bot {
       new AppCommand(services),
       new SantaCommand({ ...services, santaService: c.santaService }),
       new MafiaCommand({ ...services, mafiaService: c.mafiaService }),
+      new SpyCommand({ ...services, spyService: c.spyService }),
       new NewTrainingCommand(creationCommandServices),
       new GamesCommand(services),
       new TrainingsCommand(services),
@@ -153,6 +168,7 @@ export class Bot {
       new GameActionsHandler(services),
       new GroupActionsHandler(services),
       new MafiaActionsHandler({ ...services, mafiaService: c.mafiaService }),
+      new SpyActionsHandler({ ...services, spyService: c.spyService }),
     ];
   }
 

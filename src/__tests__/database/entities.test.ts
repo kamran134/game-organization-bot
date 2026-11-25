@@ -84,4 +84,38 @@ describe('entity metadata', () => {
 
     assert.deepEqual(dangling, [], `Relations to unregistered entities: ${dangling.join(', ')}`);
   });
+
+  test('Spy entities are registered and map to the agreed tables', async () => {
+    const dataSource = await buildMetadatas();
+
+    const tables = new Map(dataSource.entityMetadatas.map((entity) => [entity.name, entity.tableName]));
+    assert.equal(tables.get('SpyEvent'), 'spy_events');
+    assert.equal(tables.get('SpyParticipant'), 'spy_participants');
+    assert.equal(tables.get('SpyRound'), 'spy_rounds');
+    assert.equal(tables.get('SpyRoundPlayer'), 'spy_round_players');
+    assert.equal(tables.get('SpyVote'), 'spy_votes');
+    assert.equal(tables.get('SpyLocation'), 'spy_locations');
+  });
+
+  test('Spy columns match the migration types', async () => {
+    const dataSource = await buildMetadatas();
+    const column = (entityName: string, property: string) => {
+      const found = dataSource.entityMetadatas
+        .find((entity) => entity.name === entityName)
+        ?.columns.find((c) => c.propertyName === property);
+      assert.ok(found, `${entityName}.${property} is missing`);
+      return found;
+    };
+
+    assert.equal(column('SpyEvent', 'card_chat_id').type, 'bigint');
+    assert.equal(column('SpyEvent', 'packs').type, 'jsonb');
+    assert.equal(column('SpyEvent', 'hint_after_cycles').type, 'smallint');
+    assert.equal(column('SpyEvent', 'starts_at').type, 'timestamptz');
+    assert.equal(column('SpyRound', 'turn_order').type, 'jsonb');
+    assert.equal(column('SpyRound', 'cycle').type, 'smallint');
+    assert.equal(column('SpyRound', 'started_at').type, 'timestamptz');
+    assert.equal(column('SpyVote', 'ballot').type, 'smallint');
+    assert.equal(column('SpyRoundPlayer', 'role').length, '20');
+    assert.equal(column('SpyLocation', 'group_id').isNullable, true);
+  });
 });

@@ -19,6 +19,12 @@ import { MafiaRole } from '../models/MafiaRole';
 import { formatMafiaCard, mafiaButton } from '../bot/ui/MafiaMessageBuilder';
 import { MAFIA_ROLE_ORDER, isMafiaTeamRole, mafiaRoleName } from '../utils/mafiaDeal';
 import type { MafiaDealtPlayer } from './MafiaService';
+import { SpyEvent } from '../models/SpyEvent';
+import { SpyRound } from '../models/SpyRound';
+import { SpyRole } from '../models/SpyRole';
+import { SpyRoundPlayer } from '../models/SpyRoundPlayer';
+import { SpyCardRound, formatSpyCard, formatSpyReveal, spyButton } from '../bot/ui/SpyMessageBuilder';
+import { SPY_ROLE_DESCRIPTION, SPY_ROLE_NAME } from '../utils/spyDeal';
 
 /** Where the action that triggered the notification came from; the web variants carry a participants list. */
 export type NotifyVia = 'web';
@@ -464,6 +470,175 @@ export class NotificationService {
     } catch (error) {
       if (isMessageNotModified(error) || isMessageGone(error)) return;
       console.error('Failed to remove mafia card:', error);
+    }
+  }
+
+  /**
+   * Posts the live card of a Spy evening (/spy re-post); `event` must be loaded with its group and host.
+   * Returns where it landed so the caller can remember it for later edits, or null when nothing was sent.
+   */
+  async postSpyCard(
+    event: SpyEvent,
+    participants: User[],
+    current: SpyCardRound | null = null,
+  ): Promise<{ chatId: number; messageId: number } | null> {
+    try {
+      const chatId = this.chatIdOf(event.group, event.id);
+      if (chatId === null) return null;
+
+      const { text, reply_markup } = formatSpyCard(event, participants, current);
+      const message = await this.telegram.sendMessage(chatId, text, { parse_mode: 'HTML', reply_markup });
+      return { chatId, messageId: message.message_id };
+    } catch (error) {
+      console.error('Failed to post spy card to group:', error);
+      return null;
+    }
+  }
+
+  /** Edits the stored live card after any state change. A vanished or unchanged message is not an error. */
+  async updateSpyCard(event: SpyEvent, participants: User[], current: SpyCardRound | null = null): Promise<void> {
+    if (!event.card_chat_id || !event.card_message_id) return;
+    try {
+      const { text, reply_markup } = formatSpyCard(event, participants, current);
+      await this.telegram.editMessageText(Number(event.card_chat_id), event.card_message_id, undefined, text, {
+        parse_mode: 'HTML',
+        reply_markup,
+      });
+    } catch (error) {
+      if (isMessageNotModified(error) || isMessageGone(error)) return;
+      console.error('Failed to update spy card:', error);
+    }
+  }
+
+  /**
+   * A new round: the group post names neither the location nor a role; every player is DMed their own card
+   * inside a spoiler. DMs fail for users who never started the bot, which is expected and only counted.
+   * `event` must be loaded with its group.
+   */
+  async notifySpyRoundStarted(
+    event: SpyEvent,
+    round: SpyRound,
+    players: Array<{ user: User; role: SpyRole }>,
+  ): Promise<void> {
+    try {
+      const chatId = this.chatIdOf(event.group, event.id);
+      if (chatId !== null) {
+        try {
+          await this.telegram.sendMessage(
+            chatId,
+            `🕵️ Партия №${round.number} началась: ${players.length} игроков. Откройте свою карточку`,
+            { parse_mode: 'HTML', reply_markup: spyButton('🕵️ Моя карточка', event.id) },
+          );
+        } catch (error) {
+          console.error('Failed to send spy round notification to group:', error);
+        }
+      }
+
+      let failed = 0;
+      for (const player of players) {
+        // Mr. White believes to be a civilian and must not learn otherwise from the bot
+        const shown = player.role === SpyRole.MR_WHITE ? SpyRole.CIVILIAN : player.role;
+        const lines = [
+          `🕵️ <b>${escapeHtml(event.title)}</b> — партия №${round.number}`,
+          `Ваша роль: <tg-spoiler>${SPY_ROLE_NAME[shown]}</tg-spoiler>`,
+        ];
+        if (player.role === SpyRole.CIVILIAN || player.role === SpyRole.DOUBLE_AGENT) {
+          lines.push(`Локация: <tg-spoiler>${escapeHtml(round.location_name)}</tg-spoiler>`);
+        } else if (player.role === SpyRole.MR_WHITE) {
+          lines.push('Локация: <tg-spoiler>вы не помните, где вы</tg-spoiler>');
+        } else {
+          lines.push('Локация: <tg-spoiler>неизвестна</tg-spoiler>');
+        }
+        // Mr. White's own description would give the role away, so he gets the civilian one
+        lines.push(`<tg-spoiler>${escapeHtml(SPY_ROLE_DESCRIPTION[shown])}</tg-spoiler>`);
+
+        try {
+          await this.telegram.sendMessage(Number(player.user.telegram_id), lines.join('\n'), {
+            parse_mode: 'HTML',
+            reply_markup: spyButton('🕵️ Открыть карточку', event.id),
+          });
+        } catch {
+          failed++;
+        }
+      }
+      if (failed > 0) {
+        console.warn(`Spy round ${event.id}/${round.number}: ${failed} of ${players.length} DMs were not delivered`);
+      }
+    } catch (error) {
+      console.error('Failed to send spy round notifications:', error);
+    }
+  }
+
+  /** Pings the player whose turn it is. `event` must be loaded with its group. */
+  async notifySpyTurn(event: SpyEvent, player: User, cycle: number, deadline: Date | null): Promise<void> {
+    try {
+      const chatId = this.chatIdOf(event.group, event.id);
+      if (chatId === null) return;
+
+      const until = deadline
+        ? `, до ${new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(deadline)}`
+        : '';
+      await this.telegram.sendMessage(chatId, `🗣 ${formatMention(player)}, ваш ход (круг ${cycle}${until})`, {
+        parse_mode: 'HTML',
+      });
+    } catch (error) {
+      console.error('Failed to send spy turn notification to group:', error);
+    }
+  }
+
+  /** Announces a tie: the leaders go to the next ballot. `event` must be loaded with its group. */
+  async notifySpyVoteTie(event: SpyEvent, leaders: User[], ballot: number): Promise<void> {
+    try {
+      const chatId = this.chatIdOf(event.group, event.id);
+      if (chatId === null) return;
+
+      await this.telegram.sendMessage(
+        chatId,
+        `🗳 Ничья между ${leaders.map((u) => escapeHtml(u.fullName)).join(', ')}. Тур ${ballot}: голосуем только за них`,
+        { parse_mode: 'HTML' },
+      );
+    } catch (error) {
+      console.error('Failed to send spy tie notification to group:', error);
+    }
+  }
+
+  /** The reveal of a finished round, for the whole group. `event` must be loaded with its group. */
+  async notifySpyRoundFinished(event: SpyEvent, result: { round: SpyRound; players: SpyRoundPlayer[] }): Promise<void> {
+    try {
+      const chatId = this.chatIdOf(event.group, event.id);
+      if (chatId === null) return;
+
+      const lines = [`🎬 <b>Партия №${result.round.number} окончена</b>`, '', ...formatSpyReveal(result.round, result.players)];
+      await this.telegram.sendMessage(chatId, lines.join('\n'), {
+        parse_mode: 'HTML',
+        reply_markup: spyButton('🕵️ Открыть', event.id),
+      });
+    } catch (error) {
+      console.error('Failed to send spy round result to group:', error);
+    }
+  }
+
+  /** After the event is deleted its card must not keep live buttons: delete the message or leave a stub. */
+  async removeSpyCard(event: SpyEvent): Promise<void> {
+    if (!event.card_chat_id || !event.card_message_id) return;
+    const chatId = Number(event.card_chat_id);
+    try {
+      await this.telegram.deleteMessage(chatId, event.card_message_id);
+      return;
+    } catch {
+      // fall through to the stub
+    }
+    try {
+      await this.telegram.editMessageText(
+        chatId,
+        event.card_message_id,
+        undefined,
+        `🗑 Вечер «${escapeHtml(event.title)}» отменён`,
+        { parse_mode: 'HTML', reply_markup: { inline_keyboard: [] } },
+      );
+    } catch (error) {
+      if (isMessageNotModified(error) || isMessageGone(error)) return;
+      console.error('Failed to remove spy card:', error);
     }
   }
 

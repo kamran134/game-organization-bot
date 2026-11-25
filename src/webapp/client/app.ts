@@ -30,8 +30,13 @@ import { renderMafiaList } from './pages/mafiaList.js';
 import { renderMafiaCreate } from './pages/mafiaCreate.js';
 import { renderMafiaEvent } from './pages/mafiaEvent.js';
 import { renderMafiaDeck } from './pages/mafiaDeck.js';
+import { renderSpyList } from './pages/spyList.js';
+import { renderSpyCreate } from './pages/spyCreate.js';
+import { renderSpyEvent } from './pages/spyEvent.js';
+import { renderSpyLocations } from './pages/spyLocations.js';
+import { renderSpyStats } from './pages/spyStats.js';
 import { escapeHtml, getErrorMessage } from './utils.js';
-import type { GameType, Nav, MafiaDetailsDto, SantaDetailsDto, UserRoleDto } from './types.js';
+import type { GameType, Nav, MafiaDetailsDto, SantaDetailsDto, SpyDetailsDto, UserRoleDto } from './types.js';
 
 // ─── Telegram SDK ─────────────────────────────────────────────────────────────
 
@@ -62,7 +67,7 @@ setInitData(tg.initData);
 
 // ─── Group ID resolution ──────────────────────────────────────────────────────
 // start_param: "group_42" (home), "santas_42" (Santa list of group 42), "santa_7" (Santa event 7,
-// group resolved via the API), "mafias_42" / "mafia_7" (same for Mafia evenings). Fallback: URL ?group_id=42
+// group resolved via the API), "mafias_42" / "mafia_7" (same for Mafia evenings), "spies_42" / "spy_7" (Spy). Fallback: URL ?group_id=42
 
 const startParam = tg.initDataUnsafe?.start_param ?? '';
 const urlParams  = new URLSearchParams(window.location.search);
@@ -127,6 +132,21 @@ const nav: Nav = {
   goMafiaDeck() {
     renderMafiaDeck({ tg }, nav);
   },
+  goSpyList() {
+    renderSpyList({ tg, groupId }, nav);
+  },
+  goSpyEvent(eventId: number) {
+    renderSpyEvent({ tg, eventId }, nav);
+  },
+  goSpyCreate() {
+    renderSpyCreate({ tg, groupId }, nav);
+  },
+  goSpyLocations() {
+    renderSpyLocations({ tg, groupId, isAdmin: _isAdmin }, nav);
+  },
+  goSpyStats() {
+    renderSpyStats({ tg, groupId }, nav);
+  },
 };
 
 // ─── Bootstrap ────────────────────────────────────────────────────────────────
@@ -157,6 +177,19 @@ async function init(): Promise<void> {
       const details = await apiFetch<MafiaDetailsDto>(`/api/mafia/${encodeURIComponent(String(eventId))}`);
       groupId = String(details.event.group_id);
       openStartPage = () => nav.goMafiaEvent(eventId);
+    } catch (err) {
+      show(`<div class="error">❌ ${escapeHtml(getErrorMessage(err))}</div>`);
+      return;
+    }
+  } else if (startParam.startsWith('spies_')) {
+    groupId = startParam.replace('spies_', '');
+    openStartPage = () => nav.goSpyList();
+  } else if (startParam.startsWith('spy_')) {
+    const eventId = parseInt(startParam.replace('spy_', ''), 10);
+    try {
+      const details = await apiFetch<SpyDetailsDto>(`/api/spy/${encodeURIComponent(String(eventId))}`);
+      groupId = String(details.event.group_id);
+      openStartPage = () => nav.goSpyEvent(eventId);
     } catch (err) {
       show(`<div class="error">❌ ${escapeHtml(getErrorMessage(err))}</div>`);
       return;

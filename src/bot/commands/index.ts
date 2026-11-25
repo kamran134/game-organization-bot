@@ -10,6 +10,7 @@ export { CreateGroupCommand } from './CreateGroupCommand';
 export { AppCommand } from './AppCommand';
 export { SantaCommand } from './SantaCommand';
 export { MafiaCommand } from './MafiaCommand';
+export { SpyCommand } from './SpyCommand';
 export { PlayersCommand } from './PlayersCommand';
 export { PaymentsCommand } from './PaymentsCommand';
 export type { PaymentsCommandServices } from './PaymentsCommand';
