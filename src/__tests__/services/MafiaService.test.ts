@@ -324,8 +324,8 @@ describe('MafiaService game log', () => {
   const dealt = (extra: Row = {}) => makeService(MafiaStatus.DEALT, [
     player(1, { role: MafiaRole.MAFIA }),
     player(2, { role: MafiaRole.COMMISSAR }),
-    player(3, { role: MafiaRole.CIVILIAN }),
-    player(4, { role: MafiaRole.CIVILIAN }),
+    player(3, { role: MafiaRole.DOCTOR }),
+    player(4, { role: MafiaRole.LOVER }),
   ], { round: 2, ...extra });
 
   const input = (type: MafiaLogType, phase: MafiaLogPhase, target: number | null, cycle = 1, note: string | null = null) =>
@@ -361,11 +361,42 @@ describe('MafiaService game log', () => {
     assert.equal(logEntries[0]!['note'], 'argument');
   });
 
+  test('addLogEntry rejects an action of a role that was not dealt, and accepts it once the role is there', async () => {
+    const noDoctor = makeService(MafiaStatus.DEALT, [
+      player(1, { role: MafiaRole.MAFIA }), player(2, { role: MafiaRole.CIVILIAN }), player(3, { role: MafiaRole.CIVILIAN }),
+      player(4, { role: MafiaRole.CIVILIAN }), player(5, { role: MafiaRole.CIVILIAN }),
+    ], { round: 1 });
+    await assert.rejects(
+      () => noDoctor.service.addLogEntry(1, input(MafiaLogType.HEAL, MafiaLogPhase.NIGHT, 2)),
+      (err: unknown) => err instanceof ValidationError && /dealt roles/.test(err.message),
+    );
+    await assert.rejects(() => noDoctor.service.addLogEntry(1, input(MafiaLogType.BLOCK, MafiaLogPhase.NIGHT, 2)), ValidationError);
+    assert.equal(noDoctor.logEntries.length, 0);
+
+    // role-free types and a dealt role both pass; the cycle is not checked
+    await noDoctor.service.addLogEntry(1, input(MafiaLogType.LYNCH, MafiaLogPhase.DAY, 2));
+    await noDoctor.service.addLogEntry(1, input(MafiaLogType.KILL, MafiaLogPhase.NIGHT, 3, 5));
+    assert.equal(noDoctor.logEntries.length, 2);
+
+    const { service, logEntries } = dealt();
+    await service.addLogEntry(1, input(MafiaLogType.HEAL, MafiaLogPhase.NIGHT, 2));
+    assert.equal(logEntries.length, 1);
+  });
+
+  test('getLog exposes the last night every dealt role can act in', async () => {
+    const { service } = dealt();
+    await service.addLogEntry(1, input(MafiaLogType.KILL, MafiaLogPhase.NIGHT, 3, 2));
+    const log = await service.getLog(1);
+    assert.deepEqual(log.state.rolesLastNight, {
+      [MafiaRole.MAFIA]: null, [MafiaRole.COMMISSAR]: null, [MafiaRole.DOCTOR]: 2, [MafiaRole.LOVER]: null,
+    });
+  });
+
   test('getLog derives who is dead and the team counts', async () => {
     const { service } = dealt();
     await service.addLogEntry(1, input(MafiaLogType.KILL, MafiaLogPhase.NIGHT, 3));
-    await service.addLogEntry(1, input(MafiaLogType.KILL, MafiaLogPhase.NIGHT, 2));
     await service.addLogEntry(1, input(MafiaLogType.HEAL, MafiaLogPhase.NIGHT, 2));
+    await service.addLogEntry(1, input(MafiaLogType.KILL, MafiaLogPhase.NIGHT, 2));
     await service.addLogEntry(1, input(MafiaLogType.LYNCH, MafiaLogPhase.DAY, 1));
 
     const log = await service.getLog(1);
@@ -397,6 +428,52 @@ describe('MafiaService game log', () => {
     assert.deepEqual(log.entries.map((e) => e.entry.cycle), [1, 1, 2]);
     assert.deepEqual(log.entries.map((e) => e.targetRole), [MafiaRole.MAFIA, null, null]);
     assert.equal(log.entries[0]!.target?.id, 1);
+  });
+
+  test('a decided game accepts only notes; the entry that ends it passes', async () => {
+    const { service, logEntries } = dealt();
+    await service.addLogEntry(1, input(MafiaLogType.LYNCH, MafiaLogPhase.DAY, 2));
+    await service.addLogEntry(1, input(MafiaLogType.LYNCH, MafiaLogPhase.DAY, 3)); // 1 mafia vs 1 town: decided
+    assert.equal((await service.getLog(1)).state.outcome, 'mafia');
+
+    await assert.rejects(
+      () => service.addLogEntry(1, input(MafiaLogType.KILL, MafiaLogPhase.NIGHT, 4, 2)),
+      (err: unknown) => err instanceof ConflictError && /already decided/.test(err.message),
+    );
+    await assert.rejects(() => service.addLogEntry(1, input(MafiaLogType.LYNCH, MafiaLogPhase.DAY, 4, 2)), ConflictError);
+    await service.addLogEntry(1, input(MafiaLogType.NOTE, MafiaLogPhase.DAY, null, 2, 'gg'));
+    assert.equal(logEntries.length, 3);
+  });
+
+  test('deleting the entry that ended the game reopens it', async () => {
+    const { service, logEntries } = dealt();
+    await service.addLogEntry(1, input(MafiaLogType.LYNCH, MafiaLogPhase.DAY, 2));
+    await service.addLogEntry(1, input(MafiaLogType.LYNCH, MafiaLogPhase.DAY, 3));
+    await service.deleteLogEntry(1, logEntries[1]!['id']);
+    await service.addLogEntry(1, input(MafiaLogType.KILL, MafiaLogPhase.NIGHT, 4, 2));
+    assert.equal(logEntries.length, 2);
+  });
+
+  test('a living maniac keeps the game going after the whole mafia is gone', async () => {
+    const { service } = makeService(MafiaStatus.DEALT, [
+      player(1, { role: MafiaRole.MAFIA }), player(2, { role: MafiaRole.MANIAC }), player(3, { role: MafiaRole.CIVILIAN }),
+      player(4, { role: MafiaRole.CIVILIAN }),
+    ], { round: 1 });
+    await service.addLogEntry(1, input(MafiaLogType.LYNCH, MafiaLogPhase.DAY, 1));
+    assert.equal((await service.getLog(1)).state.outcome, null);
+    await service.addLogEntry(1, input(MafiaLogType.KILL, MafiaLogPhase.NIGHT, 3, 2));
+    await service.addLogEntry(1, input(MafiaLogType.KILL, MafiaLogPhase.NIGHT, 4, 2));
+    assert.equal((await service.getLog(1)).state.outcome, 'solo');
+  });
+
+  test('a new deal starts with a clean log: entries of the previous game do not decide the new one', async () => {
+    const { service, logEntries } = dealt();
+    logEntries.push(
+      { id: 50, event_id: 1, round: 1, cycle: 1, phase: 'day', type: 'lynch', target_user_id: 2 },
+      { id: 51, event_id: 1, round: 1, cycle: 1, phase: 'day', type: 'lynch', target_user_id: 3 },
+    );
+    await service.addLogEntry(1, input(MafiaLogType.KILL, MafiaLogPhase.NIGHT, 3));
+    assert.equal(logEntries.length, 3);
   });
 
   test('deleteLogEntry removes the entry and the state follows', async () => {

@@ -234,8 +234,10 @@ export interface MafiaLogStateDto {
   alive: number[];
   dead: number[];
   counts: { alive: number; mafia: number; town: number; solo: number };
-  /** Hint only: the host finishes the evening manually. */
-  outcome: 'town' | 'mafia' | null;
+  /** The game result (`solo` = the maniac); null = the game goes on. The host still finishes the evening manually. */
+  outcome: 'town' | 'mafia' | 'solo' | null;
+  /** Per dealt role: last cycle whose night it can act in; null = no limit. */
+  rolesLastNight: Partial<Record<MafiaRole, number | null>>;
 }
 
 export interface MafiaLogDto {

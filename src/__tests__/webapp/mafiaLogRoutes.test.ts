@@ -34,6 +34,12 @@ function makeRouter(callerIsHost = false): { router: Router; logRows: Row[] } {
   };
   const participants: Row[] = [
     { id: 30, event_id: 1, user_id: 3, user: users[2], role: MafiaRole.MAFIA, seat: null },
+    // the commissar makes a `check` entry valid for this deal
+    { id: 31, event_id: 1, user_id: HOST_ID, user: users[1], role: MafiaRole.COMMISSAR, seat: null },
+    // more living players, so that the seeded kill does not decide the game
+    { id: 32, event_id: 1, user_id: 4, user: { id: 4, telegram_id: 779, first_name: 'Bob' }, role: MafiaRole.MAFIA, seat: null },
+    { id: 33, event_id: 1, user_id: 5, user: { id: 5, telegram_id: 780, first_name: 'Eve' }, role: MafiaRole.CIVILIAN, seat: null },
+    { id: 34, event_id: 1, user_id: 6, user: { id: 6, telegram_id: 781, first_name: 'Max' }, role: MafiaRole.CIVILIAN, seat: null },
   ];
   const logRows: Row[] = [{ id: 5, event_id: 1, round: 1, cycle: 1, phase: 'night', type: 'kill', target_user_id: 3, created_at: new Date(), target: users[2] }];
 
@@ -141,6 +147,20 @@ describe('mafia log routes: host', () => {
     const bad = await request(router, { method: 'POST', url: '/1/log', body: { cycle: 1, phase: 'day', type: 'kill', target_user_id: 3 } });
     assert.equal(bad.status, 400);
     assert.equal(logRows.length, 2);
+  });
+
+  test('POST in a decided game: a 409 for an action, a 201 for a note', async () => {
+    const { router, logRows } = makeRouter(true);
+    // the seeded kill took the mafiosi 3; hanging 4 leaves no mafia and no maniac: town has won
+    const ending = await request(router, { method: 'POST', url: '/1/log', body: { cycle: 1, phase: 'day', type: 'lynch', target_user_id: 4 } });
+    assert.equal(ending.status, 201);
+    assert.equal(ending.body['state']['outcome'], 'town');
+
+    const blocked = await request(router, { method: 'POST', url: '/1/log', body: { cycle: 2, phase: 'day', type: 'lynch', target_user_id: 5 } });
+    assert.equal(blocked.status, 409);
+    const note = await request(router, { method: 'POST', url: '/1/log', body: { cycle: 2, phase: 'day', type: 'note', note: 'gg' } });
+    assert.equal(note.status, 201);
+    assert.equal(logRows.length, 3);
   });
 
   test('DELETE answers with the fresh log; an unknown entry is a 409', async () => {

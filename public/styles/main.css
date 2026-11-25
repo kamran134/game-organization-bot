@@ -971,7 +971,8 @@ select.input {
 /* Host log */
 .mafia-log { margin-top: 16px; }
 .mafia-log-state { font-weight: 600; margin-bottom: 4px; }
-.mafia-log-outcome { margin-bottom: 10px; }
+.mafia-log-outcome { margin-bottom: 10px; padding: 10px 12px; border-radius: var(--radius); background: var(--tg-secondary); }
+.mafia-log-outcome-title { font-size: 17px; font-weight: 700; margin-bottom: 4px; }
 .mafia-log-cycle { margin-bottom: 14px; }
 .mafia-log-phase { font-size: 14px; font-weight: 600; margin: 8px 0 6px; }
 .mafia-log-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }

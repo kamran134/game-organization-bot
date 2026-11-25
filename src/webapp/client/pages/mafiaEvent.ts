@@ -40,6 +40,15 @@ const LOG_PHASE_TYPES: Record<MafiaLogPhase, MafiaLogType[]> = {
   night: ['kill', 'heal', 'check', 'block', 'note'],
   day: ['lynch', 'note'],
 };
+/** Mirror of `LOG_TYPE_ROLES` in src/utils/mafiaLog.ts (the client cannot import server code); null = always available. */
+const LOG_TYPE_ROLES: Record<MafiaLogType, MafiaRole[] | null> = {
+  kill: ['mafia', 'don', 'maniac'],
+  heal: ['doctor'],
+  check: ['commissar', 'don'],
+  block: ['lover'],
+  lynch: null,
+  note: null,
+};
 const LOG_NOTE_MAX = 500;
 
 interface MafiaEventCtx {
@@ -225,6 +234,20 @@ function renderLogEntry(entry: MafiaLogEntryDto): string {
     </div>`;
 }
 
+/** Client twin of `canActAtNight` in src/utils/mafiaLog.ts. */
+function canActAtNight(
+  lastNight: Partial<Record<MafiaRole, number | null>>,
+  type: MafiaLogType,
+  cycle: number,
+): boolean {
+  const roles = LOG_TYPE_ROLES[type];
+  if (roles === null) return true;
+  return roles.some((role) => {
+    const bound = lastNight[role];
+    return bound !== undefined && (bound === null || cycle <= bound);
+  });
+}
+
 function renderLogPicker(d: MafiaDetailsDto, log: MafiaLogDto, picker: LogPicker): string {
   const title = `${LOG_TYPE_ICON[picker.type]} ${LOG_TYPE_LABEL[picker.type]}`;
   if (picker.type === 'note') {
@@ -236,10 +259,20 @@ function renderLogPicker(d: MafiaDetailsDto, log: MafiaLogDto, picker: LogPicker
         <button class="btn btn-secondary" data-action="log-cancel">Отмена</button>
       </div>`;
   }
-  const alive = new Set(log.state.alive);
+  const targets = new Set(log.state.alive);
+  // A heal is recorded after the kill, so the victim of this very cycle is already dead but still savable.
+  const killedNow = new Set<number>();
+  if (picker.type === 'heal') {
+    for (const e of log.entries) {
+      if (e.type === 'kill' && e.cycle === picker.cycle && e.target_user_id != null) {
+        killedNow.add(e.target_user_id);
+        targets.add(e.target_user_id);
+      }
+    }
+  }
   const buttons = d.participants
-    .filter((p) => alive.has(p.user_id))
-    .map((p) => `<button class="mafia-log-action" data-action="log-pick" data-user-id="${escapeHtml(String(p.user_id))}">${p.seat !== null && d.event.assign_seats ? `№${escapeHtml(p.seat)} ` : ''}${escapeHtml(santaPersonName(p))}</button>`)
+    .filter((p) => targets.has(p.user_id))
+    .map((p) => `<button class="mafia-log-action" data-action="log-pick" data-user-id="${escapeHtml(String(p.user_id))}">${killedNow.has(p.user_id) ? '🔪 ' : ''}${p.seat !== null && d.event.assign_seats ? `№${escapeHtml(p.seat)} ` : ''}${escapeHtml(santaPersonName(p))}</button>`)
     .join('');
   return `
     <div class="mafia-log-picker">
@@ -248,6 +281,12 @@ function renderLogPicker(d: MafiaDetailsDto, log: MafiaLogDto, picker: LogPicker
       <button class="btn btn-secondary" data-action="log-cancel">Отмена</button>
     </div>`;
 }
+
+const OUTCOME_TITLE: Record<'town' | 'mafia' | 'solo', string> = {
+  town: '🏆 Победили мирные',
+  mafia: '🏆 Победила мафия',
+  solo: '🏆 Победил маньяк',
+};
 
 function renderLogSection(
   d: MafiaDetailsDto,
@@ -262,8 +301,12 @@ function renderLogSection(
 
   const stateParts = [`Живых ${counts.alive}`, `🔴 Мафия ${counts.mafia}`, `🔵 Мирные ${counts.town}`];
   if (counts.solo > 0) stateParts.push(`🟣 Одиночки ${counts.solo}`);
-  const outcomeHint = outcome
-    ? `<div class="santa-hint mafia-log-outcome">${outcome === 'town' ? 'Мирные побеждают' : 'Мафия побеждает'} — это только подсказка, вечер завершаете вы сами</div>`
+  const outcomeTitle = outcome ? OUTCOME_TITLE[outcome] : null;
+  const outcomeBanner = outcomeTitle
+    ? `<div class="mafia-log-outcome">
+        <div class="mafia-log-outcome-title">${outcomeTitle}</div>
+        <div class="santa-hint">Партия №${escapeHtml(String(d.event.round))} закончена. Раздайте роли заново для новой партии или завершите вечер.</div>
+      </div>`
     : '';
 
   const phases: MafiaLogPhase[] = ['night', 'day'];
@@ -271,7 +314,11 @@ function renderLogSection(
   for (let cycle = 1; cycle <= cycles; cycle++) {
     const phaseBlocks = phases.map((phase) => {
       const entries = log.entries.filter((e) => e.cycle === cycle && e.phase === phase);
-      const actions = LOG_PHASE_TYPES[phase].map((type) =>
+      const actions = LOG_PHASE_TYPES[phase]
+        // A decided game keeps only the note: the host may comment but not continue the game.
+        .filter((type) => outcome === null || type === 'note')
+        .filter((type) => phase === 'day' || canActAtNight(log.state.rolesLastNight, type, cycle))
+        .map((type) =>
         `<button class="mafia-log-action" data-action="log-start" data-cycle="${cycle}" data-phase="${phase}" data-type="${type}">${LOG_TYPE_ICON[type]} ${LOG_TYPE_LABEL[type]}</button>`,
       ).join('');
       const open = picker && picker.cycle === cycle && picker.phase === phase
@@ -290,9 +337,9 @@ function renderLogSection(
     <div class="mafia-log">
       <h3 class="santa-section-title">📓 Журнал</h3>
       <div class="mafia-log-state">${stateParts.join(' · ')}</div>
-      ${outcomeHint}
+      ${outcomeBanner}
       ${blocks.join('')}
-      <button class="btn btn-outline" data-action="log-add-cycle">+ Круг</button>
+      ${outcome === null ? '<button class="btn btn-outline" data-action="log-add-cycle">+ Круг</button>' : ''}
     </div>`;
 }
 

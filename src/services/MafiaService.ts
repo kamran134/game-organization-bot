@@ -6,7 +6,7 @@ import { MafiaLogEntry, MafiaLogPhase, MafiaLogType } from '../models/MafiaLogEn
 import { Gender } from '../models/Gender';
 import { MafiaRole } from '../models/MafiaRole';
 import { User } from '../models/User';
-import { ConflictError } from '../utils/errors';
+import { ConflictError, ValidationError } from '../utils/errors';
 import {
   MAFIA_MIN_PLAYERS,
   RoleCounts,
@@ -15,7 +15,7 @@ import {
   suggestRoleCounts,
   validateRoleCounts,
 } from '../utils/mafiaDeal';
-import { MafiaLogState, summarizeLog } from '../utils/mafiaLog';
+import { LOG_TYPE_ROLES, MafiaLogState, summarizeLog } from '../utils/mafiaLog';
 
 export interface MafiaEventInput {
   title: string;
@@ -327,14 +327,27 @@ export class MafiaService {
     await this.db.dataSource.transaction(async (manager) => {
       const event = await this.lockEvent(manager, eventId, 'pessimistic_read', [MafiaStatus.DEALT]);
 
-      if (input.target_user_id != null) {
-        const target = await manager.getRepository(MafiaParticipant).findOne({
-          where: { event_id: eventId, user_id: input.target_user_id },
-        });
-        if (!target) throw new ConflictError('Target is not a participant');
+      // One roster read serves all three checks below.
+      const roster = await manager.getRepository(MafiaParticipant).find({ where: { event_id: eventId } });
+
+      if (input.target_user_id != null && !roster.some((p) => p.user_id === input.target_user_id)) {
+        throw new ConflictError('Target is not a participant');
+      }
+
+      // Only the presence of the role in the deal is checked, not the cycle: the host may add a missed night action.
+      const actors = LOG_TYPE_ROLES[input.type];
+      if (actors && !roster.some((p) => p.role && actors.includes(p.role))) {
+        throw new ValidationError('Entry type does not match the dealt roles');
       }
 
       const repo = manager.getRepository(MafiaLogEntry);
+      // The state is taken before the insert, so the entry that ends the game still goes through; notes stay allowed.
+      if (input.type !== MafiaLogType.NOTE) {
+        const entries = await repo.find({ where: { event_id: eventId, round: event.round } });
+        const state = summarizeLog(entries, roster.map((p) => ({ user_id: p.user_id, role: p.role ?? null })));
+        if (state.outcome !== null) throw new ConflictError('Game is already decided');
+      }
+
       await repo.save(repo.create({
         event_id: eventId,
         round: event.round,
